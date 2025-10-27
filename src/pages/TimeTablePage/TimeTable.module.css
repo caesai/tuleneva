@@ -1,0 +1,14 @@
+.timetable {
+    margin: 0 auto;
+}
+
+.card {
+    background-color: white;
+    color: black;
+    max-width: 360px;
+    padding: 2em;
+}
+
+.bookingButtonContainer {
+    margin-top: 1em;
+}
