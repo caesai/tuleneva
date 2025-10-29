@@ -15,3 +15,11 @@
 .selected {
     background-color: yellow;
 }
+
+.cancelSelected {
+    border: 1px solid red;
+}
+
+.booked {
+    background-color: red;
+}
