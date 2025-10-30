@@ -1,11 +1,11 @@
-import { BOOK_URL, CANCEL_URL, DEV_URL, HOURS_URL, TIMETABLE_URL } from './base.api.ts';
+import { BOOK_URL, CANCEL_URL, HOURS_URL, TIMETABLE_URL } from './base.api.ts';
 
 export const APIGetTimeTable = async (date: string) => {
-    const url = new URL(`${DEV_URL + TIMETABLE_URL}`);
-    url.search = new URLSearchParams({
-        date
-    }).toString();
-    return await fetch(url, {
+    // const url = new URL(`${ TIMETABLE_URL}`);
+    // url.search = new URLSearchParams({
+    //     date
+    // }).toString();
+    return await fetch(TIMETABLE_URL + '?date=' + date, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -15,11 +15,11 @@ export const APIGetTimeTable = async (date: string) => {
 };
 
 export const APIGetHours = async (date: string): Promise<Response> => {
-    const url = new URL(`${DEV_URL + HOURS_URL}`);
-    url.search = new URLSearchParams({
-        date
-    }).toString();
-    return await fetch(url, {
+    // const url = new URL(`${ HOURS_URL}`);
+    // url.search = new URLSearchParams({
+    //     date
+    // }).toString();
+    return await fetch(HOURS_URL + '?date=' + date, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -29,7 +29,7 @@ export const APIGetHours = async (date: string): Promise<Response> => {
 };
 
 export const APIPostBookRehearsal = async (date: string, hours: string[], username: string, band_name?: string) => {
-    return await fetch(DEV_URL + BOOK_URL, {
+    return await fetch( BOOK_URL, {
         method: 'POST',
         body: JSON.stringify({
             date,
@@ -39,20 +39,23 @@ export const APIPostBookRehearsal = async (date: string, hours: string[], userna
         }),
         headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache',
         },
     });
 };
 
-export const APICancelBooking = async (date: string, hours: string[], userId: string) => {
-    const response = await fetch(DEV_URL + CANCEL_URL, {
+export const APICancelBooking = async (date: string, hours: string[], userId: string, username: string) => {
+    const response = await fetch( CANCEL_URL, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache',
         },
         body: JSON.stringify({
             date, // e.g., '29/10/2025'
             hours, // e.g., ['10:00', '11:00']
-            userId
+            userId,
+            username
         }),
     });
 

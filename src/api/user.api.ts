@@ -1,4 +1,13 @@
-import { DEV_URL, USER_INFO_URL, USERS_LIST_URL } from '@/api/base.api.ts';
+import { DEV_URL, USER_AUTH_URL, USER_INFO_URL, USERS_LIST_URL } from '@/api/base.api.ts';
+
+export const APIGetAuth = async (token: string)=> {
+    return await fetch(DEV_URL + USER_AUTH_URL, {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+}
 
 export const APIGetUsers = async () => {
     return await fetch(DEV_URL + USERS_LIST_URL, {
