@@ -1,11 +1,36 @@
-import {defineConfig} from 'vite'
-import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tsconfigPaths from 'vite-tsconfig-paths';
+// import mkcert from 'vite-plugin-mkcert';
+import fs from 'fs';
 // https://vite.dev/config/
-export default defineConfig({
-    base: '/',
-    plugins: [
-        react(),
-        tsconfigPaths(),
-    ],
-})
+export default defineConfig(({ command }) => ({
+        base: '/',
+        plugins: [
+            react(),
+            tsconfigPaths(),
+            // mkcert(),
+        ],
+        server: {
+            // Exposes your dev server and makes it accessible for the devices in the same network.
+            port: 443,
+            host: '0.0.0.0',
+            hmr: {
+                host: 'tuleneva.local',
+                port: 443,
+            },
+            proxy: {
+                // Proxy requests from your Vite server to your backend
+                '/api': {
+                    target: 'http://localhost:3000',
+                    changeOrigin: true,
+                    secure: false, // For local development with self-signed certs
+                },
+            },
+            https:  {
+                key: fs.readFileSync('./.cert/localhost-key.pem'),
+                cert: fs.readFileSync('./.cert/localhost.pem'),
+            },
+        },
+    }),
+);

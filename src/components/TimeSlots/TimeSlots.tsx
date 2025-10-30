@@ -11,6 +11,7 @@ interface TimeSlotsProps {
     onHourClick: (hour: string) => void;
     currentUserId: string; // The ID of the currently logged-in user
     isAdmin: boolean; // Flag to indicate if the user is an admin
+    isSelectedDayBeforeToday: boolean;
 }
 
 const generateHours = () => [
@@ -25,6 +26,7 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
         onHourClick,
         currentUserId,
         isAdmin,
+        isSelectedDayBeforeToday,
     },
 ) => {
     const hours = useMemo(generateHours, []);
@@ -55,7 +57,7 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
                             },
                         )}
                         onClick={() => {
-                            if (canCancel || !isBooked) {
+                            if ((canCancel || !isBooked) && !isSelectedDayBeforeToday) {
                                 onHourClick(hour);
                             }
                         }}
