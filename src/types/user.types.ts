@@ -1,11 +1,13 @@
 export interface IUser {
-    id: number;
+    _id: string;
     telegram_id: number;
     first_name: string;
     last_name: string;
     username: string;
     photo_url: string;
     role: TRole;
+    createdAt: string;
+    updatedAt: string;
 }
 
 type TRole = 'admin' | 'user' | 'guest';

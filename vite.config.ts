@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
-// import mkcert from 'vite-plugin-mkcert';
 import fs from 'fs';
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
@@ -9,7 +8,6 @@ export default defineConfig(({ command }) => ({
         plugins: [
             react(),
             tsconfigPaths(),
-            // mkcert(),
         ],
         server: {
             // Exposes your dev server and makes it accessible for the devices in the same network.
@@ -27,7 +25,7 @@ export default defineConfig(({ command }) => ({
                     secure: false, // For local development with self-signed certs
                 },
             },
-            https:  {
+            https: command === 'build' ? {} : {
                 key: fs.readFileSync('./.cert/localhost-key.pem'),
                 cert: fs.readFileSync('./.cert/localhost.pem'),
             },

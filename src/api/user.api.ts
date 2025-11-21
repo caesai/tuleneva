@@ -1,11 +1,16 @@
 import { DEV_URL, USER_AUTH_URL, USER_INFO_URL, USERS_LIST_URL } from '@/api/base.api.ts';
 
-export const APIGetAuth = async (token: string)=> {
-    return await fetch(DEV_URL + USER_AUTH_URL, {
-        method: 'GET',
+export const APIPostAuth = async (initData: object, user: string)=> {
+    return await fetch(USER_AUTH_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+            initData,
+            user
+        }),
         headers: {
-            Authorization: `Bearer ${token}`
-        }
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache',
+        },
     });
 }
 
