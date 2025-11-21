@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, type ReactNode } from 'react';
-import { APIGetAuth } from '@/api/user.api.ts';
+import { APIPostAuth } from '@/api/user.api.ts';
 import type { IUser } from '@/types/user.types.ts';
+import {useLaunchParams, useRawInitData} from '@telegram-apps/sdk-react';
 
 interface IAuthContext {
     isAuthenticated: boolean;
@@ -9,7 +10,14 @@ interface IAuthContext {
     user: IUser | null;
 }
 
-const AuthContext = createContext<IAuthContext | null>(null);
+const initialAuthState: IAuthContext = {
+    isAuthenticated: false,
+    login: () => {},
+    logout: () => {},
+    user: null
+}
+
+const AuthContext = createContext<IAuthContext>(initialAuthState);
 
 interface AuthContextProps {
     children: ReactNode;
@@ -18,30 +26,27 @@ interface AuthContextProps {
 export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [user, setUser] = useState<IUser | null>(null);
-
+    const lp = useLaunchParams();
+    const rawLp = useRawInitData();
+    console.log('user: ', user);
     useEffect(() => {
-        const token = localStorage.getItem('authToken');
-        if (token) {
+        // const token = localStorage.getItem('authToken');
+        if (lp && rawLp) {
             // Validate the token with the server
-            APIGetAuth(token)
+            APIPostAuth(lp, rawLp)
                 .then(response => response.json())
                 .then(data => {
                     if (data.valid) {
-                        setIsAuthenticated(true);
-                        setUser(data.user);
+                        login(data.user, data.token);
                     } else {
-                        localStorage.removeItem('authToken');
-                        setIsAuthenticated(false);
-                        setUser(null);
+                        logout();
                     }
                 })
                 .catch(() => {
-                    localStorage.removeItem('authToken');
-                    setIsAuthenticated(false);
-                    setUser(null);
+                    logout();
                 });
         }
-    }, []);
+    }, [lp, rawLp]);
 
     const login = (userData: IUser, token: string) => {
         localStorage.setItem('authToken', token);

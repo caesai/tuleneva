@@ -8,6 +8,7 @@ import moment, { type Moment } from 'moment/moment';
 import css from '@/pages/TimeTablePage/TimeTable.module.css';
 import { APICancelBooking, APIPostBookRehearsal } from '@/api/timetable.api.ts';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
+import { useAuth } from '@/contexts/AuthContext.tsx';
 
 export const TimeTablePage: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<Moment | null>(moment());
@@ -19,10 +20,8 @@ export const TimeTablePage: React.FC = () => {
 
     const openModal = () => setIsModalOpen(true);
     const closeModal = () => setIsModalOpen(false);
-    // Mocked User Data
-    const currentUser = { id: 'placeholder_user_id', role: 'user', username: 'sushkazzlo' };
-    const isAdmin = currentUser.role === 'admin';
-
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
     // Fetch booked hours for the initially selected date (today)
     useEffect(() => {
         if (selectedDate) {
@@ -55,7 +54,8 @@ export const TimeTablePage: React.FC = () => {
         // Find if the clicked hour is one of the existing booked hours
         const isBooked = bookedHours.some(b => b.hour === hour);
         const booking = bookedHours.find(b => b.hour === hour);
-        const isMyBooking = booking?.userId === currentUser.id;
+        const isMyBooking = booking?.userId === user?._id;
+        console.log('booking', booking);
 
         if (isBooked) {
             if (isMyBooking || isAdmin) {
@@ -76,7 +76,7 @@ export const TimeTablePage: React.FC = () => {
 
     const handleBooking = async () => {
         try {
-            const response = await APIPostBookRehearsal(moment(selectedDate).format('DD/MM/YYYY'), selectedHours, currentUser.username, 'band_name');
+            const response = await APIPostBookRehearsal(moment(selectedDate).format('DD/MM/YYYY'), selectedHours, user?.username, user?._id, 'band_name');
             if (!response.ok) {
                 // Handle non-OK response, e.g., show an error message
                 throw new Error('Не удалось забронировать время.');
@@ -93,7 +93,7 @@ export const TimeTablePage: React.FC = () => {
 
     const handleCancel = async () => {
         try {
-            await APICancelBooking(moment(selectedDate).format('DD/MM/YYYY'), hoursToCancel, currentUser.id, currentUser.username);
+            await APICancelBooking(moment(selectedDate).format('DD/MM/YYYY'), hoursToCancel, user?._id, user?.username);
             // Refresh state after successful cancellation
             setHoursToCancel([]); // Clear hours for cancellation
             await fetchBookedHours(selectedDate as Moment); // Refetch booked hours for the current date
@@ -136,8 +136,8 @@ export const TimeTablePage: React.FC = () => {
                     bookedHours={bookedHours}
                     selectedHours={selectedHours}
                     onHourClick={handleHourClick}
-                    currentUserId={currentUser.id}
-                    isAdmin={false}
+                    currentUserId={String(user?._id)}
+                    isAdmin={isAdmin}
                     isSelectedDayBeforeToday={isSelectedDayBeforeToday}
                 />
                 {isBookingEnabled && (

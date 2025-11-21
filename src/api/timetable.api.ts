@@ -28,7 +28,7 @@ export const APIGetHours = async (date: string): Promise<Response> => {
     });
 };
 
-export const APIPostBookRehearsal = async (date: string, hours: string[], username: string, band_name?: string) => {
+export const APIPostBookRehearsal = async (date: string, hours: string[], username?: string, userId?: string, band_name?: string) => {
     return await fetch( BOOK_URL, {
         method: 'POST',
         body: JSON.stringify({
@@ -36,6 +36,7 @@ export const APIPostBookRehearsal = async (date: string, hours: string[], userna
             hours,
             username,
             band_name,
+            userId,
         }),
         headers: {
             'Content-Type': 'application/json',
@@ -44,7 +45,7 @@ export const APIPostBookRehearsal = async (date: string, hours: string[], userna
     });
 };
 
-export const APICancelBooking = async (date: string, hours: string[], userId: string, username: string) => {
+export const APICancelBooking = async (date: string, hours: string[], userId?: number, username?: string) => {
     const response = await fetch( CANCEL_URL, {
         method: 'DELETE',
         headers: {
