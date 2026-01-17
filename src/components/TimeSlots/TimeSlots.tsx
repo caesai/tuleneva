@@ -1,47 +1,77 @@
 // src/components/TimeSlots/TimeSlots.tsx
-import React, { useMemo } from 'react';
+import React from 'react';
 import classNames from 'classnames';
 import css from '@/components/TimeSlots/TimeSlots.module.css';
 import type { IHour } from '@/types/timetable.types.ts';
 
+/**
+ * Свойства компонента TimeSlots.
+ */
 interface TimeSlotsProps {
-    // Other existing props...
-    bookedHours: IHour[]; // Full booked data
+    /** Список всех забронированных часов на выбранную дату */
+    bookedHours: IHour[];
+    /** Список часов, выбранных пользователем для нового бронирования */
     selectedHours: string[];
+    /** Список часов, выбранных пользователем для отмены существующего бронирования */
+    hoursToCancel: string[];
+    /** Функция обратного вызова при клике на временной слот */
     onHourClick: (hour: string) => void;
-    currentUserId: string; // The ID of the currently logged-in user
-    isAdmin: boolean; // Flag to indicate if the user is an admin
+    /** ID текущего авторизованного пользователя */
+    currentUserId: string;
+    /** Флаг, указывающий, является ли текущий пользователь администратором */
+    isAdmin: boolean;
+    /** Флаг, указывающий, является ли выбранная дата прошедшей (блокирует взаимодействие) */
     isSelectedDayBeforeToday: boolean;
 }
 
-const generateHours = () => [
+/** Список доступных для бронирования часов (статическая конфигурация) */
+const AVAILABLE_HOURS = [
     '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
     '18:00', '19:00', '20:00', '21:00', '22:00', '23:00',
 ];
 
+/**
+ * Компонент TimeSlots
+ *
+ * Отображает сетку временных слотов для выбранного дня.
+ * Позволяет пользователям выбирать свободные слоты для бронирования
+ * или выбирать свои существующие бронирования для отмены.
+ *
+ * Особенности:
+ * - Отображает занятые слоты специальным стилем.
+ * - Подсвечивает собственные бронирования пользователя.
+ * - Блокирует взаимодействие с чужими бронированиями (если не админ) и прошедшими датами.
+ *
+ * @param props - Свойства компонента.
+ */
 export const TimeSlots: React.FC<TimeSlotsProps> = (
     {
-        bookedHours, // Use the full booking data
+        bookedHours,
         selectedHours,
+        hoursToCancel,
         onHourClick,
         currentUserId,
         isAdmin,
         isSelectedDayBeforeToday,
     },
 ) => {
-    const hours = useMemo(generateHours, []);
-
     return (
         <div className={css.timeSlotContainer}>
-            {hours.map(hour => {
+            {AVAILABLE_HOURS.map(hour => {
+                // Поиск бронирования для текущего часа
                 const booking = bookedHours.find(b => b.hour === hour);
                 const isBooked = !!booking;
-                const isMyBooking = booking?.userId === currentUserId;
+                const isMyBooking = String(booking?.userId) === String(currentUserId);
 
-                // Determine if the slot can be clicked for cancellation
-                const canCancel = isBooked && (isAdmin || isMyBooking);
-                const isSelected = selectedHours.includes(hour);
+                // Определение, может ли пользователь отменить этот слот (свой или если админ)
+                // Приводим ID к строке для корректного сравнения (так как с бэка может прийти в разном формате)
+                const canCancel = isBooked && (isAdmin || String(booking?.userId) === String(currentUserId));
 
+                // Состояния выбора
+                const isSelectedForBooking = selectedHours.includes(hour);
+                const isSelectedForCancellation = hoursToCancel.includes(hour);
+
+                // Слот недоступен, если он занят кем-то другим, и пользователь не админ
                 const isDisabledForBooking = isBooked && !canCancel;
 
                 return (
@@ -51,17 +81,23 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
                             css.timeSlot,
                             {
                                 [css.booked]: isBooked,
-                                [css.selected]: isSelected && !isBooked,
-                                [css.cancelSelected]: isSelected && canCancel,
-                                [css.myBooking]: isMyBooking, // Optional: highlight your own bookings
+                                // Слот выбран для нового бронирования (зеленый)
+                                [css.selected]: isSelectedForBooking && !isBooked,
+                                // Слот выбран для отмены (красный/зачеркнутый)
+                                [css.cancelSelected]: isSelectedForCancellation,
+                                // Визуальное выделение "моего" бронирования, даже если не выбрано
+                                [css.myBooking]: isMyBooking,
                             },
                         )}
                         onClick={() => {
+                            // Разрешаем клик, если это отмена доступного слота или бронирование свободного,
+                            // и если дата не в прошлом
                             if ((canCancel || !isBooked) && !isSelectedDayBeforeToday) {
                                 onHourClick(hour);
                             }
                         }}
                         disabled={isDisabledForBooking}
+                        aria-label={`Слот ${hour}, ${isBooked ? 'занят' : 'свободен'}`}
                     >
                         {hour}
                     </button>

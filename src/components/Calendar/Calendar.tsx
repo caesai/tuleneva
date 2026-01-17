@@ -9,13 +9,27 @@ import type { Moment } from 'moment';
 // import css from '@/components/Calendar/Calendar.module.css';
 // import moment, { type Moment } from "moment";
 
+/**
+ * Свойства компонента Calendar.
+ */
 interface CalendarProps {
+    /** Текущая выбранная дата. */
     date: Moment | null;
+    /** Обработчик изменения выбранной даты. */
     onDateChange: (date: Moment | null) => void;
+    /** Обработчик изменения месяца. */
     onMonthChange: (date: Moment) => void;
+    /** Массив дней месяца (чисел), которые нужно подсветить (например, есть бронирования). */
     highlightedDates: number[];
 }
 
+/**
+ * Компонент календаря для выбора даты.
+ * Использует MUI X Date Pickers.
+ * Отображает индикаторы на днях с бронированиями.
+ *
+ * @component
+ */
 export const Calendar: React.FC<CalendarProps> = ({ onDateChange, date, highlightedDates, onMonthChange }) => {
     return (
         <LocalizationProvider

@@ -1,73 +1,130 @@
-# React + TypeScript + Vite
+# Tuleneva Rehearsal Studio Booking App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Telegram Mini App для бронирования времени в репетиционной студии "Тюленева 25".
 
-Currently, two official plugins are available:
+## 🚀 Технологический стек
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**Frontend:**
+- [React](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- [Vite](https://vitejs.dev/) (сборщик)
+- [Telegram Apps SDK](https://docs.telegram-mini-apps.com/) (интеграция с Telegram)
+- [React Router](https://reactrouter.com/) (маршрутизация)
+- CSS Modules (стилизация)
 
-## React Compiler
+**Backend:**
+- [Node.js](https://nodejs.org/) + [Express](https://expressjs.com/)
+- [MongoDB](https://www.mongodb.com/) + [Mongoose](https://mongoosejs.com/)
+- [Telegraf](https://telegraf.js.org/) (Telegram Bot API)
+- [JWT](https://jwt.io/) (авторизация)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## ✨ Функционал
 
-## Expanding the ESLint configuration
+### Для пользователей:
+- 📅 **Просмотр расписания**: Календарь с отображением занятых и свободных слотов.
+- 📝 **Бронирование**: Возможность забронировать свободное время (для авторизованных пользователей).
+- ❌ **Отмена бронирования**: Возможность отменить свою репетицию.
+- 🔐 **Авторизация**: Автоматический вход через Telegram с валидацией данных (`initData`).
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Роли и доступ:
+- **Guest**: Может только просматривать расписание. Бронирование недоступно до подтверждения администратором.
+- **User**: Может бронировать время и отменять свои брони.
+- **Admin**: Полный доступ. Может бронировать и отменять любые репетиции, управлять пользователями.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Админ-панель (только для Admin):
+- 📋 **Список пользователей**: Просмотр всех зарегистрированных пользователей.
+- ✏️ **Управление ролями**: Изменение роли пользователя (`guest` -> `user` -> `admin`).
+- 🗑️ **Удаление пользователей**: Возможность удалить пользователя из базы.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🛠️ Установка и запуск
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Предварительные требования
+- Node.js (v18+)
+- MongoDB (запущенная локально или облачная)
+
+### 1. Клонирование репозитория
+```bash
+git clone <repository-url>
+cd tuleneva
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2. Настройка Бэкенда (Server)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Перейдите в папку сервера:
+```bash
+cd server
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Установите зависимости:
+```bash
+npm install
+```
+
+Создайте файл `.env` в папке `server` и добавьте необходимые переменные окружения:
+```env
+TELEGRAM_TOKEN=ваш_токен_бота
+TELEGRAM_ADMIN_ID=ваш_telegram_id_для_уведомлений
+JWT_SECRET=секретный_ключ_для_jwt
+PORT=3000
+```
+
+Запустите сервер:
+```bash
+npm start
+# или для разработки
+npm run dev
+```
+Сервер будет доступен по адресу `http://localhost:3000`.
+
+### 3. Настройка Фронтенда (Client)
+
+Вернитесь в корень проекта:
+```bash
+cd ..
+```
+
+Установите зависимости:
+```bash
+npm install
+```
+
+Запустите клиент в режиме разработки:
+```bash
+npm run dev
+```
+Приложение будет доступно по адресу, указанному в консоли (обычно `https://localhost:5173` или `https://tuleneva.local` если настроено).
+
+**Примечание:** Для корректной работы `Telegram Apps SDK` и авторизации локально, приложение эмулирует среду Telegram, если запущено в браузере.
+
+## 📡 API Эндпоинты
+
+### Авторизация
+- `POST /api/users/auth` - Аутентификация через Telegram InitData. Выдает JWT.
+
+### Пользователи
+- `GET /api/users` - Получить список всех пользователей (Требуется токен).
+- `PUT /api/users/:id/role` - Изменить роль пользователя (Только Admin).
+- `DELETE /api/users/:id` - Удалить пользователя (Только Admin).
+
+### Расписание и Бронирование
+- `GET /api/timetable?date=DD/MM/YYYY` - Получить занятые даты месяца.
+- `GET /api/hours?date=DD/MM/YYYY` - Получить слоты на конкретный день.
+- `POST /api/book` - Забронировать время (Требуется токен).
+- `DELETE /api/cancel` - Отменить бронирование (Требуется токен).
+
+## 📄 Структура проекта
+
+```
+tuleneva/
+├── server/                 # Бэкенд на Express
+│   ├── models/             # Mongoose схемы (User, Rehearsal)
+│   └── index.js            # Точка входа сервера
+├── src/                    # Фронтенд на React
+│   ├── api/                # Клиентские API функции
+│   ├── components/         # React компоненты (Calendar, TimeSlots, Loader...)
+│   ├── contexts/           # React Context (AuthContext)
+│   ├── hooks/              # Кастомные хуки (useAuth, useTimeTableData)
+│   ├── pages/              # Страницы (TimeTablePage, AdminPage)
+│   └── types/              # TypeScript типы
+├── vite.config.ts          # Конфигурация Vite
+└── README.md               # Документация
 ```

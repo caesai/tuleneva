@@ -1,35 +1,40 @@
-import { BOOK_URL, CANCEL_URL, HOURS_URL, TIMETABLE_URL } from './base.api.ts';
+import { BOOK_URL, CANCEL_URL, HOURS_URL, TIMETABLE_URL, getAuthHeaders } from './base.api.ts';
 
+/**
+ * Получает расписание (список дат с бронированиями) на указанную дату (месяц).
+ * @param date - Дата в формате 'DD/MM/YYYY'.
+ * @returns {Promise<Response>} Ответ сервера со списком дат.
+ */
 export const APIGetTimeTable = async (date: string) => {
-    // const url = new URL(`${ TIMETABLE_URL}`);
-    // url.search = new URLSearchParams({
-    //     date
-    // }).toString();
     return await fetch(TIMETABLE_URL + '?date=' + date, {
         method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store, no-cache',
-        },
+        headers: getAuthHeaders(),
     });
 };
 
+/**
+ * Получает список забронированных часов на конкретную дату.
+ * @param date - Дата в формате 'DD/MM/YYYY'.
+ * @returns {Promise<Response>} Ответ сервера со списком часов.
+ */
 export const APIGetHours = async (date: string): Promise<Response> => {
-    // const url = new URL(`${ HOURS_URL}`);
-    // url.search = new URLSearchParams({
-    //     date
-    // }).toString();
     return await fetch(HOURS_URL + '?date=' + date, {
         method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store, no-cache',
-        },
+        headers: getAuthHeaders(),
     });
 };
 
+/**
+ * Бронирует репетицию.
+ * @param date - Дата репетиции.
+ * @param hours - Массив выбранных часов.
+ * @param username - Имя пользователя (Telegram username).
+ * @param userId - ID пользователя (Telegram user ID).
+ * @param band_name - Название группы (опционально).
+ * @returns {Promise<Response>} Ответ сервера о результате бронирования.
+ */
 export const APIPostBookRehearsal = async (date: string, hours: string[], username?: string, userId?: string, band_name?: string) => {
-    return await fetch( BOOK_URL, {
+    return await fetch(BOOK_URL, {
         method: 'POST',
         body: JSON.stringify({
             date,
@@ -38,23 +43,26 @@ export const APIPostBookRehearsal = async (date: string, hours: string[], userna
             band_name,
             userId,
         }),
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store, no-cache',
-        },
+        headers: getAuthHeaders(),
     });
 };
 
-export const APICancelBooking = async (date: string, hours: string[], userId?: number, username?: string) => {
-    const response = await fetch( CANCEL_URL, {
+/**
+ * Отменяет бронирование репетиции.
+ * @param date - Дата репетиции.
+ * @param hours - Массив часов для отмены.
+ * @param userId - ID пользователя (для проверки прав).
+ * @param username - Имя пользователя.
+ * @returns {Promise<any>} Ответ сервера (JSON).
+ * @throws {Error} Если бронирование не найдено или произошла ошибка сервера.
+ */
+export const APICancelBooking = async (date: string, hours: string[], userId?: string, username?: string) => {
+    const response = await fetch(CANCEL_URL, {
         method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store, no-cache',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
-            date, // e.g., '29/10/2025'
-            hours, // e.g., ['10:00', '11:00']
+            date,
+            hours,
             userId,
             username
         }),
