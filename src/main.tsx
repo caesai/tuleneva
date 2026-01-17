@@ -22,6 +22,7 @@ try {
             </AuthProvider>
         </StrictMode>,
     );
-} catch (e) {
+} catch (error) {
+    console.error('Error initializing application:', error);
     root.render(<Site />);
 }

@@ -7,6 +7,20 @@ import type { IHour } from '@/types/timetable.types.ts';
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 3000;
 
+/**
+ * Хук для управления данными расписания.
+ * Загружает подсвеченные даты (дни с бронированиями) и забронированные часы для выбранной даты.
+ * Поддерживает автоматические повторные попытки при ошибке загрузки.
+ *
+ * @param date - Текущая выбранная дата (Moment объект) или null.
+ * @returns {object} Объект, содержащий:
+ * - highlightedDates: массив чисел (дней месяца), где есть бронирования.
+ * - bookedHours: массив объектов IHour с информацией о забронированных часах.
+ * - loading: флаг загрузки.
+ * - error: сообщение об ошибке или null.
+ * - fetchBookedHours: функция для загрузки часов на конкретную дату.
+ * - refetch: функция для повторной загрузки данных.
+ */
 export const useTimeTableData = (date: Moment | null) => {
     const [highlightedDates, setHighlightedDates] = useState<number[]>([]);
     const [bookedHours, setBookedHours] = useState<IHour[]>([]); // New state for booked hours

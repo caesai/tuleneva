@@ -1,0 +1,79 @@
+.adminPage {
+    padding: 20px;
+    background-color: var(--tg-theme-bg-color);
+    color: var(--tg-theme-text-color);
+    min-height: 100vh;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.backButton {
+    padding: 8px 16px;
+    background-color: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-text-color);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.tableContainer {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.table th, .table td {
+    padding: 10px;
+    border-bottom: 1px solid var(--tg-theme-hint-color);
+    text-align: left;
+}
+
+.table th {
+    background-color: var(--tg-theme-secondary-bg-color);
+    font-weight: bold;
+}
+
+.roleSelect {
+    padding: 5px;
+    border-radius: 4px;
+    border: 1px solid var(--tg-theme-hint-color);
+    background-color: var(--tg-theme-bg-color);
+    color: var(--tg-theme-text-color);
+}
+
+.deleteButton {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: none;
+    background-color: var(--tg-theme-destructive-text-color);
+    color: white;
+    cursor: pointer;
+}
+
+.deleteButton:hover {
+    opacity: 0.8;
+}
+
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.error {
+    color: var(--tg-theme-destructive-text-color);
+    text-align: center;
+    margin-top: 20px;
+}
