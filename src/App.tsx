@@ -52,7 +52,7 @@ const IndexPage: React.FC = () => {
                 </div>
             </ModalPopup>
             
-            {user?.role === 'admin' || user?.telegram_id === Number(import.meta.env.VITE_ADMIN_ID) && (
+            {user?.telegram_id === Number(import.meta.env.VITE_ADMIN_ID) && (
                 <div style={{ padding: '10px', textAlign: 'center' }}>
                     <button 
                         onClick={() => navigate('/admin')}
