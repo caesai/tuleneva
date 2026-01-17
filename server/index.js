@@ -18,13 +18,26 @@ const moment = require('moment');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+// Попытка загрузить .env из текущей директории
 require("dotenv").config();
+
+// Если переменные не загрузились (например, при запуске из dist/), пробуем найти .env на уровень выше
+if (!process.env.TELEGRAM_TOKEN) {
+    require("dotenv").config({ path: path.resolve(__dirname, '../.env') });
+}
+
+const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
+const JWT_SECRET = process.env.JWT_SECRET; // Ensure this is loaded
+
+if (!BOT_TOKEN) {
+    console.error('ERROR: TELEGRAM_TOKEN is not defined in .env file or environment variables.');
+    process.exit(1);
+}
 
 // Import the User model
 const User = require('./models/User');
 const Rehearsal = require('./models/Rehearsal');
-const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
-const JWT_SECRET = process.env.JWT_SECRET; // Ensure this is loaded
 
 /**
  * Подключение к базе данных MongoDB.
