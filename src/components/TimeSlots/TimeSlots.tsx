@@ -3,6 +3,7 @@ import React from 'react';
 import classNames from 'classnames';
 import css from '@/components/TimeSlots/TimeSlots.module.css';
 import type { IHour } from '@/types/timetable.types.ts';
+import { Avatar } from '@mui/material';
 
 /**
  * Свойства компонента TimeSlots.
@@ -99,7 +100,7 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
                         disabled={isDisabledForBooking}
                         aria-label={`Слот ${hour}, ${isBooked ? 'занят' : 'свободен'}`}
                     >
-                        {hour}
+                        {isBooked ? <Avatar src={booking?.userPhotoUrl} sx={{ width: 24, height: 24 }} /> : hour}
                     </button>
                 );
             })}

@@ -40,6 +40,102 @@ const User = require('./models/User');
 const Rehearsal = require('./models/Rehearsal');
 
 /**
+ * Проверяет, является ли строка временем в формате HH:MM
+ * @param {string} str - Строка для проверки
+ * @returns {boolean}
+ */
+const isTimeKey = (str) => /^\d{1,2}:\d{2}$/.test(str);
+
+/**
+ * Преобразует старый формат бронирований (объект с ключами-часами) в новый формат (массив bookedHourSchema).
+ * Старый формат: { "12:00": { status, owner, userId, bandName, avatar, ... }, ... }
+ * Новый формат: [{ hour, userId, username, band_name, userPhotoUrl }, ...]
+ * 
+ * @param {Object|Array} hoursData - Данные из БД (может быть старый формат или новый)
+ * @returns {Array} Массив в новом формате bookedHourSchema
+ */
+const normalizeHoursData = (hoursData) => {
+    // Если данных нет, возвращаем пустой массив
+    if (!hoursData) {
+        return [];
+    }
+
+    // Если это уже массив
+    if (Array.isArray(hoursData)) {
+        // Пустой массив - возвращаем как есть
+        if (hoursData.length === 0) {
+            return [];
+        }
+
+        // Проверяем первый элемент
+        const firstItem = hoursData[0];
+        
+        // Если первый элемент — это объект и у него есть поле hour, значит новый формат
+        if (firstItem && typeof firstItem === 'object' && firstItem.hour) {
+            return hoursData;
+        }
+
+        // Проверяем, является ли это массивом со старым форматом внутри
+        // (hours: [{ "12:00": {...}, "13:00": {...} }])
+        if (firstItem && typeof firstItem === 'object') {
+            // Конвертируем в plain object (на случай Mongoose document)
+            const plainObj = firstItem.toObject ? firstItem.toObject() : firstItem;
+            const keys = Object.keys(plainObj);
+            
+            // Если хотя бы один ключ выглядит как время (HH:MM), это старый формат
+            if (keys.some(isTimeKey)) {
+                return convertOldFormatToNew(plainObj);
+            }
+        }
+
+        // Иначе возвращаем как есть (возможно пустой или неизвестный формат)
+        return hoursData;
+    }
+
+    // Старый формат: объект, где ключи — это часы
+    if (typeof hoursData === 'object') {
+        const plainObj = hoursData.toObject ? hoursData.toObject() : hoursData;
+        return convertOldFormatToNew(plainObj);
+    }
+
+    return [];
+};
+
+/**
+ * Конвертирует объект старого формата в массив нового формата
+ * @param {Object} oldFormatObj - Объект старого формата { "12:00": {...}, ... }
+ * @returns {Array} Массив нового формата
+ */
+const convertOldFormatToNew = (oldFormatObj) => {
+    const normalizedHours = [];
+    
+    for (const [hour, slotData] of Object.entries(oldFormatObj)) {
+        // Пропускаем не-временные ключи (например, _id, __v и т.д.)
+        if (!isTimeKey(hour)) {
+            continue;
+        }
+        
+        // Пропускаем незабронированные слоты
+        if (!slotData || slotData.status !== 'BOOKED') {
+            continue;
+        }
+
+        normalizedHours.push({
+            hour: hour,
+            userId: slotData.userId ? String(slotData.userId) : null,
+            username: slotData.owner || '',
+            band_name: slotData.bandName || '',
+            userPhotoUrl: slotData.avatar || null
+        });
+    }
+
+    // Сортируем по времени
+    normalizedHours.sort((a, b) => a.hour.localeCompare(b.hour));
+    
+    return normalizedHours;
+};
+
+/**
  * Подключение к базе данных MongoDB.
  */
 mongoose.connect("mongodb://localhost:27017")
@@ -690,7 +786,10 @@ app.get('/api/hours', async (req, res) => {
             return res.status(200).json({ hours: [] });
         }
 
-        return res.status(200).json({ hours: rehearsalRecord.hours });
+        // Нормализуем данные из БД (поддержка старого и нового формата)
+        const normalizedHours = normalizeHoursData(rehearsalRecord.hours);
+
+        return res.status(200).json({ hours: normalizedHours });
 
     } catch (error) {
         console.error('Error fetching hours:', error);

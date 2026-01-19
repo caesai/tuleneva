@@ -20,9 +20,15 @@ interface MergedSlot {
  * Например: "23:00" -> "00:00", "12:00" -> "13:00"
  */
 const calculateEndTime = (hour: string): string => {
-    const hourNum = parseInt(hour.split(':')[0], 10);
-    const nextHour = (hourNum + 1) % 24;
-    return `${nextHour.toString().padStart(2, '0')}:00`;
+    try {
+        const hourNum = parseInt(hour.split(':')[0], 10);
+        const nextHour = (hourNum + 1) % 24;
+        return `${nextHour.toString().padStart(2, '0')}:00`;
+    } catch (err) {
+        console.error(err);
+        return '';
+    }
+
 };
 
 /**
@@ -107,6 +113,7 @@ export const Schedule: React.FC<ScheduleProps> = ({ bookedHours }) => {
                             className={css.avatar}
                             sx={{ width: 24, height: 24 }}
                         />
+                        <span className={css.time}>{slot.username}</span>
                         <span className={css.time}>{slot.startHour} - {slot.endHour}</span>
                     </div>
                     <div>

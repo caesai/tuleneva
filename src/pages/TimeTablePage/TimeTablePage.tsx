@@ -75,6 +75,11 @@ export const TimeTablePage: React.FC = () => {
     const isAdmin = user?.role === 'admin';
     const isGuest = user?.role === 'guest';
 
+    // Получаем сохранённые настройки пользователя (история названий групп)
+    const localUserSettings = localStorage.getItem('userSettings');
+    const userSettings = localUserSettings ? JSON.parse(localUserSettings) : {};
+    const bandNames: string[] = userSettings.bandNames || [];
+
     // Загрузка забронированных часов для изначально выбранной даты (сегодня) при монтировании или изменении selectedDate
     useEffect(() => {
         if (selectedDate) {
@@ -174,6 +179,11 @@ export const TimeTablePage: React.FC = () => {
             if (!response.ok) {
                 throw new Error('Не удалось забронировать время.');
             }
+            // Сохраняем название группы в историю при успешном бронировании
+            if (bookingBandName && !bandNames.includes(bookingBandName)) {
+                const updatedSettings = { ...userSettings, bandNames: [...bandNames, bookingBandName] };
+                localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
+            }
             setSelectedHours([]); // Очищаем выбранные часы при успехе
             await fetchBookedHours(selectedDate as Moment); // Повторно загружаем забронированные часы для текущей даты
             refetch();
@@ -219,20 +229,6 @@ export const TimeTablePage: React.FC = () => {
     const isBookingEnabled = selectedHours.length > 0 && !isGuest;
     const isBookingCancelling = hoursToCancel.length > 0 && !isGuest;
 
-    const localUserSettings = localStorage.getItem('userSettings');
-    const userSettings = localUserSettings ? JSON.parse(localUserSettings) : {};
-    const bandNames = userSettings.bandNames || [];
-    const bandNameOptions = bandNames.map((bandName: string) => ({ label: bandName, value: bandName }));
-    const handleBandNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const value = event.target.value;
-        setBookingBandName(value);
-        if (bandNames.includes(value)) {
-            return;
-        }
-        userSettings.bandNames = [...bandNames, value];
-        localStorage.setItem('userSettings', JSON.stringify(userSettings));
-    };
-
     const handleScheduleModeChange = () => {
         setIsScheduleMode(prev => !prev);
     };
@@ -255,10 +251,15 @@ export const TimeTablePage: React.FC = () => {
 
                     <div className={css.inputGroup}>
                         <Autocomplete
+                            freeSolo
                             disablePortal
-                            options={bandNameOptions}
+                            options={bandNames}
+                            inputValue={bookingBandName}
+                            onInputChange={(_event, newValue) => {
+                                setBookingBandName(newValue);
+                            }}
                             sx={{ width: 300 }}
-                            renderInput={(params) => <TextField {...params} label="Название коллектива (опционально)" onChange={handleBandNameChange} />}
+                            renderInput={(params) => <TextField {...params} label="Название коллектива (опционально)" />}
                         />
                     </div>
 

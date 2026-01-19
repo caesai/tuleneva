@@ -6,6 +6,7 @@ const bookedHourSchema = new mongoose.Schema({
     userId: { type: String, required: true },
     username: { type: String, required: true },
     band_name: { type: String, required: true },
+    userPhotoUrl: { type: String }, // URL фото пользователя из Telegram
 }, { _id: false });
 
 // Define the main Rehearsal schema
