@@ -18,7 +18,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "esbuild index.js --bundle --platform=node --packages=external --outfile=dist/index.js"
+    "build": "esbuild index.js --bundle --platform=node --packages=external --outfile=dist/index.cjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

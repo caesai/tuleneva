@@ -22,7 +22,7 @@ export const AdminPage: React.FC = () => {
 
     useEffect(() => {
         // Проверка прав доступа (на всякий случай, хотя роутинг тоже должен защищать)
-        if ( user && user.telegram_id !== Number(import.meta.env.VITE_ADMIN_ID)) {
+        if ( user && user.role !== 'admin') {
             navigate('/');
             return;
         }
@@ -110,7 +110,7 @@ export const AdminPage: React.FC = () => {
                                         className={css.roleSelect}
                                         value={u.role}
                                         onChange={(e) => handleRoleChange(u._id || '', e.target.value)}
-                                        // disabled={u._id === user?._id} // Нельзя менять роль самому себе
+                                        disabled={u._id === user?._id} // Нельзя менять роль самому себе
                                     >
                                         <option value="guest">Guest</option>
                                         <option value="user">User</option>

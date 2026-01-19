@@ -3,4 +3,5 @@ export interface IHour {
     "userId": string;
     "username": string;
     "band_name": string;
+    "userPhotoUrl": string;
 }
