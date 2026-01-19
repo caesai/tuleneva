@@ -1,7 +1,7 @@
 // src/hooks/useTimeTableData.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { APIGetTimeTable, APIGetHours } from '@/api/timetable.api.ts';
-import moment, { type Moment } from 'moment/moment';
+import moment, { type Moment } from '@/lib/moment';
 import type { IHour } from '@/types/timetable.types.ts';
 
 const MAX_RETRIES = 3;

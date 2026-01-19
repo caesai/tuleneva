@@ -111,14 +111,19 @@ export const Schedule: React.FC<ScheduleProps> = ({ bookedHours }) => {
                         <Avatar
                             src={slot.userPhotoUrl}
                             className={css.avatar}
-                            sx={{ width: 24, height: 24 }}
+                            sx={{ width: 36, height: 36, border: '1px solid' }}
                         />
-                        <span className={css.time}>{slot.username}</span>
-                        <span className={css.time}>{slot.startHour} - {slot.endHour}</span>
+                        <div className={css.usernameContainer}>
+                            <span className={css.username}>{slot.username}</span>
+                            <span className={css.time}>🕓 {slot.startHour} - {slot.endHour}</span>
+                        </div>
                     </div>
-                    <div>
-                        {slot.band_name && <span className={css.bandName}>{slot.band_name}</span>}
-                    </div>
+                    {slot.band_name && (
+                        <div className={css.timeContainer}>
+                            <span className={css.bandIcon}>🎸 </span>
+                            <span className={css.bandName}>{slot.band_name}</span>
+                        </div>
+                    )}
                 </div>
             ))}
         </div>
