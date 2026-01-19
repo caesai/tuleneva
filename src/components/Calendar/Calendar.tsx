@@ -5,9 +5,7 @@ import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment';
 import { PickersDay, type PickersDayProps } from '@mui/x-date-pickers/PickersDay';
 import { Badge } from "@mui/material";
 import { ruRU } from "@mui/x-date-pickers/locales";
-import type { Moment } from 'moment';
-// import css from '@/components/Calendar/Calendar.module.css';
-// import moment, { type Moment } from "moment";
+import moment, { type Moment } from '@/lib/moment';
 
 /**
  * Свойства компонента Calendar.
@@ -34,6 +32,7 @@ export const Calendar: React.FC<CalendarProps> = ({ onDateChange, date, highligh
     return (
         <LocalizationProvider
             dateAdapter={AdapterMoment}
+            dateLibInstance={moment}
             adapterLocale="ru"
             localeText={
                 ruRU.components.MuiLocalizationProvider.defaultProps.localeText

@@ -1,5 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+// Импортируем настроенный moment первым делом
+import '@/lib/moment';
 import { init } from '@/init.ts';
 import App from '@/App.tsx';
 import { AuthProvider } from '@/contexts/AuthContext.tsx';

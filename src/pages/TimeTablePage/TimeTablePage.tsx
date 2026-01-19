@@ -4,7 +4,7 @@ import { Loader } from '@/components/Loader/Loader.tsx';
 import { Calendar } from '@/components/Calendar/Calendar.tsx';
 import { TimeSlots } from '@/components/TimeSlots/TimeSlots.tsx';
 import { useTimeTableData } from '@/hooks/useTimeTableData.ts';
-import moment, { type Moment } from 'moment/moment';
+import moment, { type Moment } from '@/lib/moment';
 import css from '@/pages/TimeTablePage/TimeTable.module.css';
 import { APICancelBooking, APIPostBookRehearsal } from '@/api/timetable.api.ts';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
