@@ -1,5 +1,5 @@
 import React, { useEffect, useState, Suspense } from 'react';
-import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { swipeBehavior, useLaunchParams } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
 import { TimeTablePage } from '@/pages/TimeTablePage/TimeTablePage.tsx';
@@ -7,15 +7,18 @@ import { AdminPage } from '@/pages/AdminPage/AdminPage.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { Loader } from '@/components/Loader/Loader.tsx';
+import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
+import { useToast } from '@/hooks/useToast.ts';
+import { ToastContainer } from '@/components/Toast/Toast.tsx';
 
 const IndexPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const closeModal = () => setIsModalOpen(false);
-    const navigate = useNavigate();
 
     // Используем контекст авторизации
-    const { user, isLoading, isAuthenticated } = useAuth();
-    
+    const { user, isLoading, isAuthenticated, register } = useAuth();
+    const { toasts, showToast, removeToast } = useToast();
+
     // Эффект для управления модальным окном в зависимости от роли
     useEffect(() => {
         if (!isLoading) {
@@ -32,12 +35,25 @@ const IndexPage: React.FC = () => {
         closeModal();
     };
 
+    // const isUnregistered = user && !user.isRegistered && !user._id;
+
+    const handleRequestAccess = async () => {
+        try {
+            await register();
+            showToast('Запрос на доступ отправлен администратору.', 'success');
+        } catch (err) {
+            console.error('Request access failed:', err);
+            showToast('Не удалось отправить запрос.', 'error');
+        }
+    };
+
     if (isLoading) {
         return <Loader />;
     }
 
     return (
         <>
+            <ToastContainer toasts={toasts} onRemove={removeToast} />
             <ModalPopup isOpen={isModalOpen} onClose={closeModal}>
                 <div>
                     <h3>Тюленева 25</h3>
@@ -49,26 +65,17 @@ const IndexPage: React.FC = () => {
                     <button onClick={handleConfirm} style={{ marginTop: '10px', padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#007aff', color: 'white' }}>
                         Понятно
                     </button>
+                    {user?.role === 'guest' && (
+                        <button
+                            style={{ marginTop: '10px', padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#007aff', color: 'white' }}
+                            onClick={handleRequestAccess}
+                        >
+                            Запросить доступ
+                        </button>
+                    )}
                 </div>
             </ModalPopup>
-            
-            {user?.telegram_id === Number(import.meta.env.VITE_ADMIN_ID) && (
-                <div style={{ padding: '10px', textAlign: 'center' }}>
-                    <button 
-                        onClick={() => navigate('/admin')}
-                        style={{ 
-                            padding: '8px 16px', 
-                            borderRadius: '8px', 
-                            border: 'none', 
-                            background: 'var(--tg-theme-button-color)', 
-                            color: 'var(--tg-theme-button-text-color)' 
-                        }}
-                    >
-                        Админ панель
-                    </button>
-                </div>
-            )}
-            
+
             <TimeTablePage />
         </>
     );
@@ -94,14 +101,16 @@ const App: React.FC = () => {
                 ['macos', 'ios'].includes(lp.tgWebAppPlatform) ? 'ios' : 'base'
             }
         >
-            <BrowserRouter>
-                <Suspense fallback={<Loader />}>
-                    <Routes>
-                        <Route path="/" element={<IndexPage />} />
-                        <Route path="/admin" element={<AdminPage />} />
-                    </Routes>
-                </Suspense>
-            </BrowserRouter>
+            <NetworkProvider>
+                <BrowserRouter>
+                    <Suspense fallback={<Loader />}>
+                        <Routes>
+                            <Route path="/" element={<IndexPage />} />
+                            <Route path="/admin" element={<AdminPage />} />
+                        </Routes>
+                    </Suspense>
+                </BrowserRouter>
+            </NetworkProvider>
         </AppRoot>
     );
 };

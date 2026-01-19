@@ -11,7 +11,7 @@
 const express = require('express')
 const app = express();
 const cors = require('cors');
-const port = 3000;
+const port = process.env.PORT || 3000;
 const { Telegraf, Markup } = require('telegraf');
 const { message } = require('telegraf/filters');
 const moment = require('moment');
@@ -57,13 +57,11 @@ const startButtonReply = Markup.keyboard([
     // button text, which is sent as a message to the bot
     ['/start']
 ]).resize();
-const BOT_START_MESSAGE = `
-    *Бот студии Тюленва 25:*\n чтобы посмотреть расписание студии и забронировать репетицию\n запустите мини аппку по кнопке
-`
-const miniAppUrl = 'https://tuleneva.local';
+const BOT_START_MESSAGE = `Мини аппка`.trim();
+const miniAppUrl = 'https://tuleneva25.ru/';
 bot.start((ctx) => ctx.reply(BOT_START_MESSAGE,
     Markup.inlineKeyboard([
-        [Markup.button.webApp('Запустить мини аппку', miniAppUrl)]
+        [Markup.button.webApp('🕓 Расписание студии', miniAppUrl)]
     ])));
 bot.launch();
 const TELEGRAM_ADMIN_ID = process.env.TELEGRAM_ADMIN_ID;
@@ -97,6 +95,30 @@ const authenticateToken = (req, res, next) => {
         req.user = user; // Attach user info (userId, role) to request
         next();
     });
+};
+
+/**
+ * Middleware для проверки существования пользователя в БД.
+ * Проверяет, что пользователь из токена существует в базе данных,
+ * и добавляет актуальные данные пользователя в req.dbUser.
+ * 
+ * @param {import('express').Request} req - Объект запроса Express.
+ * @param {import('express').Response} res - Объект ответа Express.
+ * @param {import('express').NextFunction} next - Функция передачи управления следующему middleware.
+ * @returns {void}
+ */
+const verifyUserExists = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        req.dbUser = user; // Актуальные данные из БД
+        next();
+    } catch (err) {
+        console.error('Error verifying user existence:', err);
+        return res.status(500).json({ error: 'Internal server error.' });
+    }
 };
 
 app.get('/', (req, res) => {
@@ -199,7 +221,7 @@ app.post('/api/users/auth', async (req, res) => {
                 user: guestUser
             });
         }
-        
+
         // Пользователь найден, обновляем данные (опционально) и выдаем токен
         user.first_name = tg.user.first_name;
         user.last_name = tg.user.last_name || null;
@@ -233,7 +255,7 @@ app.post('/api/users/register', async (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
     const { initData: rawInitData, user: userData } = req.body;
-    
+
     if (!rawInitData || !userData) {
         return res.status(400).json({ message: 'Missing Telegram initialization data' });
     }
@@ -290,10 +312,10 @@ app.post('/api/users/register', async (req, res) => {
  * @access Protected
  * @returns {Array<Object>} Список пользователей.
  */
-app.get('/api/users', authenticateToken, async (req, res) => {
+app.get('/api/users', authenticateToken, verifyUserExists, async (req, res) => {
     try {
-        // Optional: Check if admin
-        // if (req.user.role !== 'admin') return res.sendStatus(403);
+        // Optional: Check if admin using actual DB role
+        // if (req.dbUser.role !== 'admin') return res.sendStatus(403);
 
         const users = await User.find();
         res.json(users);
@@ -312,10 +334,9 @@ app.get('/api/users', authenticateToken, async (req, res) => {
  * @param {string} req.body.role - Новая роль ('admin', 'user', 'guest').
  * @returns {Object} Обновленный объект пользователя.
  */
-app.put('/api/users/:id/role', authenticateToken, async (req, res) => {
-    // Strict Admin check
-    console.log(req.user.telegramId === Number(TELEGRAM_ADMIN_ID));
-    if (req.user.telegramId !== Number(TELEGRAM_ADMIN_ID) && req.user.role !== 'admin') {
+app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, res) => {
+    // Strict Admin check using actual DB role
+    if (req.dbUser.role !== 'admin') {
         return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -362,9 +383,9 @@ app.put('/api/users/:id/role', authenticateToken, async (req, res) => {
  * @param {string} req.params.id - ID пользователя для удаления.
  * @returns {Object} Сообщение об успешном удалении.
  */
-app.delete('/api/users/:id', authenticateToken, async (req, res) => {
-    // Strict Admin check
-    if (req.user.role !== 'admin') {
+app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, res) => {
+    // Strict Admin check using actual DB role
+    if (req.dbUser.role !== 'admin') {
         return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -391,27 +412,24 @@ app.delete('/api/users/:id', authenticateToken, async (req, res) => {
  * @access Protected (User/Admin)
  * @param {string} req.body.date - Дата бронирования (DD/MM/YYYY).
  * @param {Array<string>} req.body.hours - Массив часов для бронирования.
- * @param {string} req.body.username - Имя пользователя (Telegram username).
- * @param {string} req.body.band_name - Название группы.
- * @param {string} req.body.userId - ID пользователя (Telegram ID).
+ * @param {string} req.body.band_name - Название группы (опционально).
  * @returns {Object} Обновленный объект репетиции.
  */
-app.post('/api/book', authenticateToken, async (req, res) => {
+app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
     try {
-        const { date, hours, username, band_name, userId } = req.body;
+        const { date, hours, band_name } = req.body;
+        // Получаем username и userId из верифицированных данных БД
+        const username = req.dbUser.username || req.dbUser.first_name;
+        const userId = req.dbUser._id;
+        const userPhotoUrl = req.dbUser.photo_url;
 
-        // Ensure the booking is made for the authenticated user (unless admin)
-        // Note: userId in body vs req.user.userId (from token)
-        if (req.user.role !== 'admin' && req.user.userId !== userId) {
-            return res.status(403).json({ error: 'You can only book for yourself.' });
-        }
-        // Also check role
-        if (req.user.role === 'guest') {
+        // Check role from DB
+        if (req.dbUser.role === 'guest') {
             return res.status(403).json({ error: 'Guests cannot book rehearsals.' });
         }
 
         // 1. Input Validation
-        if (!date || !hours || !Array.isArray(hours) || hours.length === 0 || !username || !band_name || !userId) {
+        if (!date || !hours || !Array.isArray(hours) || hours.length === 0) {
             return res.status(400).json({ error: 'Missing or invalid booking data.' });
         }
 
@@ -447,7 +465,8 @@ app.post('/api/book', authenticateToken, async (req, res) => {
             hour,
             userId,
             username,
-            band_name
+            band_name,
+            userPhotoUrl
         }));
 
         // 5. Atomically push new hours to the document
@@ -458,7 +477,7 @@ app.post('/api/book', authenticateToken, async (req, res) => {
         );
         console.log('username: ', username, date, hours.join(','))
         const BOOK_MESSAGE = `
-            @${username} забронировал репетицию ${date.replaceAll('/', '.')} ${hours.join(',')}
+        👨‍💻: @${username} забронировал репетицию 📅:${date.replaceAll('/', '.')} 🕓:${hours.join(',')}
         `
         await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, BOOK_MESSAGE);
         return res.status(201).json(updatedRehearsal);
@@ -476,23 +495,18 @@ app.post('/api/book', authenticateToken, async (req, res) => {
  * @access Protected (User can cancel own, Admin can cancel any)
  * @param {string} req.body.date - Дата бронирования (DD/MM/YYYY).
  * @param {Array<string>} req.body.hours - Массив часов для отмены.
- * @param {string} req.body.userId - ID пользователя, чью бронь отменяем.
- * @param {string} req.body.username - Имя пользователя.
  * @returns {Object} Сообщение об успешной отмене и обновленные данные.
  */
-app.delete('/api/cancel', authenticateToken, async (req, res) => {
+app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) => {
     try {
-        const { date, hours, userId, username } = req.body;
-        // Verify identity via token
-        const isAdmin = req.user.role === 'admin';
-
-        // If not admin, ensure canceling own booking
-        if (!isAdmin && req.user.userId !== userId) {
-            return res.status(403).json({ error: 'You can only cancel your own bookings.' });
-        }
+        const { date, hours } = req.body;
+        // Получаем username и userId из верифицированных данных БД
+        const username = req.dbUser.username || req.dbUser.first_name;
+        const userId = req.dbUser._id;
+        const isAdmin = req.dbUser.role === 'admin';
 
         // 1. Input Validation
-        if (!date || !hours || !Array.isArray(hours) || hours.length === 0 || !userId) {
+        if (!date || !hours || !Array.isArray(hours) || hours.length === 0) {
             return res.status(400).json({ error: 'Missing or invalid cancellation data.' });
         }
 
@@ -519,7 +533,6 @@ app.delete('/api/cancel', authenticateToken, async (req, res) => {
         const hoursToCancel = hours.filter(hour => {
             const booking = rehearsalDoc.hours.find(h => h.hour === hour);
             // Strict check: if admin, can cancel any. If user, must match userId.
-            // req.user.userId comes from token (trusted). userId in body matches token logic above.
             return booking && (isAdmin || String(booking.userId) === String(userId));
         });
 
@@ -542,19 +555,47 @@ app.delete('/api/cancel', authenticateToken, async (req, res) => {
             },
             { new: true }
         );
-        const CANCEL_MESSAGE = `
-            @${username} отменил репетицию ${date.replaceAll('/', '.')} ${hours.join(',')}
+        const CANCEL_MESSAGE_ADMIN = `
+        👨‍💻: @${username} отменил репетицию 📅:${date.replaceAll('/', '.')} 🕓:${hours.join(',')}
         `
+        const CANCEL_MESSAGE_USER = `
+        Ваша репетиция 📅:${date.replaceAll('/', '.')} 🕓:${hours.join(',')} была отменена администратором
+        `
+
+        // Логика уведомлений
+        if (isAdmin) {
+            // Администратор отменяет бронирования
+            // Нужно найти пользователей, чьи брони были отменены
+            // hoursToCancel содержит список часов
+            // Мы можем найти userId для каждого часа из hoursToCancel в исходном rehearsalDoc
+            const affectedUserIds = [...new Set(rehearsalDoc.hours
+                .filter(h => hoursToCancel.includes(h.hour))
+                .map(h => h.userId))];
+
+            for (const affectedUserId of affectedUserIds) {
+                try {
+                    // Найти telegram_id пользователя по affectedUserId
+                    const affectedUser = await User.findById(affectedUserId);
+                    if (affectedUser) {
+                        await bot.telegram.sendMessage(affectedUser.telegram_id, CANCEL_MESSAGE_USER);
+                    }
+                } catch (e) {
+                    console.error(`Failed to notify user ${affectedUserId} about cancellation:`, e);
+                }
+            }
+        } else {
+            // Пользователь отменяет свое бронирование - уведомляем админа
+            await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, CANCEL_MESSAGE_ADMIN);
+        }
+
         if (updatedRehearsal && updatedRehearsal.hours.length === 0) {
             await Rehearsal.deleteOne({ _id: updatedRehearsal._id });
-            await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, CANCEL_MESSAGE);
             return res.status(200).json({ message: 'All bookings for this day canceled, document deleted.' });
         }
 
         if (!updatedRehearsal) {
             return res.status(404).json({ error: 'Booking not found or already canceled.' });
         }
-        await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, CANCEL_MESSAGE);
         res.status(200).json({
             message: 'Bookings canceled successfully.',
             rehearsal: updatedRehearsal

@@ -40,12 +40,13 @@ export const Calendar: React.FC<CalendarProps> = ({ onDateChange, date, highligh
             }
         >
             <DateCalendar
+                
                 onChange={onDateChange}
                 value={date}
-                slots={{ day: CalendarDay } as any}
+                slots={{ day: CalendarDay } as unknown as PickersDayProps['day']}
                 onMonthChange={onMonthChange}
                 slotProps={{
-                    day: { highlightedDays: highlightedDates } as any,
+                    day: { highlightedDays: highlightedDates } as unknown as PickersDayProps,
                 }}
             />
         </LocalizationProvider>

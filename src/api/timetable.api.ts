@@ -28,20 +28,16 @@ export const APIGetHours = async (date: string): Promise<Response> => {
  * Бронирует репетицию.
  * @param date - Дата репетиции.
  * @param hours - Массив выбранных часов.
- * @param username - Имя пользователя (Telegram username).
- * @param userId - ID пользователя (Telegram user ID).
  * @param band_name - Название группы (опционально).
  * @returns {Promise<Response>} Ответ сервера о результате бронирования.
  */
-export const APIPostBookRehearsal = async (date: string, hours: string[], username?: string, userId?: string, band_name?: string) => {
+export const APIPostBookRehearsal = async (date: string, hours: string[], band_name?: string) => {
     return await fetch(BOOK_URL, {
         method: 'POST',
         body: JSON.stringify({
             date,
             hours,
-            username,
             band_name,
-            userId,
         }),
         headers: getAuthHeaders(),
     });
@@ -51,20 +47,16 @@ export const APIPostBookRehearsal = async (date: string, hours: string[], userna
  * Отменяет бронирование репетиции.
  * @param date - Дата репетиции.
  * @param hours - Массив часов для отмены.
- * @param userId - ID пользователя (для проверки прав).
- * @param username - Имя пользователя.
  * @returns {Promise<any>} Ответ сервера (JSON).
  * @throws {Error} Если бронирование не найдено или произошла ошибка сервера.
  */
-export const APICancelBooking = async (date: string, hours: string[], userId?: string, username?: string) => {
+export const APICancelBooking = async (date: string, hours: string[]) => {
     const response = await fetch(CANCEL_URL, {
         method: 'DELETE',
         headers: getAuthHeaders(),
         body: JSON.stringify({
             date,
             hours,
-            userId,
-            username
         }),
     });
 

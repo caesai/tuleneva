@@ -1,0 +1,56 @@
+/* src/components/NetworkBanner/NetworkBanner.module.css */
+
+.banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease-in-out;
+}
+
+.banner.visible {
+    transform: translateY(0);
+}
+
+.offline {
+    background-color: #ff3b30;
+    color: white;
+}
+
+.reconnecting {
+    background-color: #ff9500;
+    color: white;
+}
+
+.online {
+    background-color: #34c759;
+    color: white;
+}
+
+.icon {
+    font-size: 16px;
+}
+
+.message {
+    line-height: 1.2;
+}
+
+/* Пространство для контента под баннером когда он виден */
+.spacer {
+    height: 0;
+    transition: height 0.3s ease-in-out;
+}
+
+.spacer.active {
+    height: 40px;
+}
