@@ -20,16 +20,16 @@ const IndexPage: React.FC = () => {
     const { toasts, showToast, removeToast } = useToast();
 
     // Эффект для управления модальным окном в зависимости от роли
-    useEffect(() => {
-        if (!isLoading) {
-            // Если пользователь гость или не авторизован - показываем предупреждение
-            if (!isAuthenticated || (user && user.role === 'guest')) {
-                setIsModalOpen(true);
-            } else {
-                setIsModalOpen(false);
-            }
-        }
-    }, [isLoading, isAuthenticated, user]);
+    // useEffect(() => {
+    //     if (!isLoading) {
+    //         // Если пользователь гость или не авторизован - показываем предупреждение
+    //         if (!isAuthenticated || (user && user.role === 'guest')) {
+    //             setIsModalOpen(true);
+    //         } else {
+    //             setIsModalOpen(false);
+    //         }
+    //     }
+    // }, [isLoading, isAuthenticated, user]);
 
     const handleConfirm = () => {
         closeModal();

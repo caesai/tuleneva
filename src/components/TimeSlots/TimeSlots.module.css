@@ -3,6 +3,8 @@
     flex-wrap: wrap;
     gap: 1rem;
     justify-content: center;
+    max-width: 320px;
+    margin: 0 auto;
 }
 
 .timeSlot {
@@ -10,16 +12,19 @@
     border: 1px solid black!important;
     background-color: white;
     color: black;
+    display: inline-flex;
+    justify-content: center;
+    width: 30%;
 }
 
 .selected {
-    background-color: yellow;
+    background-color: rgb(85, 193, 85);
 }
 
 .cancelSelected {
-    border: 1px solid red;
+    background-color: yellow!important;
 }
 
 .booked {
-    background-color: red;
+    border-color: red!important;
 }
