@@ -3,6 +3,7 @@
     width: 100%;
     display: flex;
     justify-content: center;
+    align-items: start;
 }
 
 .title {
@@ -130,6 +131,67 @@
 .tabContent {
     transition: opacity 0.2s ease-out;
 }
+
+
+.slot {
+    width: 100%;
+    padding: 0.5em 1em;
+    margin-bottom: 0.5em;
+    box-sizing: border-box;
+}
+
+.avatar {
+    width: 14px;
+    height: 14px;
+}
+
+.usernameContainer {
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: start;
+}
+
+.username {
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 14px;
+}
+/**
+* TODO: Убрать весь этот элемент в отдельный компонент
+*/
+.time {
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.timeContainer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1em;
+}
+
+.username {
+    flex: 1;
+    text-align: center;
+}
+
+.bandIcon {
+    font-size: 27px;
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+}
+
+.bandName {
+    font-style: italic;
+    text-align: right;
+    font-size: 18px;
+}
+
 
 @keyframes fadeIn {
     from {

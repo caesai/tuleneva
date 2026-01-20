@@ -95,6 +95,64 @@ const Rehearsal = require('./models/Rehearsal');
 const isTimeKey = (str) => /^\d{1,2}:\d{2}$/.test(str);
 
 /**
+ * Вычисляет конечное время (начальный час + 1)
+ * Например: "23:00" -> "00:00", "12:00" -> "13:00"
+ * @param {string} hour - Час в формате "HH:00"
+ * @returns {string}
+ */
+const calculateEndTime = (hour) => {
+    const hourNum = parseInt(hour.split(':')[0], 10);
+    const nextHour = (hourNum + 1) % 24;
+    return `${nextHour.toString().padStart(2, '0')}:00`;
+};
+
+/**
+ * Извлекает числовое значение часа из строки "HH:00"
+ * @param {string} hour - Час в формате "HH:00"
+ * @returns {number}
+ */
+const getHourNumber = (hour) => {
+    return parseInt(hour.split(':')[0], 10);
+};
+
+/**
+ * Объединяет последовательные часы в диапазоны
+ * Например: ["14:00", "15:00", "16:00", "19:00"] -> "14:00 - 17:00, 19:00 - 20:00"
+ * @param {string[]} hours - Массив часов
+ * @returns {string}
+ */
+const formatHoursRange = (hours) => {
+    if (!hours || hours.length === 0) return '';
+
+    const sortedHours = [...hours].sort((a, b) => getHourNumber(a) - getHourNumber(b));
+    const ranges = [];
+
+    let rangeStart = sortedHours[0];
+    let rangeEnd = sortedHours[0];
+
+    for (let i = 1; i < sortedHours.length; i++) {
+        const current = sortedHours[i];
+        const prevHourNum = getHourNumber(rangeEnd);
+        const currentHourNum = getHourNumber(current);
+
+        if (currentHourNum === prevHourNum + 1) {
+            // Последовательный слот - расширяем диапазон
+            rangeEnd = current;
+        } else {
+            // Не последовательный - сохраняем текущий диапазон и начинаем новый
+            ranges.push(`${rangeStart} - ${calculateEndTime(rangeEnd)}`);
+            rangeStart = current;
+            rangeEnd = current;
+        }
+    }
+
+    // Добавляем последний диапазон
+    ranges.push(`${rangeStart} - ${calculateEndTime(rangeEnd)}`);
+
+    return ranges.join(', ');
+};
+
+/**
  * Преобразует старый формат бронирований (объект с ключами-часами) в новый формат (массив bookedHourSchema).
  * Старый формат: { "12:00": { status, owner, userId, bandName, avatar, ... }, ... }
  * Новый формат: [{ hour, userId, username, band_name, userPhotoUrl }, ...]
@@ -626,7 +684,7 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
 👨‍💻 @${username}
 
 📅 ${date.replaceAll('/', '.')} 
-🕓 ${hours.join(',')}
+🕓 ${formatHoursRange(hours)}
         `
         await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, BOOK_MESSAGE);
 
@@ -723,13 +781,13 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
 👨‍💻 @${username}
 
 📅 ${date.replaceAll('/', '.')} 
-🕓 ${hours.join(',')}
+🕓 ${formatHoursRange(hoursToCancel)}
         `
         const CANCEL_MESSAGE_USER = `
 **ОТМЕНА**
     
 📅 ${date.replaceAll('/', '.')}
-🕓 ${hours.join(',')}
+🕓 ${formatHoursRange(hoursToCancel)}
 
 Репетиция была отменена администратором
         `
