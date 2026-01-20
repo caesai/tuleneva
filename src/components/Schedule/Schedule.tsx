@@ -1,6 +1,6 @@
 import css from '@/components/Schedule/Schedule.module.css';
 import type { IHour } from '@/types/timetable.types';
-import { Avatar } from '@mui/material';
+import { Avatar, Card } from '@mui/material';
 
 interface ScheduleProps {
     bookedHours: IHour[];
@@ -106,7 +106,7 @@ export const Schedule: React.FC<ScheduleProps> = ({ bookedHours }) => {
     return (
         <div className={css.schedule}>
             {mergedSlots.map((slot, index) => (
-                <div key={`${slot.startHour}-${index}`} className={css.slot}>
+                <Card key={`${slot.startHour}-${index}`} className={css.slot}>
                     <div className={css.timeContainer}>
                         <Avatar
                             src={slot.userPhotoUrl}
@@ -124,7 +124,7 @@ export const Schedule: React.FC<ScheduleProps> = ({ bookedHours }) => {
                             <span className={css.bandName}>{slot.band_name}</span>
                         </div>
                     )}
-                </div>
+                </Card>
             ))}
         </div>
     );

@@ -3,7 +3,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
 import { AdapterMoment } from '@mui/x-date-pickers/AdapterMoment';
 import { PickersDay, type PickersDayProps } from '@mui/x-date-pickers/PickersDay';
-import { Badge } from "@mui/material";
+import { Badge, Card } from "@mui/material";
 import { ruRU } from "@mui/x-date-pickers/locales";
 import moment, { type Moment } from '@/lib/moment';
 
@@ -38,16 +38,18 @@ export const Calendar: React.FC<CalendarProps> = ({ onDateChange, date, highligh
                 ruRU.components.MuiLocalizationProvider.defaultProps.localeText
             }
         >
-            <DateCalendar
-                
-                onChange={onDateChange}
-                value={date}
-                slots={{ day: CalendarDay } as unknown as PickersDayProps['day']}
-                onMonthChange={onMonthChange}
-                slotProps={{
-                    day: { highlightedDays: highlightedDates } as unknown as PickersDayProps,
-                }}
-            />
+            <Card>
+                <DateCalendar
+                    sx={{ height: 300 }}
+                    onChange={onDateChange}
+                    value={date}
+                    slots={{ day: CalendarDay } as unknown as PickersDayProps['day']}
+                    onMonthChange={onMonthChange}
+                    slotProps={{
+                        day: { highlightedDays: highlightedDates } as unknown as PickersDayProps,
+                    }}
+                />
+            </Card>
         </LocalizationProvider>
     );
 }

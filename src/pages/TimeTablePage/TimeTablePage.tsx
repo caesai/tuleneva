@@ -12,13 +12,66 @@ import { useAuth } from '@/hooks/useAuth.ts';
 import { useNetwork } from '@/contexts/NetworkContext.tsx';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useToast } from '@/hooks/useToast.ts';
-import { Autocomplete, Avatar, CardHeader, Tab, TextField } from '@mui/material';
+import { Autocomplete, Avatar, Card, Tab, TextField } from '@mui/material';
 import logo from '/logo_main512.svg';
 import { useNavigate } from 'react-router-dom';
 import { Schedule } from '@/components/Schedule/Schedule';
 import TabPanel from '@mui/lab/TabPanel';
 import TabContext from '@mui/lab/TabContext';
 import { TabList } from '@mui/lab';
+
+/**
+ * Вычисляет конечное время (начальный час + 1)
+ * Например: "23:00" -> "00:00", "12:00" -> "13:00"
+ */
+const calculateEndTime = (hour: string): string => {
+    const hourNum = parseInt(hour.split(':')[0], 10);
+    const nextHour = (hourNum + 1) % 24;
+    return `${nextHour.toString().padStart(2, '0')}:00`;
+};
+
+/**
+ * Извлекает числовое значение часа из строки "HH:00"
+ */
+const getHourNumber = (hour: string): number => {
+    return parseInt(hour.split(':')[0], 10);
+};
+
+/**
+ * Объединяет последовательные часы в диапазоны
+ * Например: ["14:00", "15:00", "16:00", "19:00"] -> "14:00 - 17:00, 19:00 - 20:00"
+ */
+const formatSelectedHoursRange = (hours: string[]): string => {
+    if (hours.length === 0) return '';
+
+    const sortedHours = [...hours].sort((a, b) => getHourNumber(a) - getHourNumber(b));
+    const ranges: string[] = [];
+
+    let rangeStart = sortedHours[0];
+    let rangeEnd = sortedHours[0];
+
+    for (let i = 1; i < sortedHours.length; i++) {
+        const current = sortedHours[i];
+        const prevHourNum = getHourNumber(rangeEnd);
+        const currentHourNum = getHourNumber(current);
+
+        if (currentHourNum === prevHourNum + 1) {
+            // Последовательный слот - расширяем диапазон
+            rangeEnd = current;
+        } else {
+            // Не последовательный - сохраняем текущий диапазон и начинаем новый
+            ranges.push(`${rangeStart} - ${calculateEndTime(rangeEnd)}`);
+            rangeStart = current;
+            rangeEnd = current;
+        }
+    }
+
+    // Добавляем последний диапазон
+    ranges.push(`${rangeStart} - ${calculateEndTime(rangeEnd)}`);
+
+    return ranges.join(', ');
+};
+
 /**
  * Компонент TimeTablePage
  *
@@ -60,7 +113,9 @@ export const TimeTablePage: React.FC = () => {
     const [isScheduleMode, setIsScheduleMode] = useState(false);
 
     useEffect(() => {
-        if (!hoursLoading) return;
+        // Обновляем режим отображения при изменении забронированных часов
+        // Только когда загрузка завершена (hoursLoading = false)
+        if (hoursLoading) return;
         setIsScheduleMode(bookedHours.length > 0);
     }, [bookedHours, hoursLoading]);
 
@@ -239,16 +294,26 @@ export const TimeTablePage: React.FC = () => {
 
             <ModalPopup isOpen={isBookingModalOpen} onClose={closeBookingModal}>
                 <div className={css.bookingModal}>
-                    <h3 style={{ textAlign: 'left' }}>Репетиция</h3>
-                    <CardHeader
-                        style={{ textAlign: 'left' }}
-                        avatar={
-                            <Avatar src={user?.photo_url} />
-                        }
-                        title={`🕓: ${selectedHours.sort().join(', ')}`}
-                        subheader={`📅: ${moment(selectedDate).format('DD.MM.YYYY')}`}
-                    />
-
+                    <h3 style={{ textAlign: 'left' }}>📅 {moment(selectedDate).format('DD.MM.YYYY')}</h3>
+                    <Card className={css.slot}>
+                        <div className={css.timeContainer}>
+                            <Avatar
+                                src={user?.photo_url}
+                                className={css.avatar}
+                                sx={{ width: 36, height: 36, border: '1px solid' }}
+                            />
+                            <div className={css.usernameContainer}>
+                                <span className={css.username}>{user?.username}</span>
+                                <span className={css.time}>🕓 {formatSelectedHoursRange(selectedHours)}</span>
+                            </div>
+                        </div>
+                        {bookingBandName && (
+                            <div className={css.timeContainer}>
+                                <span className={css.bandIcon}>🎸 </span>
+                                <span className={css.bandName}>{bookingBandName}</span>
+                            </div>
+                        )}
+                    </Card>
                     <div className={css.inputGroup}>
                         <Autocomplete
                             freeSolo
@@ -288,11 +353,11 @@ export const TimeTablePage: React.FC = () => {
                     date={selectedDate}
                     highlightedDates={highlightedDates}
                 />
-                <TabContext value={isScheduleMode ? 0 : 1}>
+                <TabContext value={isScheduleMode ? 'schedule' : 'booking'}>
                     {bookedHours.length > 0 && !hoursLoading &&
                         <TabList onChange={handleScheduleModeChange} variant="fullWidth">
-                            <Tab label={selectedDate?.format('DD.MM.YYYY')} value={0} />
-                            <Tab label="Бронирование" value={1} />
+                            <Tab label={selectedDate?.format('DD.MM.YYYY')} value="schedule" />
+                            <Tab label="Бронирование" value="booking" />
                         </TabList>
                     }
 
@@ -303,10 +368,10 @@ export const TimeTablePage: React.FC = () => {
                             </div>
                         )}
                         <div className={css.tabContent} style={{ opacity: hoursLoading ? 0 : 1 }}>
-                            <TabPanel value={0} style={{ padding: '20px 0' }}>
+                            <TabPanel value="schedule" style={{ padding: '20px 0' }}>
                                 <Schedule bookedHours={bookedHours} />
                             </TabPanel>
-                            <TabPanel value={1} style={{ padding: '20px 0' }}>
+                            <TabPanel value="booking" style={{ padding: '20px 0' }}>
                                 <TimeSlots
                                     bookedHours={bookedHours}
                                     selectedHours={selectedHours}
