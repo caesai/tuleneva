@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { APIGetTimeTable, APIGetHours } from '@/api/timetable.api.ts';
 import moment, { type Moment } from '@/lib/moment';
 import type { IHour } from '@/types/timetable.types.ts';
+import { useWebSocket, type WebSocketMessage } from './useWebSocket';
 
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 3000;
@@ -11,7 +12,7 @@ const INITIAL_RETRY_DELAY = 3000;
  * Хук для управления данными расписания.
  * Загружает подсвеченные даты (дни с бронированиями) и забронированные часы для выбранной даты.
  * Поддерживает автоматические повторные попытки при ошибке загрузки.
- * Интегрирован с проверкой сетевого подключения.
+ * Интегрирован с проверкой сетевого подключения и WebSocket для real-time обновлений.
  *
  * @param date - Текущая выбранная дата (Moment объект) или null.
  * @param isOnline - Статус сетевого подключения (опционально, по умолчанию true).
@@ -22,6 +23,7 @@ const INITIAL_RETRY_DELAY = 3000;
  * - error: сообщение об ошибке или null.
  * - fetchBookedHours: функция для загрузки часов на конкретную дату.
  * - refetch: функция для повторной загрузки данных.
+ * - isWebSocketConnected: статус WebSocket соединения.
  */
 export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) => {
     const [highlightedDates, setHighlightedDates] = useState<number[]>([]);
@@ -35,6 +37,67 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
     const wasOnlineRef = useRef<boolean>(isOnline);
     // Ref для хранения текущей даты (для refetch при восстановлении связи)
     const currentDateRef = useRef<Moment | null>(date);
+    // Ref для хранения текущей выбранной даты (для сравнения в WebSocket callback)
+    const selectedDateRef = useRef<string | null>(null);
+
+    /**
+     * Callback для обработки WebSocket сообщений.
+     * Обновляет bookedHours если дата совпадает с текущей выбранной.
+     * Обновляет highlightedDates при изменении бронирований.
+     */
+    const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
+        const { type, data } = message;
+        
+        if (type === 'booking_update' || type === 'booking_cancel') {
+            const wsDate = data.date; // формат DD/MM/YYYY
+            const currentSelectedDate = selectedDateRef.current;
+            
+            // Если дата совпадает с текущей выбранной - обновляем bookedHours
+            if (currentSelectedDate === wsDate) {
+                console.log('WebSocket: Updating booked hours for current date', wsDate);
+                setBookedHours(data.hours);
+            }
+            
+            // Обновляем highlightedDates
+            const [d, m, y] = wsDate.split(/\D/);
+            const updateDay = parseInt(d, 10);
+            const updateMonth = parseInt(m, 10) - 1;
+            const updateYear = parseInt(y, 10);
+            
+            // Проверяем, что обновление относится к текущему месяцу
+            if (currentDateRef.current) {
+                const currentMonth = currentDateRef.current.month();
+                const currentYear = currentDateRef.current.year();
+                
+                if (updateMonth === currentMonth && updateYear === currentYear) {
+                    setHighlightedDates(prev => {
+                        if (data.hours.length > 0) {
+                            // Добавляем день, если его нет
+                            if (!prev.includes(updateDay)) {
+                                console.log('WebSocket: Adding day to highlighted', updateDay);
+                                return [...prev, updateDay].sort((a, b) => a - b);
+                            }
+                        } else {
+                            // Убираем день, если броней больше нет
+                            if (prev.includes(updateDay)) {
+                                console.log('WebSocket: Removing day from highlighted', updateDay);
+                                return prev.filter(d => d !== updateDay);
+                            }
+                        }
+                        return prev;
+                    });
+                }
+            }
+        }
+    }, []);
+
+    // WebSocket для real-time обновлений
+    const { isConnected: isWebSocketConnected } = useWebSocket({
+        onMessage: handleWebSocketMessage,
+        autoReconnect: true,
+        reconnectInterval: 3000,
+        maxReconnectAttempts: 10
+    });
 
     // Обновляем ref при изменении даты
     useEffect(() => {
@@ -118,6 +181,9 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         setHoursLoading(true);
         try {
             const formattedDate = targetDate.format('DD/MM/YYYY');
+            // Сохраняем текущую выбранную дату для WebSocket сравнения
+            selectedDateRef.current = formattedDate;
+            
             const response = await APIGetHours(formattedDate);
             if (!response.ok) {
                 throw new Error('Не получилось загрузить забронированное время.');
@@ -161,5 +227,6 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         error,
         fetchBookedHours,
         refetch,
+        isWebSocketConnected,
     };
 };

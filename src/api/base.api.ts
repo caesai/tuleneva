@@ -4,6 +4,17 @@
 export const DEV_URL = '/api';
 
 /**
+ * Получает WebSocket URL на основе текущего протокола и хоста.
+ * Автоматически определяет ws:// для http:// и wss:// для https://
+ * Использует путь /ws для избежания конфликтов с Vite HMR.
+ * @returns {string} WebSocket URL
+ */
+export const getWebSocketUrl = (): string => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}/ws`;
+};
+
+/**
  * URL для получения расписания (занятых дат).
  */
 export const TIMETABLE_URL = DEV_URL + '/timetable';

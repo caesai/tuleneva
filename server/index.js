@@ -7,9 +7,20 @@
  * middleware для аутентификации и API эндпоинты.
  */
 
-// ... (existing imports)
+const path = require('path');
+
+// Загрузка переменных окружения ДО использования любых env переменных
+require("dotenv").config();
+
+// Если переменные не загрузились (например, при запуске из dist/), пробуем найти .env на уровень выше
+if (!process.env.TELEGRAM_TOKEN) {
+    require("dotenv").config({ path: path.resolve(__dirname, '../.env') });
+}
+
 const express = require('express')
 const app = express();
+const http = require('http');
+const { WebSocketServer } = require('ws');
 const cors = require('cors');
 const port = process.env.PORT || 3000;
 const { Telegraf, Markup } = require('telegraf');
@@ -18,14 +29,51 @@ const moment = require('moment');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const path = require('path');
-// Попытка загрузить .env из текущей директории
-require("dotenv").config();
 
-// Если переменные не загрузились (например, при запуске из dist/), пробуем найти .env на уровень выше
-if (!process.env.TELEGRAM_TOKEN) {
-    require("dotenv").config({ path: path.resolve(__dirname, '../.env') });
-}
+// Create HTTP server from Express app
+const server = http.createServer(app);
+
+// Create WebSocket server with specific path to avoid conflicts with Vite HMR
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+/**
+ * Множество подключенных WebSocket клиентов.
+ * @type {Set<WebSocket>}
+ */
+const clients = new Set();
+
+/**
+ * Обработка WebSocket соединений.
+ */
+wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+    clients.add(ws);
+
+    ws.on('close', () => {
+        console.log('WebSocket client disconnected');
+        clients.delete(ws);
+    });
+
+    ws.on('error', (err) => {
+        console.error('WebSocket error:', err);
+        clients.delete(ws);
+    });
+});
+
+/**
+ * Отправляет сообщение всем подключенным WebSocket клиентам.
+ * @param {string} type - Тип события ('booking_update', 'booking_cancel').
+ * @param {Object} data - Данные для отправки.
+ */
+const broadcastUpdate = (type, data) => {
+    const message = JSON.stringify({ type, data, timestamp: Date.now() });
+    clients.forEach((client) => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(message);
+        }
+    });
+    console.log(`Broadcast sent: ${type} to ${clients.size} clients`);
+};
 
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const JWT_SECRET = process.env.JWT_SECRET; // Ensure this is loaded
@@ -69,7 +117,7 @@ const normalizeHoursData = (hoursData) => {
 
         // Проверяем первый элемент
         const firstItem = hoursData[0];
-        
+
         // Если первый элемент — это объект и у него есть поле hour, значит новый формат
         if (firstItem && typeof firstItem === 'object' && firstItem.hour) {
             return hoursData;
@@ -81,7 +129,7 @@ const normalizeHoursData = (hoursData) => {
             // Конвертируем в plain object (на случай Mongoose document)
             const plainObj = firstItem.toObject ? firstItem.toObject() : firstItem;
             const keys = Object.keys(plainObj);
-            
+
             // Если хотя бы один ключ выглядит как время (HH:MM), это старый формат
             if (keys.some(isTimeKey)) {
                 return convertOldFormatToNew(plainObj);
@@ -108,13 +156,13 @@ const normalizeHoursData = (hoursData) => {
  */
 const convertOldFormatToNew = (oldFormatObj) => {
     const normalizedHours = [];
-    
+
     for (const [hour, slotData] of Object.entries(oldFormatObj)) {
         // Пропускаем не-временные ключи (например, _id, __v и т.д.)
         if (!isTimeKey(hour)) {
             continue;
         }
-        
+
         // Пропускаем незабронированные слоты
         if (!slotData || slotData.status !== 'BOOKED') {
             continue;
@@ -131,7 +179,7 @@ const convertOldFormatToNew = (oldFormatObj) => {
 
     // Сортируем по времени
     normalizedHours.sort((a, b) => a.hour.localeCompare(b.hour));
-    
+
     return normalizedHours;
 };
 
@@ -573,9 +621,27 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
         );
         console.log('username: ', username, date, hours.join(','))
         const BOOK_MESSAGE = `
-        👨‍💻: @${username} забронировал репетицию 📅:${date.replaceAll('/', '.')} 🕓:${hours.join(',')}
+**РЕПЕТИЦИЯ**
+
+👨‍💻 @${username}
+
+📅 ${date.replaceAll('/', '.')} 
+🕓 ${hours.join(',')}
         `
         await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, BOOK_MESSAGE);
+
+        // Broadcast WebSocket update to all clients
+        broadcastUpdate('booking_update', {
+            date,
+            hours: updatedRehearsal.hours.map(h => ({
+                hour: h.hour,
+                userId: h.userId,
+                username: h.username,
+                band_name: h.band_name,
+                userPhotoUrl: h.userPhotoUrl
+            }))
+        });
+
         return res.status(201).json(updatedRehearsal);
     } catch (err) {
         console.error('An error occurred during booking:', err);
@@ -652,10 +718,20 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
             { new: true }
         );
         const CANCEL_MESSAGE_ADMIN = `
-        👨‍💻: @${username} отменил репетицию 📅:${date.replaceAll('/', '.')} 🕓:${hours.join(',')}
+**ОТМЕНА**
+
+👨‍💻 @${username}
+
+📅 ${date.replaceAll('/', '.')} 
+🕓 ${hours.join(',')}
         `
         const CANCEL_MESSAGE_USER = `
-        Ваша репетиция 📅:${date.replaceAll('/', '.')} 🕓:${hours.join(',')} была отменена администратором
+**ОТМЕНА**
+    
+📅 ${date.replaceAll('/', '.')}
+🕓 ${hours.join(',')}
+
+Репетиция была отменена администратором
         `
 
         // Логика уведомлений
@@ -686,12 +762,32 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
 
         if (updatedRehearsal && updatedRehearsal.hours.length === 0) {
             await Rehearsal.deleteOne({ _id: updatedRehearsal._id });
+
+            // Broadcast WebSocket update - all bookings removed for this day
+            broadcastUpdate('booking_cancel', {
+                date,
+                hours: []
+            });
+
             return res.status(200).json({ message: 'All bookings for this day canceled, document deleted.' });
         }
 
         if (!updatedRehearsal) {
             return res.status(404).json({ error: 'Booking not found or already canceled.' });
         }
+
+        // Broadcast WebSocket update with remaining hours
+        broadcastUpdate('booking_cancel', {
+            date,
+            hours: updatedRehearsal.hours.map(h => ({
+                hour: h.hour,
+                userId: h.userId,
+                username: h.username,
+                band_name: h.band_name,
+                userPhotoUrl: h.userPhotoUrl
+            }))
+        });
+
         res.status(200).json({
             message: 'Bookings canceled successfully.',
             rehearsal: updatedRehearsal
@@ -797,6 +893,7 @@ app.get('/api/hours', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`)
+// Use server.listen instead of app.listen to enable WebSocket support
+server.listen(port, () => {
+    console.log(`Server with WebSocket support listening on port ${port}`)
 });
