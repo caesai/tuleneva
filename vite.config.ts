@@ -24,6 +24,12 @@ export default defineConfig(({ command }) => ({
                     changeOrigin: true,
                     secure: false, // For local development with self-signed certs
                 },
+                // WebSocket proxy for real-time updates
+                '/ws': {
+                    target: 'ws://localhost:3000',
+                    ws: true,
+                    changeOrigin: true,
+                },
             },
             https: command === 'build' ? {} : {
                 key: fs.readFileSync('./.cert/localhost-key.pem'),
