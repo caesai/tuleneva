@@ -150,20 +150,26 @@
     flex-direction: column;
     justify-content: start;
     align-items: start;
+    min-width: 0;
+    flex: 1;
 }
 
 .username {
     font-weight: 600;
     white-space: nowrap;
     font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 /**
 * TODO: Убрать весь этот элемент в отдельный компонент
 */
 .time {
     font-weight: 600;
-    white-space: nowrap;
     font-size: 12px;
+    word-break: break-word;
+    max-width: 100%;
 }
 
 .timeContainer {
@@ -171,6 +177,8 @@
     flex-direction: row;
     align-items: center;
     gap: 1em;
+    min-width: 0;
+    width: 100%;
 }
 
 .username {
