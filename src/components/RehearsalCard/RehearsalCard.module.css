@@ -1,0 +1,74 @@
+.slot {
+    width: 100%;
+    padding: 0.5em 1em;
+    margin-bottom: 0.5em;
+    box-sizing: border-box;
+}
+
+.avatar {
+    width: 14px;
+    height: 14px;
+}
+
+.usernameContainer {
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: start;
+    min-width: 0;
+    flex: 1;
+}
+
+.username {
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/**
+* TODO: Убрать весь этот элемент в отдельный компонент
+*/
+.time {
+    font-weight: 600;
+    font-size: 12px;
+    word-break: break-word;
+    max-width: 100%;
+}
+
+.timeContainer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1em;
+    min-width: 0;
+    width: 100%;
+}
+
+.username {
+    flex: 1;
+    text-align: center;
+}
+
+.bandIcon {
+    font-size: 27px;
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+}
+
+.bandName {
+    font-style: italic;
+    text-align: right;
+    font-size: 18px;
+}
+
+.rehearsalTypes {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    justify-content: end;
+}

@@ -1,0 +1,65 @@
+
+.bookingModal {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 300px;
+}
+
+.bookingModal h3 {
+    margin: 0;
+    text-align: center;
+}
+
+.inputGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.input {
+    padding: 8px;
+    border: 1px solid var(--tg-theme-hint-color);
+    border-radius: 4px;
+    background-color: var(--tg-theme-bg-color);
+    color: var(--tg-theme-text-color);
+}
+
+.input:disabled {
+    opacity: 0.7;
+}
+
+.modalButtons {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.confirmButton,
+.cancelButton {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    flex: 1;
+}
+
+.confirmButton {
+    background-color: rgb(85, 193, 85);
+    color: white;
+}
+
+.cancelButton {
+    background-color: rgb(255, 174, 0);
+    color: white;
+}
+
+.rehearsalTypes {
+    display: flex;
+    flex-direction: row;
+    gap: 3px;
+    justify-content: start;
+    margin-top: -8px;
+}

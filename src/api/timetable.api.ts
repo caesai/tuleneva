@@ -1,3 +1,4 @@
+import type { TRehearsalType } from '@/types/timetable.types.ts';
 import { BOOK_URL, CANCEL_URL, HOURS_URL, TIMETABLE_URL, getAuthHeaders } from './base.api.ts';
 
 /**
@@ -31,13 +32,14 @@ export const APIGetHours = async (date: string): Promise<Response> => {
  * @param band_name - Название группы (опционально).
  * @returns {Promise<Response>} Ответ сервера о результате бронирования.
  */
-export const APIPostBookRehearsal = async (date: string, hours: string[], band_name?: string) => {
+export const APIPostBookRehearsal = async (date: string, hours: string[], band_name?: string, rehearsalType?: TRehearsalType) => {
     return await fetch(BOOK_URL, {
         method: 'POST',
         body: JSON.stringify({
             date,
             hours,
             band_name,
+            rehearsalType,
         }),
         headers: getAuthHeaders(),
     });
