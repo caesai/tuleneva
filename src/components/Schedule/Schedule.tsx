@@ -1,8 +1,9 @@
 import css from '@/components/Schedule/Schedule.module.css';
-import type { IHour } from '@/types/timetable.types';
-import { Avatar, Card } from '@mui/material';
+import type { IHour, TRehearsalType } from '@/types/timetable.types';
+import { RehearsalCard } from '@/components/RehearsalCard/RehearsalCard.tsx';
+import type { JSX } from 'react';
 
-interface ScheduleProps {
+interface IScheduleProps {
     bookedHours: IHour[];
 }
 
@@ -13,6 +14,7 @@ interface MergedSlot {
     username: string;
     band_name: string;
     userPhotoUrl: string;
+    rehearsalType: TRehearsalType;
 }
 
 /**
@@ -36,6 +38,23 @@ const calculateEndTime = (hour: string): string => {
  */
 const getHourNumber = (hour: string): number => {
     return parseInt(hour.split(':')[0], 10);
+};
+
+/**
+ * Генерирует массив всех часов от startHour до endHour (не включая endHour)
+ * Например: ("18:00", "22:00") -> ["18:00", "19:00", "20:00", "21:00"]
+ */
+const generateHoursInRange = (startHour: string, endHour: string): string[] => {
+    const hours: string[] = [];
+    let currentHour = getHourNumber(startHour);
+    const endHourNum = getHourNumber(endHour);
+
+    while (currentHour !== endHourNum) {
+        hours.push(`${currentHour.toString().padStart(2, '0')}:00`);
+        currentHour = (currentHour + 1) % 24;
+    }
+
+    return hours;
 };
 
 /**
@@ -78,6 +97,7 @@ const mergeConsecutiveSlots = (bookedHours: IHour[]): MergedSlot[] => {
                 username: firstSlot.username,
                 band_name: firstSlot.band_name,
                 userPhotoUrl: firstSlot.userPhotoUrl,
+                rehearsalType: firstSlot.rehearsalType,
             });
             currentGroup = [current];
         }
@@ -94,37 +114,33 @@ const mergeConsecutiveSlots = (bookedHours: IHour[]): MergedSlot[] => {
             username: firstSlot.username,
             band_name: firstSlot.band_name,
             userPhotoUrl: firstSlot.userPhotoUrl,
+            rehearsalType: firstSlot.rehearsalType,
         });
     }
 
     return mergedSlots;
 };
-export const Schedule: React.FC<ScheduleProps> = ({ bookedHours }) => {
-    const mergedSlots = mergeConsecutiveSlots(bookedHours);
+
+/**
+ * Компонент расписания
+ * @param bookedHours - массив забронированных часов
+ * @returns JSX.Element - компонент расписания
+ */
+export const Schedule: React.FC<IScheduleProps> = ({ bookedHours }): JSX.Element => {
+    const mergedSlots: MergedSlot[] = mergeConsecutiveSlots(bookedHours);
     console.log(mergedSlots)
 
     return (
         <div className={css.schedule}>
             {mergedSlots.map((slot, index) => (
-                <Card key={`${slot.startHour}-${index}`} className={css.slot}>
-                    <div className={css.timeContainer}>
-                        <Avatar
-                            src={slot.userPhotoUrl}
-                            className={css.avatar}
-                            sx={{ width: 36, height: 36, border: '1px solid' }}
-                        />
-                        <div className={css.usernameContainer}>
-                            <span className={css.username}>{slot.username}</span>
-                            <span className={css.time}>🕓 {slot.startHour} - {slot.endHour}</span>
-                        </div>
-                    </div>
-                    {slot.band_name && (
-                        <div className={css.timeContainer}>
-                            <span className={css.bandIcon}>🎸 </span>
-                            <span className={css.bandName}>{slot.band_name}</span>
-                        </div>
-                    )}
-                </Card>
+                <RehearsalCard
+                    key={`${slot.startHour}-${index}`}
+                    photoUrl={slot.userPhotoUrl}
+                    username={slot.username}
+                    selectedHours={generateHoursInRange(slot.startHour, slot.endHour)}
+                    bookingBandName={slot.band_name}
+                    rehearsalType={slot.rehearsalType}
+                />
             ))}
         </div>
     );

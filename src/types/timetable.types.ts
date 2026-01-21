@@ -4,4 +4,7 @@ export interface IHour {
     "username": string;
     "band_name": string;
     "userPhotoUrl": string;
+    "rehearsalType": TRehearsalType;
 }
+
+export type TRehearsalType = 'rehearsal' | 'recording' | 'shooting';

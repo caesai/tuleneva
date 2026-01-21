@@ -1,5 +1,5 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, type JSX } from 'react';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { Calendar } from '@/components/Calendar/Calendar.tsx';
 import { TimeSlots } from '@/components/TimeSlots/TimeSlots.tsx';
@@ -7,70 +7,20 @@ import { useTimeTableData } from '@/hooks/useTimeTableData.ts';
 import moment, { type Moment } from '@/lib/moment';
 import css from '@/pages/TimeTablePage/TimeTable.module.css';
 import { APICancelBooking, APIPostBookRehearsal } from '@/api/timetable.api.ts';
-import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { useNetwork } from '@/contexts/NetworkContext.tsx';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useToast } from '@/hooks/useToast.ts';
-import { Autocomplete, Avatar, Card, Tab, TextField } from '@mui/material';
+import { Avatar, Tab } from '@mui/material';
 import logo from '/logo_main512.svg';
 import { useNavigate } from 'react-router-dom';
 import { Schedule } from '@/components/Schedule/Schedule';
 import TabPanel from '@mui/lab/TabPanel';
 import TabContext from '@mui/lab/TabContext';
 import { TabList } from '@mui/lab';
+import { BookModalPopup } from '@/components/BookModalPopup/BookModalPopup';
+import type { TRehearsalType } from '@/types/timetable.types';
 
-/**
- * Вычисляет конечное время (начальный час + 1)
- * Например: "23:00" -> "00:00", "12:00" -> "13:00"
- */
-const calculateEndTime = (hour: string): string => {
-    const hourNum = parseInt(hour.split(':')[0], 10);
-    const nextHour = (hourNum + 1) % 24;
-    return `${nextHour.toString().padStart(2, '0')}:00`;
-};
-
-/**
- * Извлекает числовое значение часа из строки "HH:00"
- */
-const getHourNumber = (hour: string): number => {
-    return parseInt(hour.split(':')[0], 10);
-};
-
-/**
- * Объединяет последовательные часы в диапазоны
- * Например: ["14:00", "15:00", "16:00", "19:00"] -> "14:00 - 17:00, 19:00 - 20:00"
- */
-const formatSelectedHoursRange = (hours: string[]): string => {
-    if (hours.length === 0) return '';
-
-    const sortedHours = [...hours].sort((a, b) => getHourNumber(a) - getHourNumber(b));
-    const ranges: string[] = [];
-
-    let rangeStart = sortedHours[0];
-    let rangeEnd = sortedHours[0];
-
-    for (let i = 1; i < sortedHours.length; i++) {
-        const current = sortedHours[i];
-        const prevHourNum = getHourNumber(rangeEnd);
-        const currentHourNum = getHourNumber(current);
-
-        if (currentHourNum === prevHourNum + 1) {
-            // Последовательный слот - расширяем диапазон
-            rangeEnd = current;
-        } else {
-            // Не последовательный - сохраняем текущий диапазон и начинаем новый
-            ranges.push(`${rangeStart} - ${calculateEndTime(rangeEnd)}`);
-            rangeStart = current;
-            rangeEnd = current;
-        }
-    }
-
-    // Добавляем последний диапазон
-    ranges.push(`${rangeStart} - ${calculateEndTime(rangeEnd)}`);
-
-    return ranges.join(', ');
-};
 
 /**
  * Компонент TimeTablePage
@@ -86,9 +36,9 @@ const formatSelectedHoursRange = (hours: string[]): string => {
  * - Обрабатывает взаимодействие с API для бронирования и отмены.
  * - Управляет состоянием выбранной даты, часов для бронирования и часов для отмены.
  *
- * @returns {React.FC} Отрисованный компонент TimeTablePage.
+ * @returns {JSX.Element} Отрисованный компонент TimeTablePage.
  */
-export const TimeTablePage: React.FC = () => {
+export const TimeTablePage: React.FC = (): JSX.Element => {
     const navigate = useNavigate();
     // Состояние для текущей выбранной даты в календаре
     const [selectedDate, setSelectedDate] = useState<Moment | null>(moment());
@@ -111,6 +61,7 @@ export const TimeTablePage: React.FC = () => {
     // Состояние для поля "Название коллектива" в форме бронирования
     const [bookingBandName, setBookingBandName] = useState('');
     const [isScheduleMode, setIsScheduleMode] = useState(false);
+    const [rehearsalType, setRehearsalType] = useState<TRehearsalType>('rehearsal');
 
     useEffect(() => {
         // Обновляем режим отображения при изменении забронированных часов
@@ -229,7 +180,8 @@ export const TimeTablePage: React.FC = () => {
             const response = await APIPostBookRehearsal(
                 moment(selectedDate).format('DD/MM/YYYY'),
                 selectedHours,
-                bookingBandName
+                bookingBandName,
+                rehearsalType
             );
             if (!response.ok) {
                 throw new Error('Не удалось забронировать время.');
@@ -292,52 +244,21 @@ export const TimeTablePage: React.FC = () => {
             {/* Toast-уведомления */}
             <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-            <ModalPopup isOpen={isBookingModalOpen} onClose={closeBookingModal}>
-                <div className={css.bookingModal}>
-                    <h3 style={{ textAlign: 'left' }}>📅 {moment(selectedDate).format('DD.MM.YYYY')}</h3>
-                    <Card className={css.slot}>
-                        <div className={css.timeContainer}>
-                            <Avatar
-                                src={user?.photo_url}
-                                className={css.avatar}
-                                sx={{ width: 36, height: 36, border: '1px solid' }}
-                            />
-                            <div className={css.usernameContainer}>
-                                <span className={css.username}>{user?.username}</span>
-                                <span className={css.time}>🕓 {formatSelectedHoursRange(selectedHours)}</span>
-                            </div>
-                        </div>
-                        {bookingBandName && (
-                            <div className={css.timeContainer}>
-                                <span className={css.bandIcon}>🎸 </span>
-                                <span className={css.bandName}>{bookingBandName}</span>
-                            </div>
-                        )}
-                    </Card>
-                    <div className={css.inputGroup}>
-                        <Autocomplete
-                            freeSolo
-                            disablePortal
-                            options={bandNames}
-                            inputValue={bookingBandName}
-                            onInputChange={(_event, newValue) => {
-                                setBookingBandName(newValue);
-                            }}
-                            sx={{ width: 300 }}
-                            renderInput={(params) => <TextField {...params} label="Название коллектива (опционально)" />}
-                        />
-                    </div>
-
-                    <div className={css.modalButtons}>
-                        <button className={css.confirmButton} onClick={handleBooking}>
-                            Подтвердить
-                        </button>
-                        <button className={css.cancelButton} onClick={closeBookingModal}>
-                            Отмена
-                        </button>
-                    </div>
-                </div>
-            </ModalPopup>
+            <BookModalPopup
+                isOpen={isBookingModalOpen}
+                onClose={closeBookingModal}
+                selectedDate={selectedDate as Moment}
+                selectedHours={selectedHours}
+                bookingBandName={bookingBandName}
+                bandNames={bandNames}
+                onBookingBandNameChange={setBookingBandName}
+                onBookingConfirm={handleBooking}
+                onBookingCancel={closeBookingModal}
+                username={user?.username || ''}
+                photoUrl={user?.photo_url || ''}
+                rehearsalType={rehearsalType}
+                onRehearsalTypeChange={setRehearsalType}
+            />
 
             <div className={css.card}>
                 <div className={css.cardHeader}>
@@ -354,10 +275,10 @@ export const TimeTablePage: React.FC = () => {
                     highlightedDates={highlightedDates}
                 />
                 <TabContext value={isScheduleMode ? 'schedule' : 'booking'}>
-                    {bookedHours.length > 0 && !hoursLoading &&
+                    {bookedHours.length > 0 && !hoursLoading && !isGuest &&
                         <TabList onChange={handleScheduleModeChange} variant="fullWidth">
                             <Tab label={selectedDate?.format('DD.MM.YYYY')} value="schedule" />
-                            <Tab label="Бронирование" value="booking" />
+                            {!isGuest && <Tab label="Бронирование" value="booking" />}
                         </TabList>
                     }
 
@@ -372,23 +293,27 @@ export const TimeTablePage: React.FC = () => {
                                 <Schedule bookedHours={bookedHours} />
                             </TabPanel>
                             <TabPanel value="booking" style={{ padding: '20px 0' }}>
-                                <TimeSlots
-                                    bookedHours={bookedHours}
-                                    selectedHours={selectedHours}
-                                    hoursToCancel={hoursToCancel}
-                                    onHourClick={handleHourClick}
-                                    currentUserId={String(user?._id)}
-                                    isAdmin={isAdmin}
-                                    isSelectedDayBeforeToday={isSelectedDayBeforeToday}
-                                />
+                                {isGuest || isSelectedDayBeforeToday ? (
+                                    <div className={css.noRehearsals}>Репетиций нет</div>
+                                ) : (
+                                    <TimeSlots
+                                        bookedHours={bookedHours}
+                                        selectedHours={selectedHours}
+                                        hoursToCancel={hoursToCancel}
+                                        onHourClick={handleHourClick}
+                                        currentUserId={String(user?._id)}
+                                        isAdmin={isAdmin}
+                                        isSelectedDayBeforeToday={isSelectedDayBeforeToday}
+                                    />)}
                             </TabPanel>
+
                         </div>
                     </div>
                 </TabContext>
                 {isBookingEnabled && (
                     <div className={css.bookingButtonContainer}>
                         <button
-                            className={css.bookingButton}
+                            className={css.confirmButton}
                             onClick={openBookingModal}
                         >
                             Забронировать
@@ -398,7 +323,7 @@ export const TimeTablePage: React.FC = () => {
                 {isBookingCancelling && (
                     <div className={css.bookingButtonContainer}>
                         <button
-                            className={css.bookingButton}
+                            className={css.cancelButton}
                             onClick={handleCancel}
                         >
                             Отменить

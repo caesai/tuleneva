@@ -619,7 +619,7 @@ app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, re
  */
 app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
     try {
-        const { date, hours, band_name } = req.body;
+        const { date, hours, band_name, rehearsalType } = req.body;
         // Получаем username и userId из верифицированных данных БД
         const username = req.dbUser.username || req.dbUser.first_name;
         const userId = req.dbUser._id;
@@ -668,7 +668,8 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
             userId,
             username,
             band_name,
-            userPhotoUrl
+            userPhotoUrl,
+            rehearsalType
         }));
 
         // 5. Atomically push new hours to the document
