@@ -78,7 +78,7 @@ export const RehearsalCard: React.FC<IRehearsalCardProps> = ({ selectedHours, bo
                 </div>
             </div>
             {bookingBandName && (
-                <div className={css.timeContainer}>
+                <div className={css.timeContainer} style={{ marginTop: '10px' }}>
                     <span className={css.bandIcon}>🎸 </span>
                     <span className={css.bandName}>{bookingBandName}</span>
                 </div>

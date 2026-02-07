@@ -66,7 +66,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     useEffect(() => {
         // Обновляем режим отображения при изменении забронированных часов
         // Только когда загрузка завершена (hoursLoading = false)
-        if (hoursLoading) return;
+        if (!hoursLoading) return;
         setIsScheduleMode(bookedHours.length > 0);
     }, [bookedHours, hoursLoading]);
 
@@ -78,7 +78,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const closeBookingModal = () => setIsBookingModalOpen(false);
 
     const { user } = useAuth();
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
     const isGuest = user?.role === 'guest';
 
     // Получаем сохранённые настройки пользователя (история названий групп)
@@ -233,6 +233,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     }
 
     const isSelectedDayBeforeToday = moment(selectedDate).startOf('day').isBefore(moment().startOf('day'));
+    const isToday = moment(selectedDate).startOf('day').isSame(moment().startOf('day'));
     const isBookingEnabled = selectedHours.length > 0 && !isGuest;
     const isBookingCancelling = hoursToCancel.length > 0 && !isGuest;
 
@@ -275,12 +276,12 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                     highlightedDates={highlightedDates}
                 />
                 <TabContext value={isScheduleMode ? 'schedule' : 'booking'}>
-                    {bookedHours.length > 0 && !hoursLoading && !isGuest &&
+                    {bookedHours.length > 0 && !hoursLoading && !isGuest && !isSelectedDayBeforeToday && (
                         <TabList onChange={handleScheduleModeChange} variant="fullWidth">
                             <Tab label={selectedDate?.format('DD.MM.YYYY')} value="schedule" />
                             {!isGuest && <Tab label="Бронирование" value="booking" />}
                         </TabList>
-                    }
+                    )}
 
                     <div className={css.tabWrapper}>
                         {hoursLoading && (
@@ -304,6 +305,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                         currentUserId={String(user?._id)}
                                         isAdmin={isAdmin}
                                         isSelectedDayBeforeToday={isSelectedDayBeforeToday}
+                                        isToday={isToday}
                                     />)}
                             </TabPanel>
 

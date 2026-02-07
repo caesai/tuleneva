@@ -17,6 +17,10 @@
     box-shadow: 1px 1px 1px rgb(218, 215, 215);
 }
 
+.timeSlot:disabled {
+    opacity: 0.5;
+}
+
 .selected {
     background-color: rgb(85, 193, 85);
 }

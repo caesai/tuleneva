@@ -3,7 +3,7 @@
     flex-direction: column;
     align-items: center;
     width: 100%;
-    padding: 0 1em;
+    padding: 0;
     box-sizing: border-box;
 }
 
@@ -17,6 +17,7 @@
     width: 100%;
     padding: 0.5em 1em;
     margin-bottom: 0.5em;
+    padding-top: 25px;
 }
 
 .avatar {

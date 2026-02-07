@@ -1,5 +1,5 @@
 import React, { useState, useEffect, type ReactNode } from 'react';
-import { APIPostAuth, APIRegisterUser } from '@/api/user.api.ts';
+import { APIPostAuth, APIRegisterUser, APIUseInvite } from '@/api/user.api.ts';
 import type { IUser } from '@/types/user.types.ts';
 import { useLaunchParams, useRawInitData } from '@telegram-apps/sdk-react';
 import { AuthContext } from './AuthContextDefinition.ts';
@@ -85,8 +85,25 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
         }
     };
 
+    const registerWithInvite = async (code: string) => {
+        if (lp && rawLp) {
+            try {
+                const response = await APIUseInvite(code, lp, rawLp);
+                const data = await response.json();
+                if (data.valid) {
+                    login(data.user, data.token);
+                } else {
+                    throw new Error(data.message || 'Invite registration failed');
+                }
+            } catch (error) {
+                console.error('Invite registration failed', error);
+                throw error;
+            }
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout, register }}>
+        <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout, register, registerWithInvite }}>
             {children}
         </AuthContext.Provider>
     );

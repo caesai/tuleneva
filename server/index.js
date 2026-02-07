@@ -86,6 +86,8 @@ if (!BOT_TOKEN) {
 // Import the User model
 const User = require('./models/User');
 const Rehearsal = require('./models/Rehearsal');
+const InviteCode = require('./models/InviteCode');
+const { INVITE_CODE_TTL_SECONDS } = require('./models/InviteCode');
 
 /**
  * Проверяет, является ли строка временем в формате HH:MM
@@ -260,13 +262,12 @@ const startButtonReply = Markup.keyboard([
     ['/start']
 ]).resize();
 const BOT_START_MESSAGE = `Мини аппка`.trim();
-const miniAppUrl = 'https://tuleneva25.ru/';
+const miniAppUrl = 'https://t.me/tuleneva25_bot';
 bot.start((ctx) => ctx.reply(BOT_START_MESSAGE,
     Markup.inlineKeyboard([
         [Markup.button.webApp('🕓 Расписание студии', miniAppUrl)]
     ])));
 bot.launch();
-const TELEGRAM_ADMIN_ID = process.env.TELEGRAM_ADMIN_ID;
 app.use(cors());
 app.use(express.json());
 
@@ -320,6 +321,30 @@ const verifyUserExists = async (req, res, next) => {
     } catch (err) {
         console.error('Error verifying user existence:', err);
         return res.status(500).json({ error: 'Internal server error.' });
+    }
+};
+
+/**
+ * Отправляет уведомление всем пользователям с ролью admin или super_admin через Telegram бота.
+ * @param {string} message - Текст сообщения.
+ * @param {Object} [extra] - Дополнительные параметры для sendMessage (например, Markup).
+ */
+const notifyAdmins = async (message, extra) => {
+    try {
+        const admins = await User.find({ role: { $in: ['admin', 'super_admin'] } });
+        for (const admin of admins) {
+            try {
+                if (extra) {
+                    await bot.telegram.sendMessage(admin.telegram_id, message, extra);
+                } else {
+                    await bot.telegram.sendMessage(admin.telegram_id, message);
+                }
+            } catch (e) {
+                console.error(`Failed to send notification to admin ${admin.telegram_id}:`, e);
+            }
+        }
+    } catch (err) {
+        console.error('Failed to fetch admins for notification:', err);
     }
 };
 
@@ -484,14 +509,8 @@ app.post('/api/users/register', async (req, res) => {
         });
         await user.save();
 
-        const message = `
-            @${user.username || user.first_name} запрашивает доступ к бронированию.
-        `;
-        try {
-            await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, message);
-        } catch (e) {
-            console.error('Failed to send admin notification:', e);
-        }
+        const notifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию.`;
+        await notifyAdmins(notifyMessage);
 
         const token = jwt.sign({ userId: user._id, telegramId: user.telegram_id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
 
@@ -538,14 +557,14 @@ app.get('/api/users', authenticateToken, verifyUserExists, async (req, res) => {
  */
 app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, res) => {
     // Strict Admin check using actual DB role
-    if (req.dbUser.role !== 'admin') {
+    if (req.dbUser.role !== 'admin' && req.dbUser.role !== 'super_admin') {
         return res.status(403).json({ message: 'Access denied' });
     }
 
     const { id } = req.params;
     const { role } = req.body;
 
-    if (!['admin', 'user', 'guest'].includes(role)) {
+    if (!['super_admin', 'admin', 'user', 'guest'].includes(role)) {
         return res.status(400).json({ message: 'Invalid role provided.' });
     }
 
@@ -642,11 +661,20 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
         const bookingDate = dateMoment.startOf('day').toDate();
 
         // 2. Find the document for the day
-        const rehearsalDoc = await Rehearsal.findOne({ date: bookingDate });
+        let rehearsalDoc = await Rehearsal.findOne({ date: bookingDate });
+
+        // 2.1. Если документ существует, но hours не массив — исправляем
+        if (rehearsalDoc && !Array.isArray(rehearsalDoc.hours)) {
+            await Rehearsal.updateOne(
+                { _id: rehearsalDoc._id },
+                { $set: { hours: [] } }
+            );
+            rehearsalDoc = await Rehearsal.findOne({ date: bookingDate });
+        }
 
         // 3. Check for conflicts
         const conflictingHours = [];
-        if (rehearsalDoc) {
+        if (rehearsalDoc && Array.isArray(rehearsalDoc.hours)) {
             const bookedHours = rehearsalDoc.hours.map(slot => slot.hour);
             for (const hour of hours) {
                 if (bookedHours.includes(hour)) {
@@ -687,7 +715,7 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
 📅 ${date.replaceAll('/', '.')} 
 🕓 ${formatHoursRange(hours)}
         `
-        await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, BOOK_MESSAGE);
+        await notifyAdmins(BOOK_MESSAGE);
 
         // Broadcast WebSocket update to all clients
         broadcastUpdate('booking_update', {
@@ -739,7 +767,7 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
         const startOfDay = dateMoment.startOf('day').toDate();
         const endOfDay = dateMoment.endOf('day').toDate();
 
-        const rehearsalDoc = await Rehearsal.findOne({
+        let rehearsalDoc = await Rehearsal.findOne({
             date: {
                 $gte: startOfDay,
                 $lte: endOfDay,
@@ -747,6 +775,15 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
         });
 
         if (!rehearsalDoc) {
+            return res.status(404).json({ error: 'No bookings found for this day.' });
+        }
+
+        // Если hours не массив — исправляем
+        if (!Array.isArray(rehearsalDoc.hours)) {
+            await Rehearsal.updateOne(
+                { _id: rehearsalDoc._id },
+                { $set: { hours: [] } }
+            );
             return res.status(404).json({ error: 'No bookings found for this day.' });
         }
 
@@ -815,8 +852,8 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
                 }
             }
         } else {
-            // Пользователь отменяет свое бронирование - уведомляем админа
-            await bot.telegram.sendMessage(TELEGRAM_ADMIN_ID, CANCEL_MESSAGE_ADMIN);
+            // Пользователь отменяет свое бронирование - уведомляем всех админов
+            await notifyAdmins(CANCEL_MESSAGE_ADMIN);
         }
 
         if (updatedRehearsal && updatedRehearsal.hours.length === 0) {
@@ -949,6 +986,149 @@ app.get('/api/hours', async (req, res) => {
     } catch (error) {
         console.error('Error fetching hours:', error);
         return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// ============================================
+// Invite Code Endpoints
+// ============================================
+
+/**
+ * @route POST /api/invite/generate
+ * @description Генерирует одноразовый инвайт-код. Только для админов.
+ * @access Admin
+ * @returns {Object} JSON с кодом и ссылкой-приглашением.
+ */
+app.post('/api/invite/generate', authenticateToken, verifyUserExists, async (req, res) => {
+    if (req.dbUser.role !== 'admin' && req.dbUser.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
+    try {
+        const code = crypto.randomBytes(16).toString('hex');
+        const expiresAt = new Date(Date.now() + INVITE_CODE_TTL_SECONDS * 1000);
+
+        const inviteCode = new InviteCode({
+            code,
+            createdBy: req.dbUser._id,
+            expiresAt,
+        });
+        await inviteCode.save();
+
+        const inviteLink = `${miniAppUrl}?startapp=${code}`;
+
+        res.status(201).json({
+            code,
+            inviteLink,
+            expiresAt,
+        });
+    } catch (err) {
+        console.error('Error generating invite code:', err);
+        res.status(500).json({ message: 'Failed to generate invite code.' });
+    }
+});
+
+/**
+ * @route GET /api/invite/validate/:code
+ * @description Проверяет валидность инвайт-кода. Публичный эндпоинт.
+ * Если документ существует в коллекции — код валиден (просроченные удаляются MongoDB автоматически).
+ * @access Public
+ * @param {string} req.params.code - Инвайт-код.
+ * @returns {Object} JSON с полем valid (boolean).
+ */
+app.get('/api/invite/validate/:code', async (req, res) => {
+    try {
+        const { code } = req.params;
+        const inviteCode = await InviteCode.findOne({ code });
+
+        if (!inviteCode) {
+            return res.status(200).json({ valid: false });
+        }
+
+        res.status(200).json({ valid: true });
+    } catch (err) {
+        console.error('Error validating invite code:', err);
+        res.status(500).json({ message: 'Failed to validate invite code.' });
+    }
+});
+
+/**
+ * @route POST /api/invite/use
+ * @description Использует инвайт-код для регистрации пользователя.
+ * Создаёт пользователя в БД с ролью guest и удаляет использованный код.
+ * @access Public (требует Telegram initData)
+ * @param {string} req.body.code - Инвайт-код.
+ * @param {string} req.body.initData - Сырые данные инициализации Telegram.
+ * @param {string} req.body.user - JSON строка с данными пользователя.
+ * @returns {Object} JSON с токеном и данными пользователя.
+ */
+app.post('/api/invite/use', async (req, res) => {
+    const { code, initData: rawInitData, user: userData } = req.body;
+
+    if (!code || !rawInitData || !userData) {
+        return res.status(400).json({ message: 'Missing required data.' });
+    }
+
+    const isValid = verifyTelegramInitData(userData, BOT_TOKEN);
+    if (!isValid) {
+        return res.status(401).json({ message: 'Invalid Telegram data signature.' });
+    }
+
+    try {
+        // Атомарно находим и удаляем код — гарантирует одноразовость даже при параллельных запросах
+        const inviteCode = await InviteCode.findOneAndDelete({ code });
+        if (!inviteCode) {
+            return res.status(400).json({ message: 'Invalid or expired invite code.' });
+        }
+
+        const tg = parseQueryToNestedJson(userData);
+
+        // Проверяем, не зарегистрирован ли уже пользователь
+        let user = await User.findOne({ telegram_id: tg.user.id });
+        if (user) {
+            // Пользователь уже существует — код уже удалён, возвращаем существующего
+            const token = jwt.sign(
+                { userId: user._id, telegramId: user.telegram_id, role: user.role },
+                JWT_SECRET,
+                { expiresIn: '1d' }
+            );
+
+            return res.status(200).json({
+                valid: true,
+                token,
+                user: { ...user.toObject(), isRegistered: true },
+            });
+        }
+
+        // Создаём нового пользователя с ролью guest
+        user = new User({
+            telegram_id: tg.user.id,
+            first_name: tg.user.first_name,
+            last_name: tg.user.last_name || null,
+            username: tg.user.username || null,
+            photo_url: tg.user.photo_url || null,
+            role: 'guest',
+        });
+        await user.save();
+
+        // Уведомляем всех админов
+        const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию (по инвайт-ссылке).`;
+        await notifyAdmins(inviteNotifyMessage);
+
+        const token = jwt.sign(
+            { userId: user._id, telegramId: user.telegram_id, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+
+        res.status(201).json({
+            valid: true,
+            token,
+            user: { ...user.toObject(), isRegistered: true },
+        });
+    } catch (err) {
+        console.error('Error using invite code:', err);
+        res.status(500).json({ message: 'Failed to use invite code.' });
     }
 });
 

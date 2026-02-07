@@ -40,9 +40,9 @@ export const ModalPopup: React.FC<ModalPopupProps> = ({ isOpen, onClose, childre
     return (
         <div className={css.modalOverlay} onClick={onClose}>
             <div className={css.modalContent} onClick={(e) => e.stopPropagation()}>
-                <button className={css.modalCloseButton} onClick={onClose}>
+                {/* <button className={css.modalCloseButton} onClick={onClose}>
                     &times;
-                </button>
+                </button> */}
                 {children}
             </div>
         </div>

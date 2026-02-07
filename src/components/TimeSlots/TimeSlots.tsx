@@ -23,6 +23,8 @@ interface TimeSlotsProps {
     isAdmin: boolean;
     /** Флаг, указывающий, является ли выбранная дата прошедшей (блокирует взаимодействие) */
     isSelectedDayBeforeToday: boolean;
+    /** Флаг, указывающий, является ли выбранная дата сегодняшним днём */
+    isToday: boolean;
 }
 
 /** Список доступных для бронирования часов (статическая конфигурация) */
@@ -54,8 +56,22 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
         currentUserId,
         isAdmin,
         isSelectedDayBeforeToday,
+        isToday,
     },
 ) => {
+    /**
+     * Проверяет, прошло ли уже время слота (для сегодняшнего дня).
+     * @param slotHour - Время слота в формате "HH:00"
+     * @returns true, если текущее время больше или равно времени слота
+     */
+    const isSlotTimePassed = (slotHour: string): boolean => {
+        if (!isToday) return false;
+        const now = new Date();
+        const [hours] = slotHour.split(':').map(Number);
+        const currentHour = now.getHours();
+        return currentHour >= hours;
+    };
+
     return (
         <div className={css.timeSlotContainer}>
             {AVAILABLE_HOURS.map(hour => {
@@ -72,8 +88,10 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
                 const isSelectedForBooking = selectedHours.includes(hour);
                 const isSelectedForCancellation = hoursToCancel.includes(hour);
 
-                // Слот недоступен, если он занят кем-то другим, и пользователь не админ
-                const isDisabledForBooking = isBooked && !canCancel;
+                // Слот недоступен, если:
+                // 1. Занят кем-то другим и пользователь не админ, ИЛИ
+                // 2. Сегодняшний день и время слота уже прошло
+                const isDisabledForBooking = (isBooked && !canCancel) || isSlotTimePassed(hour);
 
                 return (
                     <button

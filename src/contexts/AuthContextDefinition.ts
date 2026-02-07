@@ -15,6 +15,8 @@ export interface IAuthContext {
     logout: () => void;
     /** Функция для регистрации нового пользователя (запрос доступа). */
     register: () => Promise<void>;
+    /** Функция для регистрации по инвайт-коду. */
+    registerWithInvite: (code: string) => Promise<void>;
     /** Объект текущего пользователя или null. */
     user: IUser | null;
 }
@@ -28,6 +30,7 @@ export const initialAuthState: IAuthContext = {
     login: () => {},
     logout: () => {},
     register: async () => {},
+    registerWithInvite: async () => {},
     user: null
 };
 

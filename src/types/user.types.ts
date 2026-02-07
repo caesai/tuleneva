@@ -11,4 +11,4 @@ export interface IUser {
     isRegistered?: boolean;
 }
 
-export type TRole = 'admin' | 'user' | 'guest';
+export type TRole = 'super_admin' | 'admin' | 'user' | 'guest';

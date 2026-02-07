@@ -87,3 +87,47 @@ export const APIGetUserInfo = async () => {
         headers: getAuthHeaders(),
     })
 }
+
+/**
+ * Генерирует одноразовый инвайт-код (только для админов).
+ * @returns {Promise<Response>} Ответ сервера с кодом и ссылкой.
+ */
+export const APIGenerateInvite = async () => {
+    return await fetch(DEV_URL + '/invite/generate', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+}
+
+/**
+ * Проверяет валидность инвайт-кода.
+ * @param code - Инвайт-код для проверки.
+ * @returns {Promise<Response>} Ответ сервера с полем valid.
+ */
+export const APIValidateInvite = async (code: string) => {
+    return await fetch(`${DEV_URL}/invite/validate/${code}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache',
+        },
+    });
+}
+
+/**
+ * Использует инвайт-код для регистрации пользователя.
+ * @param code - Инвайт-код.
+ * @param initData - Данные запуска Telegram Mini App.
+ * @param user - Строка с данными пользователя из Telegram.
+ * @returns {Promise<Response>} Ответ сервера с токеном и данными пользователя.
+ */
+export const APIUseInvite = async (code: string, initData: object, user: string) => {
+    return await fetch(`${DEV_URL}/invite/use`, {
+        method: 'POST',
+        body: JSON.stringify({ code, initData, user }),
+        headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store, no-cache',
+        },
+    });
+}
