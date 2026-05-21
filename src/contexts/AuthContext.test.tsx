@@ -17,7 +17,7 @@ vi.mock('@/auth/telegramAuth.ts', () => ({
 }));
 
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 
 function Probe() {
     const { authStatus, authProvider, isLoading } = useAuth();
