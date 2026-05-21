@@ -15,7 +15,9 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run test/unit test/contracts",
+    "test:integration": "vitest run test/integration",
+    "test:all": "npm test && npm run test:integration",
     "start": "node index.js",
     "dev": "nodemon index.js",
     "build": "esbuild index.js --bundle --platform=node --packages=external --outfile=dist/index.cjs"
@@ -33,6 +35,10 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "esbuild": "^0.27.2"
+    "esbuild": "^0.27.2",
+    "mongodb-memory-server": "^11.1.0",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.7",
+    "zod": "^4.4.3"
   }
 }

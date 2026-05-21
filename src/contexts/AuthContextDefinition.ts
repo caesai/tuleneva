@@ -1,6 +1,11 @@
 import { createContext } from 'react';
 import type { IUser } from '@/types/user.types.ts';
-import type { IAuthCapabilities, TAuthProvider, TAuthStatus } from '@/types/auth.types.ts';
+import type {
+    IAuthCapabilities,
+    IWebInviteProfile,
+    TAuthProvider,
+    TAuthStatus,
+} from '@/types/auth.types.ts';
 import { buildAuthCapabilities } from '@/types/auth.types.ts';
 
 /**
@@ -16,7 +21,7 @@ export interface IAuthContext {
     login: (userData: IUser, token: string | null, provider?: TAuthProvider | null) => void;
     logout: () => void;
     register: () => Promise<void>;
-    registerWithInvite: (code: string) => Promise<void>;
+    registerWithInvite: (code: string, webProfile?: IWebInviteProfile) => Promise<void>;
 }
 
 export const initialAuthCapabilities = buildAuthCapabilities(null, false);

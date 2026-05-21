@@ -1,0 +1,40 @@
+---
+description: Правила Tuleneva — JSDoc, клиент/сервер, тесты (полный текст в AGENTS.md)
+alwaysApply: true
+---
+
+# Tuleneva — правила агента
+
+Полная документация: [AGENTS.md](../../AGENTS.md).
+
+## Архитектура
+
+- **Клиент** `src/` — React, TS, API в `src/api/`, auth в `AuthContext` + `auth.api.ts`
+- **Сервер** `server/` — Express через `createApp()` в `app.js`, auth в `server/auth/`
+- **Общее** `shared/contracts/`, `shared/test/roleMatrix.ts`
+- UI: только `useAuth().capabilities`, не сырые проверки Telegram
+- Роли: `roleHelpers.js` (server) + `rolePermissions.ts` (client) + `roleMatrix` (тесты) — синхронно
+
+## JSDoc (обязательно)
+
+В каждом **созданном** или **изменённом** файле — JSDoc на экспорты и нетривиальную логику (`@description`, `@param`, `@returns`; для routes — `@route`). Язык: русский. Примеры: `server/auth/*.js`, `src/api/auth.api.ts`.
+
+## Тесты (обязательно после изменений)
+
+```bash
+npm test                    # клиент
+cd server && npm run test:all
+```
+
+- Регрессии — исправить до завершения задачи
+- Новый API → `shared/contracts/` + contract/integration тесты
+- Новая логика ролей/инвайтов → unit + `roleMatrix`
+- Заметный UI-поток → `*.test.tsx`
+- Не сбрасывать моки через `vi.clearAllMocks()` без восстановления `mockResolvedValue`
+
+## Практики
+
+- Минимальный diff, без лишнего рефакторинга
+- Новый auth только `/api/auth/*`, не legacy `/api/users/*`
+- Коммиты — только по запросу пользователя
+- Env/API/команды — обновлять README при изменении

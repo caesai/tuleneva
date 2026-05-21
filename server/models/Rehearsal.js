@@ -28,5 +28,5 @@ const rehearsalSchema = new mongoose.Schema(
     }
 );
 
-const Rehearsal = mongoose.model('Rehearsal', rehearsalSchema);
+const Rehearsal = mongoose.models.Rehearsal || mongoose.model('Rehearsal', rehearsalSchema);
 module.exports = Rehearsal;

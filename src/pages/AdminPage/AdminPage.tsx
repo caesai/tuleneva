@@ -1,34 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { APIGetUsers, APIUpdateUserRole, APIDeleteUser, APIGenerateInvite } from '@/api/user.api.ts';
 import type { IUser, TRole } from '@/types/user.types.ts';
+import type { TAuthProvider } from '@/types/auth.types.ts';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import css from './AdminPage.module.css';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { useNavigate } from 'react-router-dom';
+import {
+    canAssignRole,
+    canDeleteUser,
+    getAssignableRoles,
+    isAdminLike,
+} from '@/utils/rolePermissions.ts';
+
+const ROLE_LABELS: Record<TRole, string> = {
+    guest: 'Гость',
+    user: 'Пользователь',
+    admin: 'Администратор',
+    super_admin: 'Супер администратор',
+};
 
 /**
  * Страница администратора для управления пользователями.
- * Позволяет просматривать список пользователей, изменять их роли и удалять пользователей.
- * Доступна только пользователям с ролью 'admin'.
- *
- * @component
  */
 export const AdminPage: React.FC = () => {
     const [users, setUsers] = useState<IUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+    const [isInviteOptionsOpen, setIsInviteOptionsOpen] = useState(false);
     const [inviteLink, setInviteLink] = useState<string | null>(null);
     const [webInviteLink, setWebInviteLink] = useState<string | null>(null);
+    const [inviteAllowedProviders, setInviteAllowedProviders] = useState<TAuthProvider[]>([]);
     const [inviteLoading, setInviteLoading] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [inviteInitialRole, setInviteInitialRole] = useState<'guest' | 'user'>('guest');
+    const [inviteAllowTelegram, setInviteAllowTelegram] = useState(true);
+    const [inviteAllowWeb, setInviteAllowWeb] = useState(true);
     const { user } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Проверка прав доступа (на всякий случай, хотя роутинг тоже должен защищать)
-        if ( user && (user.role !== 'admin' && user?.role !== 'super_admin')) {
+        if (user && !isAdminLike(user.role)) {
             navigate('/');
             return;
         }
@@ -54,14 +68,19 @@ export const AdminPage: React.FC = () => {
         }
     };
 
-    const handleRoleChange = async (userId: string, newRole: string) => {
+    const handleRoleChange = async (userId: string, newRole: TRole, targetRole: TRole) => {
+        if (!user || !canAssignRole(user.role, targetRole, newRole)) {
+            alert('Недостаточно прав для изменения роли');
+            return;
+        }
+
         try {
             const response = await APIUpdateUserRole(userId || '', newRole);
             if (response.ok) {
-                // Обновляем локальное состояние
-                setUsers(users.map(u => u._id === userId ? { ...u, role: newRole as TRole } : u));
+                setUsers(users.map(u => u._id === userId ? { ...u, role: newRole } : u));
             } else {
-                alert('Failed to update role');
+                const data = await response.json().catch(() => ({}));
+                alert(data.message || 'Failed to update role');
             }
         } catch (err) {
             console.error(err);
@@ -69,7 +88,12 @@ export const AdminPage: React.FC = () => {
         }
     };
 
-    const handleDeleteUser = async (userId: string) => {
+    const handleDeleteUser = async (userId: string, targetRole: TRole) => {
+        if (!user || !canDeleteUser(user.role, targetRole, userId === user._id)) {
+            alert('Недостаточно прав для удаления пользователя');
+            return;
+        }
+
         if (!confirm('Are you sure you want to delete this user?')) return;
 
         try {
@@ -77,7 +101,8 @@ export const AdminPage: React.FC = () => {
             if (response.ok) {
                 setUsers(users.filter(u => u._id !== userId));
             } else {
-                alert('Failed to delete user');
+                const data = await response.json().catch(() => ({}));
+                alert(data.message || 'Failed to delete user');
             }
         } catch (err) {
             console.error(err);
@@ -85,17 +110,47 @@ export const AdminPage: React.FC = () => {
         }
     };
 
+    const openInviteOptions = () => {
+        setInviteAllowTelegram(true);
+        setInviteAllowWeb(true);
+        setInviteInitialRole('guest');
+        setIsInviteOptionsOpen(true);
+    };
+
     const handleGenerateInvite = async () => {
+        const allowedProviders: TAuthProvider[] = [];
+        if (inviteAllowTelegram) allowedProviders.push('telegram');
+        if (inviteAllowWeb) allowedProviders.push('web');
+
+        if (allowedProviders.length === 0) {
+            alert('Выберите хотя бы один способ входа');
+            return;
+        }
+
         setInviteLoading(true);
         setCopied(false);
         setInviteLink(null);
         setWebInviteLink(null);
+        setInviteAllowedProviders([]);
+
         try {
-            const response = await APIGenerateInvite();
+            const response = await APIGenerateInvite({
+                initialRole: inviteInitialRole,
+                allowedProviders,
+            });
             if (response.ok) {
                 const data = await response.json();
-                setInviteLink(data.telegramInviteLink || data.inviteLink);
-                setWebInviteLink(data.webInviteLink || null);
+                const providers: TAuthProvider[] = data.allowedProviders ?? allowedProviders;
+                setInviteAllowedProviders(providers);
+                setInviteLink(
+                    providers.includes('telegram')
+                        ? (data.telegramInviteLink || data.inviteLink)
+                        : null,
+                );
+                setWebInviteLink(
+                    providers.includes('web') ? (data.webInviteLink || null) : null,
+                );
+                setIsInviteOptionsOpen(false);
                 setIsInviteModalOpen(true);
             } else {
                 alert('Не удалось сгенерировать ссылку');
@@ -115,7 +170,6 @@ export const AdminPage: React.FC = () => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch {
-            // Fallback для старых браузеров
             const textArea = document.createElement('textarea');
             textArea.value = inviteLink;
             document.body.appendChild(textArea);
@@ -141,20 +195,59 @@ export const AdminPage: React.FC = () => {
             <div className={css.inviteSection}>
                 <button
                     className={css.inviteButton}
-                    onClick={handleGenerateInvite}
+                    onClick={openInviteOptions}
                     disabled={inviteLoading}
                 >
                     {inviteLoading ? 'Генерация...' : 'Пригласить пользователя'}
                 </button>
             </div>
 
+            <ModalPopup isOpen={isInviteOptionsOpen} onClose={() => setIsInviteOptionsOpen(false)}>
+                <div className={css.inviteModal}>
+                    <h3>Настройки приглашения</h3>
+                    <label className={css.inviteLabel}>Начальная роль</label>
+                    <select
+                        className={css.roleSelect}
+                        value={inviteInitialRole}
+                        onChange={(e) => setInviteInitialRole(e.target.value as 'guest' | 'user')}
+                    >
+                        <option value="guest">Гость (ожидает подтверждения)</option>
+                        <option value="user">Пользователь</option>
+                    </select>
+                    <label className={css.inviteLabel}>Способы входа</label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={inviteAllowTelegram}
+                            onChange={(e) => setInviteAllowTelegram(e.target.checked)}
+                        />
+                        {' '}Telegram Mini App
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={inviteAllowWeb}
+                            onChange={(e) => setInviteAllowWeb(e.target.checked)}
+                        />
+                        {' '}Веб-браузер
+                    </label>
+                    <button
+                        className={css.copyButton}
+                        onClick={handleGenerateInvite}
+                        disabled={inviteLoading}
+                    >
+                        {inviteLoading ? 'Генерация...' : 'Сгенерировать ссылку'}
+                    </button>
+                </div>
+            </ModalPopup>
+
             <ModalPopup isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)}>
                 <div className={css.inviteModal}>
                     <h3>Пригласить пользователя</h3>
                     <p className={css.inviteDescription}>
-                        Отправьте эту одноразовую ссылку пользователю. После использования ссылка станет недействительной.
+                        Отправьте одноразовую ссылку пользователю. После использования ссылка станет недействительной.
                     </p>
-                    {inviteLink && (
+                    {inviteLink && inviteAllowedProviders.includes('telegram') && (
                         <div className={css.inviteLinkContainer}>
                             <label className={css.inviteLabel}>Telegram Mini App</label>
                             <input
@@ -168,7 +261,7 @@ export const AdminPage: React.FC = () => {
                             </button>
                         </div>
                     )}
-                    {webInviteLink && (
+                    {webInviteLink && inviteAllowedProviders.includes('web') && (
                         <div className={css.inviteLinkContainer}>
                             <label className={css.inviteLabel}>Веб-ссылка</label>
                             <input
@@ -199,34 +292,54 @@ export const AdminPage: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {users.map(u => (
-                            <tr key={u._id}>
-                                <td>{u.first_name} {u.last_name}</td>
-                                <td>{u.username ? `@${u.username}` : '-'}</td>
-                                <td>
-                                    <select
-                                        className={css.roleSelect}
-                                        value={u.role}
-                                        onChange={(e) => handleRoleChange(u._id || '', e.target.value)}
-                                        disabled={u._id === user?._id} // Нельзя менять роль самому себе
-                                    >
-                                        <option value="guest">Гость</option>
-                                        <option value="user">Пользователь</option>
-                                        {user?.role === 'super_admin' && <option value="admin">Администратор</option>}
-                                        {user?.role === 'super_admin' && <option value="super_admin">Супер администратор</option>}
-                                    </select>
-                                </td>
-                                <td>
-                                    <button
-                                        className={css.deleteButton}
-                                        onClick={() => handleDeleteUser(u._id || '')}
-                                        disabled={u._id === user?._id} // Нельзя удалить самого себя
-                                    >
-                                        Удалить
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
+                        {users.map(u => {
+                            const allowedRoles = user
+                                ? getAssignableRoles(user.role, u.role)
+                                : [];
+                            const assignableRoles =
+                                allowedRoles.length > 0 ? allowedRoles : [u.role];
+                            const roleSelectDisabled =
+                                u._id === user?._id || allowedRoles.length === 0;
+                            const deleteDisabled =
+                                !user ||
+                                !canDeleteUser(user.role, u.role, u._id === user._id);
+
+                            return (
+                                <tr key={u._id}>
+                                    <td>{u.first_name} {u.last_name}</td>
+                                    <td>{u.username ? `@${u.username}` : '-'}</td>
+                                    <td>
+                                        <select
+                                            className={css.roleSelect}
+                                            value={u.role}
+                                            onChange={(e) =>
+                                                handleRoleChange(
+                                                    u._id || '',
+                                                    e.target.value as TRole,
+                                                    u.role,
+                                                )
+                                            }
+                                            disabled={roleSelectDisabled}
+                                        >
+                                            {assignableRoles.map(role => (
+                                                <option key={role} value={role}>
+                                                    {ROLE_LABELS[role]}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <button
+                                            className={css.deleteButton}
+                                            onClick={() => handleDeleteUser(u._id || '', u.role)}
+                                            disabled={deleteDisabled}
+                                        >
+                                            Удалить
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

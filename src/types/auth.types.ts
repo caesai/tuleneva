@@ -29,6 +29,12 @@ export interface IWebAuthPayload {
 
 export type TProviderAuthPayload = ITelegramAuthPayload | IWebAuthPayload;
 
+export interface IWebInviteProfile {
+    firstName: string;
+    lastName?: string;
+    email?: string;
+}
+
 export interface IInviteUsePayload {
     code: string;
     provider: TAuthProvider;
@@ -36,6 +42,13 @@ export interface IInviteUsePayload {
         initData: object;
         user: string;
     };
+    web?: IWebInviteProfile;
+}
+
+export interface IInviteValidateResponse {
+    valid: boolean;
+    purpose?: string;
+    allowedProviders?: TAuthProvider[];
 }
 
 export interface IAuthCapabilities {

@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .cert
+
+# Local deploy artifacts (rsync/scp output)
+sushkazzlo@*/
+**/*@*.*.*/

@@ -8,7 +8,7 @@ import moment, { type Moment } from '@/lib/moment';
 import css from '@/pages/TimeTablePage/TimeTable.module.css';
 import { APICancelBooking, APIPostBookRehearsal } from '@/api/timetable.api.ts';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { useNetwork } from '@/contexts/NetworkContext.tsx';
+import { useNetwork } from '@/hooks/useNetwork.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { Avatar, Tab } from '@mui/material';

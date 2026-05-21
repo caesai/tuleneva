@@ -1,167 +1,159 @@
 # Tuleneva Rehearsal Studio Booking App
 
-Telegram Mini App для бронирования времени в репетиционной студии "Тюленева 25".
+Telegram Mini App и веб-клиент для бронирования времени в репетиционной студии «Тюленева 25».
 
-## 🚀 Технологический стек
+## Технологический стек
 
-**Frontend:**
-- [React](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- [Vite](https://vitejs.dev/) (сборщик)
-- [Telegram Apps SDK](https://docs.telegram-mini-apps.com/) (интеграция с Telegram)
-- [React Router](https://reactrouter.com/) (маршрутизация)
-- CSS Modules (стилизация)
+**Frontend:** React, TypeScript, Vite, Telegram Apps SDK, React Router, CSS Modules
 
-**Backend:**
-- [Node.js](https://nodejs.org/) + [Express](https://expressjs.com/)
-- [MongoDB](https://www.mongodb.com/) + [Mongoose](https://mongoosejs.com/)
-- [Telegraf](https://telegraf.js.org/) (Telegram Bot API)
-- [JWT](https://jwt.io/) (авторизация)
+**Backend:** Node.js, Express, MongoDB, Mongoose, Telegraf, JWT, WebSocket (`/ws`)
 
-## ✨ Функционал
+**Тесты:** Vitest (клиент и сервер), Zod-контракты в `shared/contracts/`, integration через supertest + mongodb-memory-server. E2E (Playwright) — планируется отдельно.
 
-### Для пользователей:
-- 📅 **Просмотр расписания**: Календарь с отображением занятых и свободных слотов.
-- 📝 **Бронирование**: Возможность забронировать свободное время (для авторизованных пользователей).
-- ❌ **Отмена бронирования**: Возможность отменить свою репетицию.
-- 🔐 **Авторизация**: Автоматический вход через Telegram с валидацией данных (`initData`).
+## Функционал
 
-### Роли и доступ:
-- **Guest**: Может только просматривать расписание. Бронирование недоступно до подтверждения администратором.
-- **User**: Может бронировать время и отменять свои брони.
-- **Admin**: Полный доступ. Может бронировать и отменять любые репетиции, управлять пользователями.
+- Просмотр расписания, бронирование и отмена слотов
+- Авторизация: Telegram Mini App и **web invite** (`?invite=CODE`)
+- Одноразовые инвайты с настраиваемыми `allowedProviders`
+- WebSocket: события `booking_update`, `booking_cancel`
 
-### Админ-панель (только для Admin):
-- 📋 **Список пользователей**: Просмотр всех зарегистрированных пользователей.
-- ✏️ **Управление ролями**: Изменение роли пользователя (`guest` -> `user` -> `admin`).
-- 🗑️ **Удаление пользователей**: Возможность удалить пользователя из базы.
+## Роли и права
 
-## 🛠️ Установка и запуск
+| Роль | Описание |
+|------|----------|
+| `guest` | Только просмотр; бронирование после подтверждения |
+| `user` | Свои брони |
+| `admin` | Управление пользователями (кроме `super_admin`), любые отмены |
+| `super_admin` | Полные права, назначение любых ролей |
 
-### Предварительные требования
-- Node.js (v18+)
-- MongoDB (запущенная локально или облачная)
+**Матрица (кратко):** `admin` не назначает `super_admin` и не меняет роли `admin` / `super_admin`; не удаляет `admin` / `super_admin`. `super_admin` — без этих ограничений.
 
-### 1. Клонирование репозитория
-```bash
-git clone <repository-url>
-cd tuleneva
-```
+## Установка и запуск
 
-### 2. Настройка Бэкенда (Server)
+### Требования
 
-Перейдите в папку сервера:
+- Node.js 18+
+- MongoDB (локально или облако)
+
+### Сервер
+
 ```bash
 cd server
-```
-
-Установите зависимости:
-```bash
 npm install
 ```
 
-Создайте файл `.env` в папке `server` и добавьте необходимые переменные окружения:
+`.env` в `server/` или корне проекта:
+
 ```env
 TELEGRAM_TOKEN=ваш_токен_бота
-TELEGRAM_ADMIN_ID=ваш_telegram_id_для_уведомлений
-JWT_SECRET=секретный_ключ_для_jwt
+JWT_SECRET=секретный_ключ
+WEB_APP_BASE_URL=https://tuleneva25.ru
 PORT=3000
 ```
 
-Запустите сервер:
 ```bash
-npm start
-# или для разработки
+npm start      # production
+npm run dev    # nodemon
+```
+
+### Клиент
+
+```bash
+npm install --legacy-peer-deps
 npm run dev
 ```
-Сервер будет доступен по адресу `http://localhost:3000`.
 
-### 3. Настройка Фронтенда (Client)
+Для Telegram SDK локально приложение эмулирует среду Mini App в браузере.
 
-Вернитесь в корень проекта:
+## Тестирование
+
 ```bash
-cd ..
+# Клиент (unit + UI)
+npm test
+npm run test:watch
+npm run test:coverage
+
+# Сервер (unit + contracts + integration)
+cd server && npm run test:all
 ```
 
-Установите зависимости:
+Integration-тесты используют in-memory MongoDB; внешний Mongo не нужен.
+
+## API
+
+### Auth (`/api/auth/*`)
+
+| Method | Path | Назначение |
+|--------|------|------------|
+| GET | `/api/auth/session` | Сессия по JWT |
+| POST | `/api/auth/providers/telegram/login` | Вход Telegram |
+| POST | `/api/auth/providers/telegram/register` | Запрос доступа |
+| POST | `/api/auth/invite/use` | Регистрация по инвайту (`provider`, `telegram?`, `web?`) |
+| POST | `/api/auth/invite/generate` | Админ: код и ссылки |
+| GET | `/api/auth/invite/validate/:code` | Проверка кода |
+
+### Пользователи и расписание
+
+| Method | Path | Назначение |
+|--------|------|------------|
+| GET | `/api/users` | Список пользователей (JWT) |
+| PUT | `/api/users/:id/role` | Смена роли (admin+) |
+| DELETE | `/api/users/:id` | Удаление (admin+) |
+| GET | `/api/timetable?date=DD/MM/YYYY` | Занятые даты месяца |
+| GET | `/api/hours?date=DD/MM/YYYY` | Слоты на день |
+| POST | `/api/book` | Бронирование |
+| DELETE | `/api/cancel` | Отмена |
+
+### Deprecated (совместимость)
+
+- `POST /api/users/auth` → `POST /api/auth/providers/telegram/login`
+- `POST /api/users/register` → `POST /api/auth/providers/telegram/register`
+- `POST /api/invite/*` → `POST /api/auth/invite/*`
+
+## WebSocket
+
+- Путь: `/ws`
+- События: `booking_update`, `booking_cancel` (payload: `date`, `hours`, `timestamp`)
+
+## Сборка и деплой
+
+**Сервер:**
+
 ```bash
-npm install
+cd server && npm run build
+node dist/index.cjs
 ```
 
-Запустите клиент в режиме разработки:
+**Клиент:**
+
 ```bash
-npm run dev
+npm run build
 ```
-Приложение будет доступно по адресу, указанному в консоли (обычно `https://localhost:5173` или `https://tuleneva.local` если настроено).
 
-**Примечание:** Для корректной работы `Telegram Apps SDK` и авторизации локально, приложение эмулирует среду Telegram, если запущено в браузере.
+Статика из `dist/` раздаётся веб-сервером (Nginx и т.д.). Папка `dist/` в `.gitignore`.
 
-## 📦 Сборка и деплой на production
+Подробный handoff по auth: [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md).
 
-### Сервер (Backend)
-
-1.  В папке `server` выполните сборку:
-    ```bash
-    npm run build
-    ```
-    Это создаст файл `server/dist/index.cjs`.
-
-2.  На production сервер необходимо скопировать:
-    *   Папку `server/dist`
-    *   Файл `server/package.json`
-    *   Файл `server/package-lock.json`
-    *   Файл `.env` (в папку с сервером или на уровень выше)
-
-3.  На production сервере установите production-зависимости:
-    ```bash
-    npm install --omit=dev
-    ```
-
-4.  Запустите сервер:
-    ```bash
-    node dist/index.cjs
-    ```
-    (Или используйте PM2: `pm2 start dist/index.cjs`)
-
-### Клиент (Frontend)
-
-1.  В корне проекта выполните сборку:
-    ```bash
-    npm run build
-    ```
-    Это создаст папку `dist` с статическими файлами.
-
-2.  Эти файлы можно раздавать любым веб-сервером (Nginx, Apache, и т.д.).
-
-## 📡 API Эндпоинты
-
-### Авторизация
-- `POST /api/users/auth` - Аутентификация через Telegram InitData. Выдает JWT.
-
-### Пользователи
-- `GET /api/users` - Получить список всех пользователей (Требуется токен).
-- `PUT /api/users/:id/role` - Изменить роль пользователя (Только Admin).
-- `DELETE /api/users/:id` - Удалить пользователя (Только Admin).
-
-### Расписание и Бронирование
-- `GET /api/timetable?date=DD/MM/YYYY` - Получить занятые даты месяца.
-- `GET /api/hours?date=DD/MM/YYYY` - Получить слоты на конкретный день.
-- `POST /api/book` - Забронировать время (Требуется токен).
-- `DELETE /api/cancel` - Отменить бронирование (Требуется токен).
-
-## 📄 Структура проекта
+## Структура проекта
 
 ```
 tuleneva/
-├── server/                 # Бэкенд на Express
-│   ├── models/             # Mongoose схемы (User, Rehearsal)
-│   └── index.js            # Точка входа сервера
-├── src/                    # Фронтенд на React
-│   ├── api/                # Клиентские API функции
-│   ├── components/         # React компоненты (Calendar, TimeSlots, Loader...)
-│   ├── contexts/           # React Context (AuthContext)
-│   ├── hooks/              # Кастомные хуки (useAuth, useTimeTableData)
-│   ├── pages/              # Страницы (TimeTablePage, AdminPage)
-│   └── types/              # TypeScript типы
-├── vite.config.ts          # Конфигурация Vite
-└── README.md               # Документация
+├── server/
+│   ├── app.js              # createApp() — Express без listen/bot.launch
+│   ├── index.js            # bootstrap: Mongo, Telegraf, WebSocket
+│   ├── auth/               # authRoutes, providers, inviteService
+│   ├── models/
+│   └── test/               # unit, contracts, integration
+├── src/
+│   ├── api/
+│   ├── auth/
+│   ├── contexts/
+│   ├── pages/
+│   ├── telegram/
+│   └── utils/              # rolePermissions
+├── shared/
+│   ├── contracts/          # Zod-схемы API
+│   └── test/               # roleMatrix для server + client
+├── docs/
+└── README.md
 ```

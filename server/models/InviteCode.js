@@ -42,5 +42,8 @@ const inviteCodeSchema = new mongoose.Schema({
     },
 }, { timestamps: true });
 
-module.exports = mongoose.model('InviteCode', inviteCodeSchema);
+const InviteCode = mongoose.models.InviteCode
+    || mongoose.model('InviteCode', inviteCodeSchema);
+
+module.exports = InviteCode;
 module.exports.INVITE_CODE_TTL_SECONDS = INVITE_CODE_TTL_SECONDS;

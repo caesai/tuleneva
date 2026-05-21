@@ -11,6 +11,8 @@ import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { APIValidateInvite } from '@/api/user.api.ts';
+import { getTelegramEnvironment } from '@/telegram/env.ts';
+import type { IInviteValidateResponse, TAuthProvider } from '@/types/auth.types.ts';
 
 const AdminPage = lazy(() =>
     import('@/pages/AdminPage/AdminPage.tsx').then((m) => ({ default: m.AdminPage })),
@@ -21,9 +23,17 @@ const IndexPage: React.FC = () => {
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [inviteLoading, setInviteLoading] = useState(false);
+    const [inviteAllowedProviders, setInviteAllowedProviders] = useState<TAuthProvider[]>([]);
+    const [webFirstName, setWebFirstName] = useState('');
+    const [webLastName, setWebLastName] = useState('');
+    const [webEmail, setWebEmail] = useState('');
     const closeModal = () => setIsModalOpen(false);
 
     const [searchParams, setSearchParams] = useSearchParams();
+    const { isTelegram } = useSafeLaunchParams();
+    const isInTelegram = isTelegram && getTelegramEnvironment();
+    const showWebInviteForm =
+        !isInTelegram && inviteAllowedProviders.includes('web');
 
     // Используем контекст авторизации
     const { user, isLoading, isAuthenticated, register, registerWithInvite } = useAuth();
@@ -46,8 +56,9 @@ const IndexPage: React.FC = () => {
 
             setInviteCode(code);
             APIValidateInvite(code).then(async (res) => {
-                const data = await res.json();
+                const data = await res.json() as IInviteValidateResponse;
                 if (data.valid) {
+                    setInviteAllowedProviders(data.allowedProviders ?? ['telegram']);
                     setIsInviteModalOpen(true);
                 } else {
                     showToast('Ссылка-приглашение недействительна или уже использована.', 'error');
@@ -89,20 +100,45 @@ const IndexPage: React.FC = () => {
 
     const handleInviteRequestAccess = useCallback(async () => {
         if (!inviteCode) return;
+        if (showWebInviteForm && !webFirstName.trim()) {
+            showToast('Укажите имя для регистрации.', 'error');
+            return;
+        }
         setInviteLoading(true);
         try {
-            await registerWithInvite(inviteCode);
+            if (showWebInviteForm) {
+                await registerWithInvite(inviteCode, {
+                    firstName: webFirstName.trim(),
+                    lastName: webLastName.trim() || undefined,
+                    email: webEmail.trim() || undefined,
+                });
+            } else {
+                await registerWithInvite(inviteCode);
+            }
             showToast('Запрос на доступ отправлен администратору.', 'success');
             setIsInviteModalOpen(false);
             clearInviteParams();
             setInviteCode(null);
+            setInviteAllowedProviders([]);
+            setWebFirstName('');
+            setWebLastName('');
+            setWebEmail('');
         } catch (err) {
             console.error('Invite request access failed:', err);
             showToast('Не удалось отправить запрос. Ссылка может быть уже использована.', 'error');
         } finally {
             setInviteLoading(false);
         }
-    }, [inviteCode, registerWithInvite, showToast, clearInviteParams]);
+    }, [
+        inviteCode,
+        registerWithInvite,
+        showToast,
+        clearInviteParams,
+        showWebInviteForm,
+        webFirstName,
+        webLastName,
+        webEmail,
+    ]);
 
     // if (isLoading) {
     //     return <Loader />;
@@ -138,8 +174,35 @@ const IndexPage: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '260px' }}>
                     <h3 style={{ margin: 0 }}>Тюленева 25</h3>
                     <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.4' }}>
-                        Вы были приглашены. Нажмите кнопку ниже, чтобы запросить доступ к бронированию репетиций.
+                        {showWebInviteForm
+                            ? 'Вы были приглашены. Заполните форму, чтобы запросить доступ к бронированию репетиций.'
+                            : 'Вы были приглашены. Нажмите кнопку ниже, чтобы запросить доступ к бронированию репетиций.'}
                     </p>
+                    {showWebInviteForm && (
+                        <>
+                            <input
+                                type="text"
+                                placeholder="Имя *"
+                                value={webFirstName}
+                                onChange={(e) => setWebFirstName(e.target.value)}
+                                style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ccc' }}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Фамилия"
+                                value={webLastName}
+                                onChange={(e) => setWebLastName(e.target.value)}
+                                style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ccc' }}
+                            />
+                            <input
+                                type="email"
+                                placeholder="Email (опционально)"
+                                value={webEmail}
+                                onChange={(e) => setWebEmail(e.target.value)}
+                                style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ccc' }}
+                            />
+                        </>
+                    )}
                     <button
                         onClick={handleInviteRequestAccess}
                         disabled={inviteLoading}

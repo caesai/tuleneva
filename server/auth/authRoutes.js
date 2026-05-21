@@ -1,6 +1,5 @@
 const express = require('express');
 const crypto = require('crypto');
-const User = require('../models/User');
 const InviteCode = require('../models/InviteCode');
 const { INVITE_CODE_TTL_SECONDS } = require('../models/InviteCode');
 const { parseTelegramUser } = require('./telegramProvider');
@@ -11,6 +10,9 @@ const {
     migrateLegacyTelegramIdentities,
 } = require('./identityService');
 const { signAuthToken, buildAuthResponse } = require('./tokenService');
+const { isAdminLike } = require('./roleHelpers');
+const { findValidInvite, consumeInvite } = require('./inviteService');
+const { parseWebProfile, upsertWebUser } = require('./webProvider');
 
 /**
  * Регистрирует маршруты /api/auth/*.
@@ -98,25 +100,14 @@ const createAuthRouter = ({
 
     router.post('/invite/use', async (req, res) => {
         noCache(res);
-        const { code, provider = 'telegram', telegram } = req.body;
+        const { code, provider = 'telegram', telegram, web } = req.body;
 
         if (!code) {
             return res.status(400).json({ valid: false, message: 'Missing invite code' });
         }
 
         try {
-            if (provider !== 'telegram') {
-                return res.status(400).json({
-                    valid: false,
-                    message: `Provider "${provider}" is not implemented yet`,
-                });
-            }
-
-            if (!telegram?.user) {
-                return res.status(400).json({ valid: false, message: 'Missing Telegram data' });
-            }
-
-            const inviteCode = await InviteCode.findOneAndDelete({ code });
+            const inviteCode = await findValidInvite(code);
             if (!inviteCode) {
                 return res.status(400).json({ valid: false, message: 'Invalid or expired invite code.' });
             }
@@ -128,13 +119,36 @@ const createAuthRouter = ({
                 return res.status(400).json({ valid: false, message: 'Provider not allowed for this invite.' });
             }
 
-            const tg = parseTelegramUser(telegram.user, botToken);
-            let user = await findUserByTelegramId(tg.user.id);
+            let user;
 
-            if (!user) {
-                user = await upsertTelegramUser(tg.user, {
+            if (provider === 'telegram') {
+                if (!telegram?.user) {
+                    return res.status(400).json({ valid: false, message: 'Missing Telegram data' });
+                }
+
+                const tg = parseTelegramUser(telegram.user, botToken);
+                user = await findUserByTelegramId(tg.user.id);
+
+                if (!user) {
+                    user = await upsertTelegramUser(tg.user, {
+                        role: inviteCode.initialRole || 'guest',
+                    });
+                }
+            } else if (provider === 'web') {
+                const profile = parseWebProfile(web);
+                user = await upsertWebUser(profile, {
                     role: inviteCode.initialRole || 'guest',
                 });
+            } else {
+                return res.status(400).json({
+                    valid: false,
+                    message: `Provider "${provider}" is not implemented yet`,
+                });
+            }
+
+            const consumed = await consumeInvite(code, user._id);
+            if (!consumed) {
+                return res.status(400).json({ valid: false, message: 'Invalid or expired invite code.' });
             }
 
             const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ (инвайт).`;
@@ -144,12 +158,16 @@ const createAuthRouter = ({
             res.status(201).json(buildAuthResponse(user, token, provider));
         } catch (err) {
             console.error('Invite use error:', err);
-            res.status(500).json({ valid: false, message: 'Failed to use invite code.' });
+            const status = err.message?.includes('required') ? 400 : 500;
+            res.status(status).json({
+                valid: false,
+                message: err.message || 'Failed to use invite code.',
+            });
         }
     });
 
     router.post('/invite/generate', authenticateToken, verifyUserExists, async (req, res) => {
-        if (req.dbUser.role !== 'admin' && req.dbUser.role !== 'super_admin') {
+        if (!isAdminLike(req.dbUser.role)) {
             return res.status(403).json({ message: 'Access denied' });
         }
 
@@ -195,7 +213,7 @@ const createAuthRouter = ({
     router.get('/invite/validate/:code', async (req, res) => {
         try {
             const { code } = req.params;
-            const inviteCode = await InviteCode.findOne({ code, usedAt: { $exists: false } });
+            const inviteCode = await findValidInvite(code);
 
             res.status(200).json({
                 valid: !!inviteCode,

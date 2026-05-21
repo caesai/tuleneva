@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import type { IUser } from '@/types/user.types.ts';
-import type { TAuthProvider } from '@/types/auth.types.ts';
+import type { IWebInviteProfile, TAuthProvider } from '@/types/auth.types.ts';
 import {
     buildAuthCapabilities,
     resolveAuthStatus,
@@ -123,24 +123,43 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
         }
     };
 
-    const registerWithInvite = async (code: string) => {
-        if (!isInTelegram || !lp || !rawLp) {
-            throw new Error('Invite registration requires Telegram Mini App');
+    const registerWithInvite = async (code: string, webProfile?: IWebInviteProfile) => {
+        if (isInTelegram && lp && rawLp) {
+            const response = await applyInviteWithProvider({
+                code,
+                provider: 'telegram',
+                telegram: {
+                    initData: lp,
+                    user: rawLp,
+                },
+            });
+            const data = await parseAuthResponse(response);
+            if (data.valid && data.user) {
+                applySession({ ...data, authProvider: 'telegram' });
+                return;
+            }
+            throw new Error('Invite registration failed');
         }
+
+        if (!webProfile?.firstName?.trim()) {
+            throw new Error('First name is required for web invite registration');
+        }
+
         const response = await applyInviteWithProvider({
             code,
-            provider: 'telegram',
-            telegram: {
-                initData: lp,
-                user: rawLp,
+            provider: 'web',
+            web: {
+                firstName: webProfile.firstName.trim(),
+                lastName: webProfile.lastName?.trim() || undefined,
+                email: webProfile.email?.trim() || undefined,
             },
         });
         const data = await parseAuthResponse(response);
         if (data.valid && data.user) {
-            applySession({ ...data, authProvider: 'telegram' });
-        } else {
-            throw new Error('Invite registration failed');
+            applySession({ ...data, authProvider: 'web' });
+            return;
         }
+        throw new Error('Invite registration failed');
     };
 
     const capabilities = useMemo(
