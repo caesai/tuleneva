@@ -1,3 +1,8 @@
+/**
+ * @file Тесты {@link AuthProvider}: восстановление сессии по сохранённому JWT
+ * из localStorage через `GET /api/auth/session`. Сетевые вызовы мокаются через
+ * `globalThis.fetch`, telegram-окружение принудительно отключается.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider } from './AuthContext.tsx';

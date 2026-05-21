@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { APIGetUsers, APIUpdateUserRole, APIDeleteUser, APIGenerateInvite } from '@/api/user.api.ts';
 import type { IUser, TRole } from '@/types/user.types.ts';
 import type { TAuthProvider } from '@/types/auth.types.ts';
@@ -22,7 +22,14 @@ const ROLE_LABELS: Record<TRole, string> = {
 };
 
 /**
- * Страница администратора для управления пользователями.
+ * @description Страница администратора для управления пользователями: смена роли,
+ * удаление, генерация инвайт-ссылок (Telegram Mini App / веб). Доступна только
+ * пользователям с ролью admin или super_admin (проверка через {@link isAdminLike}).
+ *
+ * Эффект загрузки списка пользователей зависит от примитивных идентификаторов
+ * текущего пользователя (`user?._id`, `user?.role`), чтобы исключить цикл
+ * "новый объект user на каждый рендер → re-fetch → re-render → ...".
+ * @returns {JSX.Element} Разметка страницы или прелоадер/сообщение об ошибке.
  */
 export const AdminPage: React.FC = () => {
     const [users, setUsers] = useState<IUser[]>([]);
@@ -40,17 +47,16 @@ export const AdminPage: React.FC = () => {
     const [inviteAllowWeb, setInviteAllowWeb] = useState(true);
     const { user } = useAuth();
     const navigate = useNavigate();
+    const userId = user?._id;
+    const userRole = user?.role;
 
-    useEffect(() => {
-        if (user && !isAdminLike(user.role)) {
-            navigate('/');
-            return;
-        }
-
-        fetchUsers();
-    }, [user, navigate]);
-
-    const fetchUsers = async () => {
+    /**
+     * @description Загружает список пользователей через {@link APIGetUsers}.
+     * Стабильная ссылка (useCallback с пустыми зависимостями), чтобы её можно
+     * было безопасно использовать в зависимостях `useEffect`.
+     * @returns {Promise<void>}
+     */
+    const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
             const response = await APIGetUsers();
@@ -66,7 +72,19 @@ export const AdminPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!userRole) {
+            setLoading(false);
+            return;
+        }
+        if (!isAdminLike(userRole)) {
+            navigate('/');
+            return;
+        }
+        fetchUsers();
+    }, [userId, userRole, navigate, fetchUsers]);
 
     const handleRoleChange = async (userId: string, newRole: TRole, targetRole: TRole) => {
         if (!user || !canAssignRole(user.role, targetRole, newRole)) {
@@ -77,7 +95,7 @@ export const AdminPage: React.FC = () => {
         try {
             const response = await APIUpdateUserRole(userId || '', newRole);
             if (response.ok) {
-                setUsers(users.map(u => u._id === userId ? { ...u, role: newRole } : u));
+                setUsers(prev => prev.map(u => u._id === userId ? { ...u, role: newRole } : u));
             } else {
                 const data = await response.json().catch(() => ({}));
                 alert(data.message || 'Failed to update role');
@@ -99,7 +117,7 @@ export const AdminPage: React.FC = () => {
         try {
             const response = await APIDeleteUser(userId || '');
             if (response.ok) {
-                setUsers(users.filter(u => u._id !== userId));
+                setUsers(prev => prev.filter(u => u._id !== userId));
             } else {
                 const data = await response.json().catch(() => ({}));
                 alert(data.message || 'Failed to delete user');

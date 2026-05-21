@@ -1,8 +1,18 @@
+/**
+ * @file Тесты страницы администратора {@link AdminPage}.
+ *
+ * Проверяют:
+ * - матрицу ролей в селекте (нет `super_admin` для гостя при админе);
+ * - корректное отображение веб-ссылки при `allowedProviders: ['web']`;
+ * - отсутствие цикла повторных запросов при нестабильной ссылке `user`
+ *   из мок-хука `useAuth` (регрессия на identity-loop в `useEffect`).
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminPage } from './AdminPage.tsx';
+import { APIGetUsers } from '@/api/user.api.ts';
 
 const mockNavigate = vi.fn();
 
@@ -45,6 +55,21 @@ vi.mock('@/api/user.api.ts', () => ({
 describe('AdminPage', () => {
     beforeEach(() => {
         mockNavigate.mockClear();
+        vi.mocked(APIGetUsers).mockClear();
+    });
+
+    it('does not refetch users on unstable useAuth identity (no render loop)', async () => {
+        render(
+            <MemoryRouter>
+                <AdminPage />
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByText('Guest')).toBeInTheDocument();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        await waitFor(() => {
+            expect(APIGetUsers).toHaveBeenCalledTimes(1);
+        });
     });
 
     it('admin role select does not offer super_admin for guest', async () => {
