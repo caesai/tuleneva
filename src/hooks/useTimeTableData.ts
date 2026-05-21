@@ -5,8 +5,13 @@ import moment, { type Moment } from '@/lib/moment';
 import type { IHour } from '@/types/timetable.types.ts';
 import { useWebSocket, type WebSocketMessage } from './useWebSocket';
 
-const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY = 3000;
+const MAX_RETRIES = 2;
+const INITIAL_RETRY_DELAY = 1000;
+
+export type FetchTimetableOptions = {
+    /** Не включать полноэкранный loading / не дергать календарь (повторные попытки после ошибки). */
+    silent?: boolean;
+};
 
 /**
  * Хук для управления данными расписания.
@@ -32,7 +37,10 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
     const [hoursLoading, setHoursLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState<number>(0);
-    
+    const retryCountRef = useRef(retryCount);
+    retryCountRef.current = retryCount;
+    const retryScheduleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // Ref для отслеживания предыдущего статуса сети (для автоматического refetch)
     const wasOnlineRef = useRef<boolean>(isOnline);
     // Ref для хранения текущей даты (для refetch при восстановлении связи)
@@ -91,6 +99,15 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         }
     }, []);
 
+    useEffect(() => {
+        return () => {
+            if (retryScheduleRef.current) {
+                clearTimeout(retryScheduleRef.current);
+                retryScheduleRef.current = null;
+            }
+        };
+    }, []);
+
     // WebSocket для real-time обновлений
     const { isConnected: isWebSocketConnected } = useWebSocket({
         onMessage: handleWebSocketMessage,
@@ -104,17 +121,33 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         currentDateRef.current = date;
     }, [date]);
 
-    // Основная функция загрузки данных
-    const fetchData = useCallback(async (targetDate: Moment) => {
+    const viewMonthKey = date?.format('YYYY-MM') ?? '';
+
+    // Смена месяца: сброс попыток и отмена отложенного retry (иначе счётчик «ехал» бы на старый месяц)
+    useEffect(() => {
+        if (retryScheduleRef.current) {
+            clearTimeout(retryScheduleRef.current);
+            retryScheduleRef.current = null;
+        }
+        setRetryCount(0);
+        setError(null);
+    }, [viewMonthKey]);
+
+    // Основная функция загрузки данных (стабильная ссылка — без лишних эффектов при retry)
+    const fetchData = useCallback(async (targetDate: Moment, options: FetchTimetableOptions = {}) => {
+        const silent = options.silent === true;
+
         // Не выполняем запрос, если нет подключения
         if (!navigator.onLine) {
             setError('Нет подключения к интернету');
-            setLoading(false);
+            if (!silent) setLoading(false);
             return;
         }
 
-        setLoading(true);
-        setError(null);
+        if (!silent) {
+            setLoading(true);
+            setError(null);
+        }
 
         try {
             const response = await APIGetTimeTable(moment(targetDate).format('DD/MM/YYYY'));
@@ -137,19 +170,26 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
             setError(null);
         } catch (err) {
             console.error(err);
+            const rc = retryCountRef.current;
             // Проверяем сеть перед retry
             if (!navigator.onLine) {
                 setError('Нет подключения к интернету');
-            } else if (retryCount < MAX_RETRIES) {
-                const delay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
-                setTimeout(() => setRetryCount(prevCount => prevCount + 1), delay);
+            } else if (rc < MAX_RETRIES) {
+                const delay = INITIAL_RETRY_DELAY * Math.pow(2, rc);
+                if (retryScheduleRef.current) clearTimeout(retryScheduleRef.current);
+                retryScheduleRef.current = setTimeout(() => {
+                    retryScheduleRef.current = null;
+                    setRetryCount(prev => prev + 1);
+                }, delay);
             } else {
                 setError('Не удалось загрузить расписание. Проверьте подключение.');
             }
         } finally {
-            setTimeout(() => setLoading(false), 500);
+            if (!silent) {
+                setLoading(false);
+            }
         }
-    }, [retryCount]);
+    }, []);
 
     // Эффект для загрузки данных при изменении даты или retry
     useEffect(() => {
@@ -158,7 +198,7 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         // Не запускаем, если офлайн (кроме первого рендера для показа ошибки)
         if (!isOnline && retryCount > 0) return;
         
-        fetchData(date);
+        fetchData(date, { silent: retryCount > 0 });
     }, [date, retryCount, isOnline, fetchData]);
 
     // Эффект для автоматического refetch при восстановлении связи
@@ -166,7 +206,7 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         // Если были офлайн и теперь онлайн - обновляем данные
         if (!wasOnlineRef.current && isOnline && currentDateRef.current) {
             setRetryCount(0);
-            fetchData(currentDateRef.current);
+            fetchData(currentDateRef.current, { silent: false });
         }
         wasOnlineRef.current = isOnline;
     }, [isOnline, fetchData]);
@@ -200,7 +240,7 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
             }
             setBookedHours([]);
         } finally {
-            setTimeout(() => setHoursLoading(false), 500);
+            setHoursLoading(false);
         }
     }, []);
 
@@ -216,7 +256,7 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         
         setRetryCount(0);
         setError(null);
-        fetchData(currentDateRef.current);
+        fetchData(currentDateRef.current, { silent: false });
     }, [fetchData]);
 
     return {

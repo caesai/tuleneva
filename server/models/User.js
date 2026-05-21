@@ -1,38 +1,60 @@
 const mongoose = require('mongoose');
 
-// Define the schema for the User model
+const userIdentitySchema = new mongoose.Schema(
+    {
+        provider: {
+            type: String,
+            enum: ['telegram', 'web', 'email', 'phone'],
+            required: true,
+        },
+        providerUserId: {
+            type: String,
+            required: true,
+        },
+        email: { type: String },
+        phone: { type: String },
+        verifiedAt: { type: Date },
+    },
+    { _id: false },
+);
+
 const userSchema = new mongoose.Schema(
     {
         telegram_id: {
             type: Number,
-            required: true,
-            unique: true
+            sparse: true,
+            unique: true,
         },
         first_name: {
             type: String,
-            required: true
+            required: true,
         },
         last_name: {
-            type: String
+            type: String,
         },
         username: {
-            type: String
+            type: String,
         },
         photo_url: {
-            type: String
+            type: String,
         },
         role: {
             type: String,
             enum: ['super_admin', 'admin', 'user', 'guest'],
-            default: 'guest'
-        }
+            default: 'guest',
+        },
+        identities: {
+            type: [userIdentitySchema],
+            default: [],
+        },
     },
     {
-        timestamps: true // Adds createdAt and updatedAt timestamps automatically
-    }
+        timestamps: true,
+    },
 );
 
-// Create the User model from the schema
+userSchema.index({ 'identities.provider': 1, 'identities.providerUserId': 1 });
+
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;

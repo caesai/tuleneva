@@ -3,7 +3,7 @@ import React from 'react';
 import classNames from 'classnames';
 import css from '@/components/TimeSlots/TimeSlots.module.css';
 import type { IHour } from '@/types/timetable.types.ts';
-import { Avatar } from '@mui/material';
+import { SafeAvatar } from '@/components/SafeAvatar/SafeAvatar.tsx';
 
 /**
  * Свойства компонента TimeSlots.
@@ -32,6 +32,10 @@ const AVAILABLE_HOURS = [
     '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
     '18:00', '19:00', '20:00', '21:00', '22:00', '23:00',
 ];
+
+const getAvatarFallback = (username?: string): string => {
+    return username?.trim().charAt(0).toUpperCase() || '?';
+};
 
 /**
  * Компонент TimeSlots
@@ -118,7 +122,14 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
                         disabled={isDisabledForBooking}
                         aria-label={`Слот ${hour}, ${isBooked ? 'занят' : 'свободен'}`}
                     >
-                        {isBooked ? <Avatar src={booking?.userPhotoUrl} sx={{ width: 24, height: 24 }} /> : hour}
+                        {isBooked ? (
+                            <SafeAvatar
+                                src={booking?.userPhotoUrl}
+                                fallback={getAvatarFallback(booking?.username)}
+                                timeoutMs={1200}
+                                sx={{ width: 24, height: 24, fontSize: 12 }}
+                            />
+                        ) : hour}
                     </button>
                 );
             })}

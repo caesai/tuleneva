@@ -1,133 +1,66 @@
-import { DEV_URL, USER_AUTH_URL, USER_INFO_URL, USERS_LIST_URL, getAuthHeaders } from '@/api/base.api.ts';
+import { DEV_URL, USERS_LIST_URL, getAuthHeaders } from '@/api/base.api.ts';
 
 /**
- * Выполняет аутентификацию пользователя через Telegram Init Data.
- * @param initData - Данные запуска Telegram Mini App.
- * @param user - Строка с данными пользователя из Telegram.
- * @returns {Promise<Response>} Ответ сервера с токеном и данными пользователя.
+ * @deprecated Используйте loginWithTelegram из auth.api.ts
  */
-export const APIPostAuth = async (initData: object, user: string)=> {
-    return await fetch(USER_AUTH_URL, {
-        method: 'POST',
-        body: JSON.stringify({
-            initData,
-            user
-        }),
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store, no-cache',
-        },
-    });
-}
+export { loginWithTelegram as APIPostAuth } from '@/api/auth.api.ts';
 
 /**
- * Отправляет запрос на регистрацию пользователя (создание в БД).
- * @param initData - Данные запуска Telegram Mini App.
- * @param user - Строка с данными пользователя из Telegram.
- * @returns {Promise<Response>} Ответ сервера.
+ * @deprecated Используйте requestAccessWithTelegram из auth.api.ts
  */
-export const APIRegisterUser = async (initData: object, user: string) => {
-    return await fetch(DEV_URL + '/users/register', {
-        method: 'POST',
-        body: JSON.stringify({
-            initData,
-            user
-        }),
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store, no-cache',
-        },
-    });
-}
+export { requestAccessWithTelegram as APIRegisterUser } from '@/api/auth.api.ts';
+
+/**
+ * @deprecated Используйте applyInviteWithProvider из auth.api.ts
+ */
+export { applyInviteWithProvider as APIUseInvite } from '@/api/auth.api.ts';
 
 /**
  * Получает список всех пользователей (только для админов).
- * @returns {Promise<Response>} Ответ сервера со списком пользователей.
  */
 export const APIGetUsers = async () => {
     return await fetch(DEV_URL + USERS_LIST_URL, {
         method: 'GET',
         headers: getAuthHeaders(),
-    })
-}
+    });
+};
 
-/**
- * Обновляет роль пользователя (только для админов).
- * @param userId - ID пользователя.
- * @param role - Новая роль ('admin', 'user', 'guest').
- * @returns {Promise<Response>} Ответ сервера о результате обновления.
- */
 export const APIUpdateUserRole = async (userId: string, role: string) => {
     return await fetch(`${DEV_URL + USERS_LIST_URL}/${userId}/role`, {
         method: 'PUT',
         body: JSON.stringify({ role }),
         headers: getAuthHeaders(),
     });
-}
+};
 
-/**
- * Удаляет пользователя (только для админов).
- * @param userId - ID пользователя для удаления.
- * @returns {Promise<Response>} Ответ сервера о результате удаления.
- */
 export const APIDeleteUser = async (userId: string) => {
     return await fetch(`${DEV_URL + USERS_LIST_URL}/${userId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
     });
-}
+};
 
-/**
- * Получает информацию о текущем авторизованном пользователе.
- * @returns {Promise<Response>} Ответ сервера с данными пользователя.
- */
-export const APIGetUserInfo = async () => {
-    return await fetch(DEV_URL + USER_INFO_URL, {
-        method: 'GET',
-        headers: getAuthHeaders(),
-    })
-}
+/** @deprecated Используйте getAuthSession из auth.api.ts */
+export { getAuthSession as APIGetUserInfo } from '@/api/auth.api.ts';
 
-/**
- * Генерирует одноразовый инвайт-код (только для админов).
- * @returns {Promise<Response>} Ответ сервера с кодом и ссылкой.
- */
-export const APIGenerateInvite = async () => {
-    return await fetch(DEV_URL + '/invite/generate', {
+export const APIGenerateInvite = async (options?: {
+    purpose?: string;
+    initialRole?: string;
+    allowedProviders?: string[];
+}) => {
+    return await fetch(DEV_URL + '/auth/invite/generate', {
         method: 'POST',
         headers: getAuthHeaders(),
+        body: JSON.stringify(options ?? {}),
     });
-}
+};
 
-/**
- * Проверяет валидность инвайт-кода.
- * @param code - Инвайт-код для проверки.
- * @returns {Promise<Response>} Ответ сервера с полем valid.
- */
 export const APIValidateInvite = async (code: string) => {
-    return await fetch(`${DEV_URL}/invite/validate/${code}`, {
+    return await fetch(`${DEV_URL}/auth/invite/validate/${code}`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-store, no-cache',
         },
     });
-}
-
-/**
- * Использует инвайт-код для регистрации пользователя.
- * @param code - Инвайт-код.
- * @param initData - Данные запуска Telegram Mini App.
- * @param user - Строка с данными пользователя из Telegram.
- * @returns {Promise<Response>} Ответ сервера с токеном и данными пользователя.
- */
-export const APIUseInvite = async (code: string, initData: object, user: string) => {
-    return await fetch(`${DEV_URL}/invite/use`, {
-        method: 'POST',
-        body: JSON.stringify({ code, initData, user }),
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store, no-cache',
-        },
-    });
-}
+};

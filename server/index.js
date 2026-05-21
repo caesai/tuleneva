@@ -88,6 +88,21 @@ const User = require('./models/User');
 const Rehearsal = require('./models/Rehearsal');
 const InviteCode = require('./models/InviteCode');
 const { INVITE_CODE_TTL_SECONDS } = require('./models/InviteCode');
+const { createAuthRouter } = require('./auth/authRoutes');
+const { signAuthToken, buildAuthResponse } = require('./auth/tokenService');
+const {
+    parseTelegramUser,
+    verifyTelegramInitData,
+    parseQueryToNestedJson,
+} = require('./auth/telegramProvider');
+const {
+    findUserByTelegramId,
+    upsertTelegramUser,
+    buildTelegramGuestUser,
+    migrateLegacyTelegramIdentities,
+} = require('./auth/identityService');
+
+const WEB_APP_BASE_URL = process.env.WEB_APP_BASE_URL || 'https://tuleneva25.ru';
 
 /**
  * Проверяет, является ли строка временем в формате HH:MM
@@ -247,7 +262,17 @@ const convertOldFormatToNew = (oldFormatObj) => {
  * Подключение к базе данных MongoDB.
  */
 mongoose.connect("mongodb://localhost:27017")
-    .then(() => console.log('MongoDB connection established successfully!'))
+    .then(async () => {
+        console.log('MongoDB connection established successfully!');
+        try {
+            const migrated = await migrateLegacyTelegramIdentities();
+            if (migrated > 0) {
+                console.log(`Migrated ${migrated} legacy telegram identities`);
+            }
+        } catch (e) {
+            console.error('Identity migration failed:', e);
+        }
+    })
     .catch(err => console.error('MongoDB connection failed:', err.message));
 const bot = new Telegraf(BOT_TOKEN);
 
@@ -333,6 +358,7 @@ const notifyAdmins = async (message, extra) => {
     try {
         const admins = await User.find({ role: { $in: ['admin', 'super_admin'] } });
         for (const admin of admins) {
+            if (!admin.telegram_id) continue;
             try {
                 if (extra) {
                     await bot.telegram.sendMessage(admin.telegram_id, message, extra);
@@ -348,61 +374,21 @@ const notifyAdmins = async (message, extra) => {
     }
 };
 
+app.use('/api/auth', createAuthRouter({
+    jwtSecret: JWT_SECRET,
+    botToken: BOT_TOKEN,
+    miniAppUrl,
+    webAppBaseUrl: WEB_APP_BASE_URL,
+    authenticateToken,
+    verifyUserExists,
+    notifyAdmins,
+}));
+
 app.get('/', (req, res) => {
     res.send('Hello World!');
 });
 
-// ... (helper functions parseQueryToNestedJson, verifyTelegramInitData)
-/**
- * Парсит строку запроса в объект JSON с поддержкой вложенных JSON объектов.
- * Используется для обработки данных инициализации Telegram.
- * 
- * @param {string} queryString - Строка запроса.
- * @returns {Object} Распаршенный объект.
- */
-const parseQueryToNestedJson = (queryString) => {
-    const params = new URLSearchParams(queryString);
-    const result = {};
-
-    params.forEach((encodedValue, key) => {
-        const value = decodeURIComponent(encodedValue);
-        if (key === 'user') {
-            try {
-                result[key] = JSON.parse(value);
-            } catch (e) {
-                console.error(`Failed to parse JSON for key "${key}"`);
-                result[key] = value;
-            }
-        } else {
-            result[key] = value;
-        }
-    });
-    return result;
-};
-
-/**
- * Проверяет валидность данных инициализации Telegram Mini App.
- * Использует HMAC-SHA256 для проверки подписи данных.
- * 
- * @param {string} initDataRaw - Сырая строка данных инициализации (без декодирования).
- * @param {string} botToken - Токен Telegram бота.
- * @returns {boolean} True, если подпись верна, иначе False.
- */
-const verifyTelegramInitData = (initDataRaw, botToken) => {
-    const data = new URLSearchParams(initDataRaw);
-    const hash = data.get('hash');
-    data.delete('hash');
-    data.sort();
-
-    const dataCheckString = Array.from(data.entries())
-        .map(([key, value]) => `${key}=${value}`)
-        .join('\n');
-
-    const secret = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
-    const calculatedHash = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
-
-    return calculatedHash === hash;
-};
+// parseQueryToNestedJson, verifyTelegramInitData — из ./auth/telegramProvider.js
 
 // ... (POST /api/users/auth - Public endpoint)
 /**
@@ -415,58 +401,38 @@ const verifyTelegramInitData = (initDataRaw, botToken) => {
  * @param {string} req.body.user - JSON строка с данными пользователя.
  * @returns {Object} JSON с токеном (если есть) и данными пользователя.
  */
+/** @deprecated Используйте POST /api/auth/providers/telegram/login */
 app.post('/api/users/auth', async (req, res) => {
-    // ... (existing implementation)
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
-    const { initData: rawInitData, user: userData } = req.body;
-    if (!rawInitData || !userData) {
-        return res.status(400).json({ message: 'Missing Telegram initialization data' });
-    }
-    const isValid = verifyTelegramInitData(userData, BOT_TOKEN);
-    if (!isValid) {
-        return res.status(401).json({ message: 'Invalid Telegram data signature' });
-    }
+    const { user: userData } = req.body;
     try {
-        const tg = parseQueryToNestedJson(userData);
-        let user = await User.findOne({ telegram_id: tg.user.id });
+        const tg = parseTelegramUser(userData, BOT_TOKEN);
+        let user = await findUserByTelegramId(tg.user.id);
 
         if (!user) {
-            // Пользователь не найден, возвращаем объект гостя без сохранения в БД
-            const guestUser = {
-                telegram_id: tg.user.id,
-                first_name: tg.user.first_name,
-                last_name: tg.user.last_name || null,
-                username: tg.user.username || null,
-                photo_url: tg.user.photo_url || null,
-                role: 'guest',
-                isRegistered: false
-            };
             return res.status(200).json({
                 valid: true,
                 token: null,
-                user: guestUser
+                authProvider: 'telegram',
+                user: buildTelegramGuestUser(tg.user),
             });
         }
 
-        // Пользователь найден, обновляем данные (опционально) и выдаем токен
-        user.first_name = tg.user.first_name;
-        user.last_name = tg.user.last_name || null;
-        user.username = tg.user.username || null;
-        user.photo_url = tg.user.photo_url || null;
-        await user.save();
-
-        const token = jwt.sign({ userId: user._id, telegramId: user.telegram_id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
-
-        res.status(200).json({
-            valid: true,
-            token: token,
-            user: { ...user.toObject(), isRegistered: true }
-        });
+        user = await upsertTelegramUser(tg.user);
+        const token = user.role === 'guest' ? null : signAuthToken(user, JWT_SECRET);
+        res.status(200).json(buildAuthResponse(user, token, 'telegram'));
     } catch (error) {
         console.log(error);
-        res.status(500).json({ message: "Auth error" });
+        res.status(401).json({ valid: false, message: error.message || 'Auth error' });
     }
+});
+
+/** Совместимость: GET /api/users/info */
+app.get('/api/users/info', authenticateToken, verifyUserExists, async (req, res) => {
+    const token = signAuthToken(req.dbUser, JWT_SECRET);
+    const provider = req.dbUser.identities?.[0]?.provider || (req.dbUser.telegram_id ? 'telegram' : null);
+    res.status(200).json(buildAuthResponse(req.dbUser, token, provider));
 });
 
 /**
@@ -478,50 +444,24 @@ app.post('/api/users/auth', async (req, res) => {
  * @param {string} req.body.user - JSON строка с данными пользователя.
  * @returns {Object} JSON с токеном и данными пользователя.
  */
+/** @deprecated Используйте POST /api/auth/providers/telegram/register */
 app.post('/api/users/register', async (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
-    const { initData: rawInitData, user: userData } = req.body;
-
-    if (!rawInitData || !userData) {
-        return res.status(400).json({ message: 'Missing Telegram initialization data' });
-    }
-    const isValid = verifyTelegramInitData(userData, BOT_TOKEN);
-    if (!isValid) {
-        return res.status(401).json({ message: 'Invalid Telegram data signature' });
-    }
-
+    const { user: userData } = req.body;
     try {
-        const tg = parseQueryToNestedJson(userData);
-        let user = await User.findOne({ telegram_id: tg.user.id });
-
-        if (user) {
-            return res.status(400).json({ message: 'User already registered' });
+        const tg = parseTelegramUser(userData, BOT_TOKEN);
+        const existing = await findUserByTelegramId(tg.user.id);
+        if (existing) {
+            return res.status(400).json({ valid: false, message: 'User already registered' });
         }
-
-        user = new User({
-            telegram_id: tg.user.id,
-            first_name: tg.user.first_name,
-            last_name: tg.user.last_name || null,
-            username: tg.user.username || null,
-            photo_url: tg.user.photo_url || null,
-            role: 'guest'
-        });
-        await user.save();
-
-        const notifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию.`;
-        await notifyAdmins(notifyMessage);
-
-        const token = jwt.sign({ userId: user._id, telegramId: user.telegram_id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
-
-        res.status(201).json({
-            valid: true,
-            token: token,
-            user: { ...user.toObject(), isRegistered: true }
-        });
+        const user = await upsertTelegramUser(tg.user, { role: 'guest' });
+        await notifyAdmins(`@${user.username || user.first_name} запрашивает доступ к бронированию.`);
+        const token = signAuthToken(user, JWT_SECRET);
+        res.status(201).json(buildAuthResponse(user, token, 'telegram'));
     } catch (error) {
         console.log(error);
-        res.status(500).json({ message: "Registration error" });
+        res.status(500).json({ valid: false, message: 'Registration error' });
     }
 });
 
@@ -1016,10 +956,13 @@ app.post('/api/invite/generate', authenticateToken, verifyUserExists, async (req
         await inviteCode.save();
 
         const inviteLink = `${miniAppUrl}?startapp=${code}`;
+        const webInviteLink = `${WEB_APP_BASE_URL.replace(/\/$/, '')}/?invite=${code}`;
 
         res.status(201).json({
             code,
             inviteLink,
+            webInviteLink,
+            telegramInviteLink: inviteLink,
             expiresAt,
         });
     } catch (err) {

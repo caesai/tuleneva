@@ -1,109 +1,173 @@
-import React, { useState, useEffect, type ReactNode } from 'react';
-import { APIPostAuth, APIRegisterUser, APIUseInvite } from '@/api/user.api.ts';
+import React, { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import type { IUser } from '@/types/user.types.ts';
-import { useLaunchParams, useRawInitData } from '@telegram-apps/sdk-react';
+import type { TAuthProvider } from '@/types/auth.types.ts';
+import {
+    buildAuthCapabilities,
+    resolveAuthStatus,
+} from '@/types/auth.types.ts';
+import {
+    getAuthSession,
+    loginWithTelegram,
+    requestAccessWithTelegram,
+    applyInviteWithProvider,
+    parseAuthResponse,
+} from '@/api/auth.api.ts';
+import { buildTelegramAuthPayload } from '@/auth/telegramAuth.ts';
+import { getTelegramEnvironment } from '@/telegram/env.ts';
+import { useSafeLaunchParams, useSafeRawInitData } from '@/telegram/useSafeLaunchParams.ts';
 import { AuthContext } from './AuthContextDefinition.ts';
 
 interface AuthContextProps {
     children: ReactNode;
 }
 
-/**
- * Провайдер контекста аутентификации.
- * Управляет состоянием входа пользователя, проверяет данные запуска Telegram Mini App
- * и выполняет аутентификацию на сервере.
- *
- * @component
- */
 export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState<IUser | null>(null);
-    const lp = useLaunchParams();
-    const rawLp = useRawInitData();
+    const [authProvider, setAuthProvider] = useState<TAuthProvider | null>(null);
 
-    useEffect(() => {
-        const initAuth = async () => {
-            setIsLoading(true);
-            if (lp && rawLp) {
-                try {
-                    // Validate the token with the server
-                    const response = await APIPostAuth(lp, rawLp);
-                    const data = await response.json();
+    const { launchParams: lp, isTelegram } = useSafeLaunchParams();
+    const rawLp = useSafeRawInitData();
+    const isInTelegram = isTelegram && getTelegramEnvironment();
 
-                    if (data.valid) {
-                        console.log('Auth successful', data);
-                        // Если токена нет, значит это незарегистрированный гость
-                        login(data.user, data.token);
-                    } else {
-                        logout();
-                    }
-                } catch (error) {
-                    console.error('Auth failed', error);
-                    logout();
-                } finally {
-                    setIsLoading(false);
-                }
-            } else {
-                // Если нет данных запуска (например, вне Telegram), считаем что не авторизован
-                setIsLoading(false);
-            }
-        };
-
-        initAuth();
-    }, [lp, rawLp]);
-
-    const login = (userData: IUser, token: string | null) => {
+    const login = useCallback((
+        userData: IUser,
+        token: string | null,
+        provider: TAuthProvider | null = null,
+    ) => {
         if (token) {
             localStorage.setItem('authToken', token);
             setIsAuthenticated(true);
         } else {
-            // Для незарегистрированных пользователей токена нет
+            localStorage.removeItem('authToken');
             setIsAuthenticated(false);
         }
         setUser(userData);
-    };
+        setAuthProvider(provider);
+    }, []);
 
-    const logout = () => {
+    const logout = useCallback(() => {
         localStorage.removeItem('authToken');
         setIsAuthenticated(false);
         setUser(null);
-    };
+        setAuthProvider(null);
+    }, []);
+
+    const applySession = useCallback((data: {
+        valid?: boolean;
+        token?: string | null;
+        user?: IUser;
+        authProvider?: TAuthProvider | null;
+    }) => {
+        if (data.valid && data.user) {
+            login(data.user, data.token ?? null, data.authProvider ?? null);
+        } else {
+            logout();
+        }
+    }, [login, logout]);
+
+    useEffect(() => {
+        const initAuth = async () => {
+            setIsLoading(true);
+
+            const storedToken = localStorage.getItem('authToken');
+            if (storedToken) {
+                try {
+                    const sessionRes = await getAuthSession();
+                    if (sessionRes.ok) {
+                        const sessionData = await parseAuthResponse(sessionRes);
+                        applySession(sessionData);
+                        setIsLoading(false);
+                        return;
+                    }
+                    logout();
+                } catch (error) {
+                    console.error('Session restore failed:', error);
+                    logout();
+                }
+            }
+
+            if (isInTelegram && lp && rawLp) {
+                try {
+                    const payload = buildTelegramAuthPayload(lp, rawLp);
+                    const response = await loginWithTelegram(payload);
+                    const data = await parseAuthResponse(response);
+                    applySession({ ...data, authProvider: 'telegram' });
+                } catch (error) {
+                    console.error('Telegram auth failed:', error);
+                    logout();
+                } finally {
+                    setIsLoading(false);
+                }
+                return;
+            }
+
+            setIsLoading(false);
+        };
+
+        initAuth();
+    }, [lp, rawLp, isInTelegram, applySession, logout]);
 
     const register = async () => {
-        if (lp && rawLp) {
-            try {
-                const response = await APIRegisterUser(lp, rawLp);
-                const data = await response.json();
-                if (data.valid) {
-                    login(data.user, data.token);
-                }
-            } catch (error) {
-                console.error('Registration failed', error);
-                throw error;
-            }
+        if (!isInTelegram || !lp || !rawLp) {
+            throw new Error('Registration is only available in Telegram Mini App');
+        }
+        const payload = buildTelegramAuthPayload(lp, rawLp);
+        const response = await requestAccessWithTelegram(payload);
+        const data = await parseAuthResponse(response);
+        if (data.valid && data.user) {
+            applySession({ ...data, authProvider: 'telegram' });
+        } else {
+            throw new Error('Registration failed');
         }
     };
 
     const registerWithInvite = async (code: string) => {
-        if (lp && rawLp) {
-            try {
-                const response = await APIUseInvite(code, lp, rawLp);
-                const data = await response.json();
-                if (data.valid) {
-                    login(data.user, data.token);
-                } else {
-                    throw new Error(data.message || 'Invite registration failed');
-                }
-            } catch (error) {
-                console.error('Invite registration failed', error);
-                throw error;
-            }
+        if (!isInTelegram || !lp || !rawLp) {
+            throw new Error('Invite registration requires Telegram Mini App');
+        }
+        const response = await applyInviteWithProvider({
+            code,
+            provider: 'telegram',
+            telegram: {
+                initData: lp,
+                user: rawLp,
+            },
+        });
+        const data = await parseAuthResponse(response);
+        if (data.valid && data.user) {
+            applySession({ ...data, authProvider: 'telegram' });
+        } else {
+            throw new Error('Invite registration failed');
         }
     };
 
+    const capabilities = useMemo(
+        () => buildAuthCapabilities(user, isAuthenticated),
+        [user, isAuthenticated],
+    );
+
+    const authStatus = useMemo(
+        () => resolveAuthStatus(isLoading, isAuthenticated, user),
+        [isLoading, isAuthenticated, user],
+    );
+
     return (
-        <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout, register, registerWithInvite }}>
+        <AuthContext.Provider
+            value={{
+                isAuthenticated,
+                isLoading,
+                authStatus,
+                authProvider,
+                user,
+                capabilities,
+                login,
+                logout,
+                register,
+                registerWithInvite,
+            }}
+        >
             {children}
         </AuthContext.Provider>
     );

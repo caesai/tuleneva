@@ -1,25 +1,21 @@
 import React, { useMemo } from 'react';
 import { Placeholder, AppRoot } from '@telegram-apps/telegram-ui';
-import { retrieveLaunchParams } from '@telegram-apps/sdk-react';
+import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import poster from '/Logo_Big_003.jpg';
 
 export const Site: React.FC = () => {
-    const [platform, isDark] = useMemo(() => {
-        let platform = 'base';
+    const { launchParams: lp } = useSafeLaunchParams();
+    const [platform, isDark] = useMemo((): ['base' | 'ios', boolean] => {
         const isDark = false;
-        try {
-            const lp = retrieveLaunchParams();
-            platform = lp.tgWebAppPlatform;
-        } catch {
-            /* empty */
-        }
-
+        const platform: 'base' | 'ios' = ['macos', 'ios'].includes(lp.tgWebAppPlatform)
+            ? 'ios'
+            : 'base';
         return [platform, isDark];
-    }, []);
+    }, [lp.tgWebAppPlatform]);
     return (
         <AppRoot
             appearance={isDark ? 'dark' : 'light'}
-            platform={['macos', 'ios'].includes(platform) ? 'ios' : 'base'}
+            platform={platform}
         >
             <Placeholder
                 header="Тюленева 25, Музыкальная студия"

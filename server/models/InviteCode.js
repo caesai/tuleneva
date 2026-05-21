@@ -1,34 +1,44 @@
 const mongoose = require('mongoose');
 
-/**
- * Срок жизни инвайт-кода (24 часа в секундах).
- */
 const INVITE_CODE_TTL_SECONDS = 24 * 60 * 60;
 
-/**
- * Схема одноразового инвайт-кода.
- * Код генерируется администратором и может быть использован один раз для запроса доступа.
- * Неиспользованные коды автоматически удаляются MongoDB через TTL-индекс по полю expiresAt.
- */
 const inviteCodeSchema = new mongoose.Schema({
-    /** Уникальный код приглашения */
     code: {
         type: String,
         required: true,
         unique: true,
         index: true,
     },
-    /** ID администратора, создавшего код */
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
     },
-    /** Дата автоматического удаления записи (TTL) */
     expiresAt: {
         type: Date,
         required: true,
         index: { expires: 0 },
+    },
+    purpose: {
+        type: String,
+        enum: ['request_access', 'direct_join', 'link_identity'],
+        default: 'request_access',
+    },
+    initialRole: {
+        type: String,
+        enum: ['guest', 'user'],
+        default: 'guest',
+    },
+    allowedProviders: {
+        type: [String],
+        default: ['telegram'],
+    },
+    usedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
+    usedAt: {
+        type: Date,
     },
 }, { timestamps: true });
 

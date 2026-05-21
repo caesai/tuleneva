@@ -20,6 +20,7 @@ export const AdminPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [inviteLink, setInviteLink] = useState<string | null>(null);
+    const [webInviteLink, setWebInviteLink] = useState<string | null>(null);
     const [inviteLoading, setInviteLoading] = useState(false);
     const [copied, setCopied] = useState(false);
     const { user } = useAuth();
@@ -88,11 +89,13 @@ export const AdminPage: React.FC = () => {
         setInviteLoading(true);
         setCopied(false);
         setInviteLink(null);
+        setWebInviteLink(null);
         try {
             const response = await APIGenerateInvite();
             if (response.ok) {
                 const data = await response.json();
-                setInviteLink(data.inviteLink);
+                setInviteLink(data.telegramInviteLink || data.inviteLink);
+                setWebInviteLink(data.webInviteLink || null);
                 setIsInviteModalOpen(true);
             } else {
                 alert('Не удалось сгенерировать ссылку');
@@ -153,6 +156,7 @@ export const AdminPage: React.FC = () => {
                     </p>
                     {inviteLink && (
                         <div className={css.inviteLinkContainer}>
+                            <label className={css.inviteLabel}>Telegram Mini App</label>
                             <input
                                 className={css.inviteLinkInput}
                                 value={inviteLink}
@@ -162,6 +166,17 @@ export const AdminPage: React.FC = () => {
                             <button className={css.copyButton} onClick={handleCopyLink}>
                                 {copied ? 'Скопировано!' : 'Копировать'}
                             </button>
+                        </div>
+                    )}
+                    {webInviteLink && (
+                        <div className={css.inviteLinkContainer}>
+                            <label className={css.inviteLabel}>Веб-ссылка</label>
+                            <input
+                                className={css.inviteLinkInput}
+                                value={webInviteLink}
+                                readOnly
+                                onClick={(e) => (e.target as HTMLInputElement).select()}
+                            />
                         </div>
                     )}
                     <button

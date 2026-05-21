@@ -63,7 +63,14 @@ export const BookModalPopup: React.FC<IBookModalPopupProps> = ({ isOpen, onClose
             <div className={css.bookingModal}>
                 <h3 style={{ textAlign: 'left' }}>{capitalizeFirstLetter(moment(selectedDate).format('dddd'))} {moment(selectedDate).format('DD.MM.YYYY')}</h3>
                 <Divider sx={{ marginBottom: '10px'}} />
-                <RehearsalCard photoUrl={photoUrl} username={username} selectedHours={selectedHours} bookingBandName={bookingBandName} rehearsalType={rehearsalType} />
+                <RehearsalCard
+                    photoUrl={photoUrl}
+                    username={username}
+                    selectedHours={selectedHours}
+                    bookingBandName={bookingBandName}
+                    rehearsalType={rehearsalType}
+                    canViewUserDetails
+                />
                 <div className={css.inputGroup}>
                     <Accordion expanded={expanded} onChange={toggle} elevation={0}>
                         <Divider id="panel2-header" role="button" textAlign={expanded ? "right" : "left"} onClick={toggle}>

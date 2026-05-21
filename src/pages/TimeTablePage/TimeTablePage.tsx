@@ -64,9 +64,8 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const [rehearsalType, setRehearsalType] = useState<TRehearsalType>('rehearsal');
 
     useEffect(() => {
-        // Обновляем режим отображения при изменении забронированных часов
-        // Только когда загрузка завершена (hoursLoading = false)
-        if (!hoursLoading) return;
+        // После завершения загрузки слотов — один раз выставляем вкладку «расписание», если есть брони
+        if (hoursLoading) return;
         setIsScheduleMode(bookedHours.length > 0);
     }, [bookedHours, hoursLoading]);
 
@@ -77,9 +76,8 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     };
     const closeBookingModal = () => setIsBookingModalOpen(false);
 
-    const { user } = useAuth();
-    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-    const isGuest = user?.role === 'guest';
+    const { user, capabilities } = useAuth();
+    const { isAdmin, isGuest, canManageBookings, canViewUserDetails } = capabilities;
 
     // Получаем сохранённые настройки пользователя (история названий групп)
     const localUserSettings = localStorage.getItem('userSettings');
@@ -135,8 +133,8 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
      * @param {string} hour - Строка часа (например, "14:00").
      */
     const handleHourClick = (hour: string) => {
-        // Если пользователь гость, он не может взаимодействовать со слотами
-        if (isGuest) {
+        // Только подтвержденный авторизованный пользователь может выбирать слоты.
+        if (!canManageBookings) {
             return;
         }
 
@@ -168,7 +166,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
      * Вызывает APIPostBookRehearsal и обновляет данные в случае успеха.
      */
     const handleBooking = async () => {
-        if (isGuest) return; // Защита от вызова гостем
+        if (!canManageBookings) return; // Защита от вызова без прав на бронирование
 
         // Проверка сетевого подключения перед запросом
         if (!isOnline) {
@@ -207,7 +205,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
      * Вызывает APICancelBooking и обновляет данные в случае успеха.
      */
     const handleCancel = async () => {
-        if (isGuest) return; // Защита от вызова гостем
+        if (!canManageBookings) return; // Защита от вызова без прав на отмену
 
         // Проверка сетевого подключения перед запросом
         if (!isOnline) {
@@ -234,32 +232,47 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
 
     const isSelectedDayBeforeToday = moment(selectedDate).startOf('day').isBefore(moment().startOf('day'));
     const isToday = moment(selectedDate).startOf('day').isSame(moment().startOf('day'));
-    const isBookingEnabled = selectedHours.length > 0 && !isGuest;
-    const isBookingCancelling = hoursToCancel.length > 0 && !isGuest;
+    const hasBookedHours = bookedHours.length > 0;
+    const canManageSelectedDate = canManageBookings && !isSelectedDayBeforeToday;
+    const isBookingEnabled = selectedHours.length > 0 && canManageSelectedDate;
+    const isBookingCancelling = hoursToCancel.length > 0 && canManageSelectedDate;
+    const activeTab = canManageSelectedDate && !isScheduleMode ? 'booking' : 'schedule';
 
-    const handleScheduleModeChange = () => {
-        setIsScheduleMode(prev => !prev);
+    const getReadonlyMessage = () => {
+        if (hasBookedHours) return null;
+        if (isSelectedDayBeforeToday) return 'На выбранную дату репетиций не было.';
+        if (!capabilities.canManageBookings && !user) {
+            return 'Бронирование доступно только авторизованным пользователям.';
+        }
+        if (isGuest) return 'Ваш аккаунт ожидает подтверждения администратора.';
+        return 'Репетиций нет';
+    };
+
+    const handleScheduleModeChange = (_event: React.SyntheticEvent, value: string) => {
+        setIsScheduleMode(value === 'schedule');
     };
     return (
         <div className={css.timetable}>
             {/* Toast-уведомления */}
             <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-            <BookModalPopup
-                isOpen={isBookingModalOpen}
-                onClose={closeBookingModal}
-                selectedDate={selectedDate as Moment}
-                selectedHours={selectedHours}
-                bookingBandName={bookingBandName}
-                bandNames={bandNames}
-                onBookingBandNameChange={setBookingBandName}
-                onBookingConfirm={handleBooking}
-                onBookingCancel={closeBookingModal}
-                username={user?.username || ''}
-                photoUrl={user?.photo_url || ''}
-                rehearsalType={rehearsalType}
-                onRehearsalTypeChange={setRehearsalType}
-            />
+            {canManageSelectedDate && (
+                <BookModalPopup
+                    isOpen={isBookingModalOpen}
+                    onClose={closeBookingModal}
+                    selectedDate={selectedDate as Moment}
+                    selectedHours={selectedHours}
+                    bookingBandName={bookingBandName}
+                    bandNames={bandNames}
+                    onBookingBandNameChange={setBookingBandName}
+                    onBookingConfirm={handleBooking}
+                    onBookingCancel={closeBookingModal}
+                    username={user?.username || ''}
+                    photoUrl={user?.photo_url || ''}
+                    rehearsalType={rehearsalType}
+                    onRehearsalTypeChange={setRehearsalType}
+                />
+            )}
 
             <div className={css.card}>
                 <div className={css.cardHeader}>
@@ -275,11 +288,11 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                     date={selectedDate}
                     highlightedDates={highlightedDates}
                 />
-                <TabContext value={isScheduleMode ? 'schedule' : 'booking'}>
-                    {bookedHours.length > 0 && !hoursLoading && !isGuest && !isSelectedDayBeforeToday && (
+                <TabContext value={activeTab}>
+                    {hasBookedHours && !hoursLoading && canManageSelectedDate && (
                         <TabList onChange={handleScheduleModeChange} variant="fullWidth">
                             <Tab label={selectedDate?.format('DD.MM.YYYY')} value="schedule" />
-                            {!isGuest && <Tab label="Бронирование" value="booking" />}
+                            <Tab label="Бронирование" value="booking" />
                         </TabList>
                     )}
 
@@ -291,12 +304,17 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                         )}
                         <div className={css.tabContent} style={{ opacity: hoursLoading ? 0 : 1 }}>
                             <TabPanel value="schedule" style={{ padding: '20px 0' }}>
-                                <Schedule bookedHours={bookedHours} />
-                            </TabPanel>
-                            <TabPanel value="booking" style={{ padding: '20px 0' }}>
-                                {isGuest || isSelectedDayBeforeToday ? (
-                                    <div className={css.noRehearsals}>Репетиций нет</div>
+                                {hasBookedHours ? (
+                                    <Schedule
+                                        bookedHours={bookedHours}
+                                        canViewUserDetails={canViewUserDetails}
+                                    />
                                 ) : (
+                                    <div className={css.noRehearsals}>{getReadonlyMessage()}</div>
+                                )}
+                            </TabPanel>
+                            {canManageSelectedDate && (
+                                <TabPanel value="booking" style={{ padding: '20px 0' }}>
                                     <TimeSlots
                                         bookedHours={bookedHours}
                                         selectedHours={selectedHours}
@@ -306,8 +324,9 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                         isAdmin={isAdmin}
                                         isSelectedDayBeforeToday={isSelectedDayBeforeToday}
                                         isToday={isToday}
-                                    />)}
-                            </TabPanel>
+                                    />
+                                </TabPanel>
+                            )}
 
                         </div>
                     </div>

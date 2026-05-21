@@ -1,7 +1,8 @@
 import React, { type JSX } from "react"
-import { Avatar, Card, Chip } from "@mui/material";
+import { Card, Chip } from "@mui/material";
 import css from '@/components/RehearsalCard/RehearsalCard.module.css';
 import type { TRehearsalType } from "@/types/timetable.types";
+import { SafeAvatar } from '@/components/SafeAvatar/SafeAvatar.tsx';
 
 /**
  * Вычисляет конечное время (начальный час + 1)
@@ -61,19 +62,37 @@ interface IRehearsalCardProps {
     photoUrl: string;
     username: string;
     rehearsalType: TRehearsalType;
+    canViewUserDetails: boolean;
 }
 
-export const RehearsalCard: React.FC<IRehearsalCardProps> = ({ selectedHours, bookingBandName, photoUrl, username, rehearsalType = 'rehearsal' }): JSX.Element => {
+const getAvatarFallback = (username: string, canViewUserDetails: boolean): string => {
+    if (!canViewUserDetails) return '?';
+    return username.trim().charAt(0).toUpperCase() || '?';
+};
+
+export const RehearsalCard: React.FC<IRehearsalCardProps> = ({
+    selectedHours,
+    bookingBandName,
+    photoUrl,
+    username,
+    rehearsalType = 'rehearsal',
+    canViewUserDetails,
+}): JSX.Element => {
+    const displayName = canViewUserDetails ? username : 'Занято';
+    const avatarSrc = canViewUserDetails && photoUrl ? photoUrl : undefined;
+
     return (
         <Card className={css.slot}>
             <div className={css.timeContainer}>
-                <Avatar
-                    src={photoUrl}
+                <SafeAvatar
+                    src={avatarSrc}
+                    fallback={getAvatarFallback(username, canViewUserDetails)}
+                    timeoutMs={1200}
                     className={css.avatar}
                     sx={{ width: 36, height: 36, border: '1px solid' }}
                 />
                 <div className={css.usernameContainer}>
-                    <span className={css.username}>{username}</span>
+                    <span className={css.username}>{displayName}</span>
                     <span className={css.time}>🕓 {formatSelectedHoursRange(selectedHours)}</span>
                 </div>
             </div>

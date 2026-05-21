@@ -121,6 +121,12 @@
     line-height: 1.4;
 }
 
+.inviteLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+}
+
 .inviteLinkContainer {
     display: flex;
     flex-direction: column;

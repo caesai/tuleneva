@@ -9,6 +9,26 @@ export default defineConfig(({ command }) => ({
             react(),
             tsconfigPaths(),
         ],
+        build: {
+            rollupOptions: {
+                output: {
+                    manualChunks(id) {
+                        if (!id.includes('node_modules')) return;
+                        if (
+                            id.includes('@mui') ||
+                            id.includes('@emotion') ||
+                            id.includes('react-dom') ||
+                            id.includes('react-router') ||
+                            id.includes('/react/')
+                        ) {
+                            return 'vendor-ui';
+                        }
+                        if (id.includes('@telegram-apps')) return 'vendor-telegram';
+                        if (id.includes('moment')) return 'vendor-moment';
+                    },
+                },
+            },
+        },
         server: {
             // Exposes your dev server and makes it accessible for the devices in the same network.
             port: 443,
@@ -19,16 +39,18 @@ export default defineConfig(({ command }) => ({
             },
             proxy: {
                 // Proxy requests from your Vite server to your backend
+                // Прод по IP: HTTP (порт 80) отдаёт 404 для /api — API проксируется только по HTTPS.
                 '/api': {
-                    target: 'http://localhost:3000',
+                    target: 'https://51.250.16.74',
                     changeOrigin: true,
-                    secure: false, // For local development with self-signed certs
+                    secure: false,
                 },
                 // WebSocket proxy for real-time updates
                 '/ws': {
-                    target: 'ws://localhost:3000',
+                    target: 'wss://51.250.16.74',
                     ws: true,
                     changeOrigin: true,
+                    secure: false,
                 },
             },
             https: command === 'build' ? {} : {

@@ -5,6 +5,7 @@ import type { JSX } from 'react';
 
 interface IScheduleProps {
     bookedHours: IHour[];
+    canViewUserDetails: boolean;
 }
 
 interface MergedSlot {
@@ -126,9 +127,8 @@ const mergeConsecutiveSlots = (bookedHours: IHour[]): MergedSlot[] => {
  * @param bookedHours - массив забронированных часов
  * @returns JSX.Element - компонент расписания
  */
-export const Schedule: React.FC<IScheduleProps> = ({ bookedHours }): JSX.Element => {
+export const Schedule: React.FC<IScheduleProps> = ({ bookedHours, canViewUserDetails }): JSX.Element => {
     const mergedSlots: MergedSlot[] = mergeConsecutiveSlots(bookedHours);
-    console.log(mergedSlots)
 
     return (
         <div className={css.schedule}>
@@ -140,6 +140,7 @@ export const Schedule: React.FC<IScheduleProps> = ({ bookedHours }): JSX.Element
                     selectedHours={generateHoursInRange(slot.startHour, slot.endHour)}
                     bookingBandName={slot.band_name}
                     rehearsalType={slot.rehearsalType}
+                    canViewUserDetails={canViewUserDetails}
                 />
             ))}
         </div>

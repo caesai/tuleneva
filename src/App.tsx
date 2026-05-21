@@ -1,9 +1,9 @@
-import React, { useEffect, useState, Suspense, useCallback } from 'react';
+import React, { useEffect, useState, Suspense, useCallback, lazy } from 'react';
 import { BrowserRouter, Route, Routes, useSearchParams } from 'react-router-dom';
-import { swipeBehavior, useLaunchParams } from '@telegram-apps/sdk-react';
+import { swipeBehavior } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
 import { TimeTablePage } from '@/pages/TimeTablePage/TimeTablePage.tsx';
-import { AdminPage } from '@/pages/AdminPage/AdminPage.tsx';
+import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { Loader } from '@/components/Loader/Loader.tsx';
@@ -11,6 +11,10 @@ import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { APIValidateInvite } from '@/api/user.api.ts';
+
+const AdminPage = lazy(() =>
+    import('@/pages/AdminPage/AdminPage.tsx').then((m) => ({ default: m.AdminPage })),
+);
 
 const IndexPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,33 +29,35 @@ const IndexPage: React.FC = () => {
     const { user, isLoading, isAuthenticated, register, registerWithInvite } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
-    // Проверяем наличие инвайт-кода в URL (tgWebAppStartParam — стандартный параметр Telegram Mini App)
+    const clearInviteParams = useCallback(() => {
+        searchParams.delete('tgWebAppStartParam');
+        searchParams.delete('invite');
+        setSearchParams(searchParams, { replace: true });
+    }, [searchParams, setSearchParams]);
+
+    // Инвайт: Telegram startapp или web ?invite=
     useEffect(() => {
-        const code = searchParams.get('tgWebAppStartParam');
+        const code = searchParams.get('tgWebAppStartParam') || searchParams.get('invite');
         if (code && !isLoading) {
-            // Если пользователь уже зарегистрирован и авторизован — инвайт не нужен
             if (isAuthenticated && user?.isRegistered) {
-                searchParams.delete('tgWebAppStartParam');
-                setSearchParams(searchParams, { replace: true });
+                clearInviteParams();
                 return;
             }
 
             setInviteCode(code);
-            // Валидируем код
             APIValidateInvite(code).then(async (res) => {
                 const data = await res.json();
                 if (data.valid) {
                     setIsInviteModalOpen(true);
                 } else {
                     showToast('Ссылка-приглашение недействительна или уже использована.', 'error');
-                    searchParams.delete('tgWebAppStartParam');
-                    setSearchParams(searchParams, { replace: true });
+                    clearInviteParams();
                 }
             }).catch(() => {
                 showToast('Не удалось проверить ссылку-приглашение.', 'error');
             });
         }
-    }, [isLoading, isAuthenticated, user, searchParams, setSearchParams, showToast]);
+    }, [isLoading, isAuthenticated, user, searchParams, clearInviteParams, showToast]);
 
     // Эффект для управления модальным окном в зависимости от роли
     // useEffect(() => {
@@ -88,8 +94,7 @@ const IndexPage: React.FC = () => {
             await registerWithInvite(inviteCode);
             showToast('Запрос на доступ отправлен администратору.', 'success');
             setIsInviteModalOpen(false);
-            searchParams.delete('tgWebAppStartParam');
-            setSearchParams(searchParams, { replace: true });
+            clearInviteParams();
             setInviteCode(null);
         } catch (err) {
             console.error('Invite request access failed:', err);
@@ -97,11 +102,11 @@ const IndexPage: React.FC = () => {
         } finally {
             setInviteLoading(false);
         }
-    }, [inviteCode, registerWithInvite, showToast, searchParams, setSearchParams]);
+    }, [inviteCode, registerWithInvite, showToast, clearInviteParams]);
 
-    if (isLoading) {
-        return <Loader />;
-    }
+    // if (isLoading) {
+    //     return <Loader />;
+    // }
 
     return (
         <>
@@ -162,7 +167,7 @@ const IndexPage: React.FC = () => {
 };
 
 const App: React.FC = () => {
-    const lp = useLaunchParams();
+    const { launchParams: lp } = useSafeLaunchParams();
 
     useEffect(() => {
         try {
@@ -174,13 +179,10 @@ const App: React.FC = () => {
         }
     }, []);
 
+    const platform = ['macos', 'ios'].includes(lp.tgWebAppPlatform) ? 'ios' : 'base';
+
     return (
-        <AppRoot
-            appearance={'light'}
-            platform={
-                ['macos', 'ios'].includes(lp.tgWebAppPlatform) ? 'ios' : 'base'
-            }
-        >
+        <AppRoot appearance="light" platform={platform}>
             <NetworkProvider>
                 <BrowserRouter>
                     <Suspense fallback={<Loader />}>
