@@ -40,7 +40,7 @@ export const Calendar: React.FC<CalendarProps> = ({ onDateChange, date, highligh
         >
             <Card>
                 <DateCalendar
-                    sx={{ height: 300 }}
+                    // sx={{ height: 300 }}
                     onChange={onDateChange}
                     value={date}
                     slots={{ day: CalendarDay } as unknown as PickersDayProps['day']}

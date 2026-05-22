@@ -16,14 +16,15 @@ export default defineConfig(({ command }) => ({
                 output: {
                     manualChunks(id) {
                         if (!id.includes('node_modules')) return;
+                        // MUI не выносим в отдельный vendor: иначе цикл vendor-react ↔ vendor-mui
+                        // (react-is и др.). MUI попадает в lazy-чанк TimeTablePage (/app).
+                        if (id.includes('react-router')) return 'vendor-router';
                         if (
-                            id.includes('@mui') ||
-                            id.includes('@emotion') ||
-                            id.includes('react-dom') ||
-                            id.includes('react-router') ||
-                            id.includes('/react/')
+                            /node_modules\/(react|react-dom|scheduler|react-is|use-sync-external-store)(\/|$)/.test(
+                                id,
+                            )
                         ) {
-                            return 'vendor-ui';
+                            return 'vendor-react';
                         }
                         if (id.includes('@telegram-apps')) return 'vendor-telegram';
                         if (id.includes('moment')) return 'vendor-moment';

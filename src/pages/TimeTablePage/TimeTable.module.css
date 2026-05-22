@@ -29,6 +29,27 @@
     max-width: 360px;
 }
 
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background-color: #e5e7eb;
+    flex-shrink: 0;
+}
+
+.suspenseLoader {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.suspenseLoaderTabs {
+    min-height: 250px;
+}
+
 .logoButton {
     background: none;
     border: none;
@@ -67,18 +88,12 @@
     justify-content: center;
     align-items: center;
     background-color: white;
-    animation: fadeIn 0.15s ease-in-out;
+    animation: fadeIn 0.4s ease-out;
     z-index: 1;
 }
 
-.tabLoaderSpinner {
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
-}
-
 .tabContent {
-    transition: opacity 0.2s ease-out;
+    transition: opacity 0.35s ease-out;
 }
 
 .noRehearsals {
@@ -115,16 +130,6 @@
 
     to {
         opacity: 1;
-    }
-}
-
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
     }
 }
 

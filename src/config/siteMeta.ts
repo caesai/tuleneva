@@ -43,7 +43,7 @@ export interface IPageMeta {
 export const LANDING_PAGE_META: IPageMeta = {
     title: 'Тюленева 25 — музыкальная студия, Москва, Тёплый Стан',
     description:
-        'Музыкальная студия на ул. Тюленева, 25: бронирование репетиций, расписание залов, живые записи. Москва, метро Тёплый Стан.',
+        'Творческое объединение.',
     canonicalPath: '/',
     ogImagePath: '/og-image.jpg',
     ogImageWidth: 1024,
@@ -59,7 +59,7 @@ export const LANDING_PAGE_META: IPageMeta = {
         '@type': 'MusicVenue',
         name: 'Тюленева 25',
         description:
-            'Музыкальная студия в Москве (Тёплый Стан). Бронирование репетиций и расписание онлайн.',
+            'Музыкальная студия в Москве (Тёплый Стан).',
         url: SITE_ORIGIN,
         image: toAbsoluteUrl('/og-image.jpg'),
         address: {

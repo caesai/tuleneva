@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { APIGetUsers, APIUpdateUserRole, APIDeleteUser, APIGenerateInvite } from '@/api/user.api.ts';
 import type { IUser, TRole } from '@/types/user.types.ts';
 import type { TAuthProvider } from '@/types/auth.types.ts';
-import { Loader } from '@/components/Loader/Loader.tsx';
+import { DelayedLoader } from '@/components/Loader/DelayedLoader.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import css from './AdminPage.module.css';
 import { useAuth } from '@/hooks/useAuth.ts';
@@ -199,7 +199,13 @@ export const AdminPage: React.FC = () => {
         }
     };
 
-    if (loading) return <div className={css.loading}><Loader /></div>;
+    if (loading) {
+        return (
+            <div className={css.loading}>
+                <DelayedLoader active fullScreen={false} reserveSpace />
+            </div>
+        );
+    }
     if (error) return <div className={css.error}>{error}</div>;
 
     return (

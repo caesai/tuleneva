@@ -2,11 +2,10 @@ import React, { useEffect, useState, Suspense, useCallback, lazy } from 'react';
 import { BrowserRouter, Route, Routes, useSearchParams } from 'react-router-dom';
 import { swipeBehavior } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
-import { TimeTablePage } from '@/pages/TimeTablePage/TimeTablePage.tsx';
 import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { Loader } from '@/components/Loader/Loader.tsx';
+import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
 import { LandingScreen } from '@/components/LandingScreen/LandingScreen.tsx';
 import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
 import { useToast } from '@/hooks/useToast.ts';
@@ -14,6 +13,10 @@ import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { APIValidateInvite } from '@/api/user.api.ts';
 import { getTelegramEnvironment } from '@/telegram/env.ts';
 import type { IInviteValidateResponse, TAuthProvider } from '@/types/auth.types.ts';
+
+const TimeTablePage = lazy(() =>
+    import('@/pages/TimeTablePage/TimeTablePage.tsx').then((m) => ({ default: m.TimeTablePage })),
+);
 
 const AdminPage = lazy(() =>
     import('@/pages/AdminPage/AdminPage.tsx').then((m) => ({ default: m.AdminPage })),
@@ -249,7 +252,7 @@ const App: React.FC = () => {
         <AppRoot appearance="light" platform={platform}>
             <NetworkProvider>
                 <BrowserRouter>
-                    <Suspense fallback={<Loader />}>
+                    <Suspense fallback={<SuspenseLoaderFallback fullScreen />}>
                         <Routes>
                             <Route path="/" element={<IndexPage />} />
                             <Route path="/app" element={<TimeTablePage />} />

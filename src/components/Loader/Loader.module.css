@@ -5,12 +5,14 @@
     height: 100vh;
     background-color: white;
     width: 100%;
+    animation: loader-appear 0.4s ease-out;
 }
 
 .loaderInline {
     display: flex;
     justify-content: center;
     align-items: center;
+    animation: loader-appear 0.4s ease-out;
 }
 
 .logo {
@@ -20,10 +22,21 @@
     transition: filter 300ms;
 }
 
+@keyframes loader-appear {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
 @keyframes logo-spin {
     from {
         transform: rotate(0deg);
     }
+
     to {
         transform: rotate(360deg);
     }
@@ -31,6 +44,14 @@
 
 @media (prefers-reduced-motion: no-preference) {
     .logo {
-        animation: logo-spin infinite 20s linear;
+        /* 20.5s — чуть медленнее базовых 20s (~+500 ms на оборот) */
+        animation: logo-spin infinite 20.5s linear;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .loader,
+    .loaderInline {
+        animation: none;
     }
 }

@@ -1,8 +1,8 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
-import React, { useState, useEffect, type JSX } from 'react';
-import { Loader } from '@/components/Loader/Loader.tsx';
-import { Calendar } from '@/components/Calendar/Calendar.tsx';
-import { TimeSlots } from '@/components/TimeSlots/TimeSlots.tsx';
+import React, { useState, useEffect, Suspense, type JSX } from 'react';
+import { DelayedLoader } from '@/components/Loader/DelayedLoader.tsx';
+import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
+import { useDelayedLoading } from '@/hooks/useDelayedLoading.ts';
 import { useTimeTableData } from '@/hooks/useTimeTableData.ts';
 import moment, { type Moment } from '@/lib/moment';
 import css from '@/pages/TimeTablePage/TimeTable.module.css';
@@ -11,14 +11,15 @@ import { useAuth } from '@/hooks/useAuth.ts';
 import { useNetwork } from '@/hooks/useNetwork.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useToast } from '@/hooks/useToast.ts';
-import { Avatar, Tab } from '@mui/material';
-import logo from '/logo_main512.svg';
-import { useNavigate } from 'react-router-dom';
-import { Schedule } from '@/components/Schedule/Schedule';
-import TabPanel from '@mui/lab/TabPanel';
-import TabContext from '@mui/lab/TabContext';
-import { TabList } from '@mui/lab';
-import { BookModalPopup } from '@/components/BookModalPopup/BookModalPopup';
+// import logo from '/logo_main512.svg';
+// import { useNavigate } from 'react-router-dom';
+import {
+    LazyBookModalPopup,
+    LazyTimeTableCalendarBlock,
+    LazyTimeTableDayTabs,
+    preloadBookModalChunk,
+    preloadTimeTableMuiChunks,
+} from '@/pages/TimeTablePage/lazyMuiChunks.ts';
 import type { TRehearsalType } from '@/types/timetable.types';
 
 
@@ -39,7 +40,7 @@ import type { TRehearsalType } from '@/types/timetable.types';
  * @returns {JSX.Element} Отрисованный компонент TimeTablePage.
  */
 export const TimeTablePage: React.FC = (): JSX.Element => {
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
     // Состояние для текущей выбранной даты в календаре
     const [selectedDate, setSelectedDate] = useState<Moment | null>(moment());
     // Состояние для текущего просматриваемого месяца (влияет на загружаемые данные)
@@ -54,6 +55,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const { toasts, showToast, removeToast } = useToast();
     // Пользовательский хук для получения данных расписания (подсвеченные даты, забронированные часы)
     const { highlightedDates, bookedHours, loading, hoursLoading, error, fetchBookedHours, refetch } = useTimeTableData(viewDate, isOnline);
+    const showHoursLoading = useDelayedLoading(hoursLoading);
     // Состояние видимости модального окна подтверждения бронирования
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
     // Состояние для поля "Имя пользователя" в форме бронирования
@@ -69,8 +71,20 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         setIsScheduleMode(bookedHours.length > 0);
     }, [bookedHours, hoursLoading]);
 
+    useEffect(() => {
+        if (!loading) {
+            preloadTimeTableMuiChunks();
+        }
+    }, [loading]);
+
+    useEffect(() => {
+        if (isBookingModalOpen) {
+            preloadBookModalChunk();
+        }
+    }, [isBookingModalOpen]);
+
     const openBookingModal = () => {
-        // setBookingUsername(user?.username || '');
+        preloadBookModalChunk();
         setBookingBandName('');
         setIsBookingModalOpen(true);
     };
@@ -227,7 +241,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     };
 
     if (loading) {
-        return <Loader />;
+        return <DelayedLoader active fullScreen reserveSpace />;
     }
 
     const isSelectedDayBeforeToday = moment(selectedDate).startOf('day').isBefore(moment().startOf('day'));
@@ -256,81 +270,70 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
             {/* Toast-уведомления */}
             <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-            {canManageSelectedDate && (
-                <BookModalPopup
-                    isOpen={isBookingModalOpen}
-                    onClose={closeBookingModal}
-                    selectedDate={selectedDate as Moment}
-                    selectedHours={selectedHours}
-                    bookingBandName={bookingBandName}
-                    bandNames={bandNames}
-                    onBookingBandNameChange={setBookingBandName}
-                    onBookingConfirm={handleBooking}
-                    onBookingCancel={closeBookingModal}
-                    username={user?.username || ''}
-                    photoUrl={user?.photo_url || ''}
-                    rehearsalType={rehearsalType}
-                    onRehearsalTypeChange={setRehearsalType}
-                />
+            {canManageSelectedDate && isBookingModalOpen && (
+                <Suspense fallback={null}>
+                    <LazyBookModalPopup
+                        isOpen={isBookingModalOpen}
+                        onClose={closeBookingModal}
+                        selectedDate={selectedDate as Moment}
+                        selectedHours={selectedHours}
+                        bookingBandName={bookingBandName}
+                        bandNames={bandNames}
+                        onBookingBandNameChange={setBookingBandName}
+                        onBookingConfirm={handleBooking}
+                        onBookingCancel={closeBookingModal}
+                        username={user?.username || ''}
+                        photoUrl={user?.photo_url || ''}
+                        rehearsalType={rehearsalType}
+                        onRehearsalTypeChange={setRehearsalType}
+                    />
+                </Suspense>
             )}
 
             <div className={css.card}>
-                <div className={css.cardHeader}>
-                    <Avatar src={user?.photo_url} />
-                    <h2 className={css.title}>Расписание студии</h2>
-                    <button className={css.logoButton} disabled={!isAdmin} onClick={() => navigate('/admin')}>
-                        <img src={logo} alt="logo" className={css.logo} />
-                    </button>
-                </div>
-                <Calendar
-                    onDateChange={onDateChange}
-                    onMonthChange={onMonthChange}
-                    date={selectedDate}
-                    highlightedDates={highlightedDates}
-                />
-                <TabContext value={activeTab}>
-                    {hasBookedHours && !hoursLoading && canManageSelectedDate && (
-                        <TabList onChange={handleScheduleModeChange} variant="fullWidth">
-                            <Tab label={selectedDate?.format('DD.MM.YYYY')} value="schedule" />
-                            <Tab label="Бронирование" value="booking" />
-                        </TabList>
+                <Suspense
+                    fallback={(
+                        <SuspenseLoaderFallback
+                            fullScreen={false}
+                            className={css.suspenseLoader}
+                        />
                     )}
-
-                    <div className={css.tabWrapper}>
-                        {hoursLoading && (
-                            <div className={css.tabLoader}>
-                                <img src={logo} alt="Загрузка..." className={css.tabLoaderSpinner} />
-                            </div>
-                        )}
-                        <div className={css.tabContent} style={{ opacity: hoursLoading ? 0 : 1 }}>
-                            <TabPanel value="schedule" style={{ padding: '20px 0' }}>
-                                {hasBookedHours ? (
-                                    <Schedule
-                                        bookedHours={bookedHours}
-                                        canViewUserDetails={canViewUserDetails}
-                                    />
-                                ) : (
-                                    <div className={css.noRehearsals}>{getReadonlyMessage()}</div>
-                                )}
-                            </TabPanel>
-                            {canManageSelectedDate && (
-                                <TabPanel value="booking" style={{ padding: '20px 0' }}>
-                                    <TimeSlots
-                                        bookedHours={bookedHours}
-                                        selectedHours={selectedHours}
-                                        hoursToCancel={hoursToCancel}
-                                        onHourClick={handleHourClick}
-                                        currentUserId={String(user?._id)}
-                                        isAdmin={isAdmin}
-                                        isSelectedDayBeforeToday={isSelectedDayBeforeToday}
-                                        isToday={isToday}
-                                    />
-                                </TabPanel>
-                            )}
-
-                        </div>
-                    </div>
-                </TabContext>
+                >
+                    <LazyTimeTableCalendarBlock
+                        onDateChange={onDateChange}
+                        onMonthChange={onMonthChange}
+                        date={selectedDate}
+                        highlightedDates={highlightedDates}
+                    />
+                </Suspense>
+                <Suspense
+                    fallback={(
+                        <SuspenseLoaderFallback
+                            fullScreen={false}
+                            className={`${css.tabWrapper} ${css.suspenseLoader} ${css.suspenseLoaderTabs}`}
+                        />
+                    )}
+                >
+                    <LazyTimeTableDayTabs
+                        activeTab={activeTab}
+                        hasBookedHours={hasBookedHours}
+                        hoursLoading={hoursLoading}
+                        showHoursLoading={showHoursLoading}
+                        canManageSelectedDate={canManageSelectedDate}
+                        selectedDate={selectedDate}
+                        bookedHours={bookedHours}
+                        selectedHours={selectedHours}
+                        hoursToCancel={hoursToCancel}
+                        readonlyMessage={getReadonlyMessage()}
+                        canViewUserDetails={canViewUserDetails}
+                        currentUserId={String(user?._id)}
+                        isAdmin={isAdmin}
+                        isSelectedDayBeforeToday={isSelectedDayBeforeToday}
+                        isToday={isToday}
+                        onScheduleModeChange={handleScheduleModeChange}
+                        onHourClick={handleHourClick}
+                    />
+                </Suspense>
                 {isBookingEnabled && (
                     <div className={css.bookingButtonContainer}>
                         <button
