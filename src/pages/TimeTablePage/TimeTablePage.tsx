@@ -1,6 +1,6 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
 import React, { useState, useEffect, Suspense, type JSX } from 'react';
-import { DelayedLoader } from '@/components/Loader/DelayedLoader.tsx';
+import { Loader } from '@/components/Loader/Loader.tsx';
 import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading.ts';
 import { useTimeTableData } from '@/hooks/useTimeTableData.ts';
@@ -54,8 +54,16 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     // Хук для toast-уведомлений
     const { toasts, showToast, removeToast } = useToast();
     // Пользовательский хук для получения данных расписания (подсвеченные даты, забронированные часы)
-    const { highlightedDates, bookedHours, loading, hoursLoading, error, fetchBookedHours, refetch } = useTimeTableData(viewDate, isOnline);
+    const { highlightedDates, bookedHours, loading, hoursLoading, error, fetchBookedHours, refetch } =
+        useTimeTableData(viewDate, selectedDate, isOnline);
+    /** Лоадер месяца: minVisibleMs после ответа API */
+    const showPageLoading = useDelayedLoading(loading);
     const showHoursLoading = useDelayedLoading(hoursLoading);
+    /** Синхронно с кликом — до useLayoutEffect в хуке */
+    const [monthTransition, setMonthTransition] = useState(false);
+    const [dayTransition, setDayTransition] = useState(false);
+    const showCardLoader = loading || showPageLoading || monthTransition;
+    const showTabsLoader = hoursLoading || showHoursLoading || dayTransition;
     // Состояние видимости модального окна подтверждения бронирования
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
     // Состояние для поля "Имя пользователя" в форме бронирования
@@ -72,10 +80,20 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     }, [bookedHours, hoursLoading]);
 
     useEffect(() => {
-        if (!loading) {
-            preloadTimeTableMuiChunks();
+        preloadTimeTableMuiChunks();
+    }, []);
+
+    useEffect(() => {
+        if (!loading && !showPageLoading) {
+            setMonthTransition(false);
         }
-    }, [loading]);
+    }, [loading, showPageLoading]);
+
+    useEffect(() => {
+        if (!hoursLoading && !showHoursLoading) {
+            setDayTransition(false);
+        }
+    }, [hoursLoading, showHoursLoading]);
 
     useEffect(() => {
         if (isBookingModalOpen) {
@@ -98,15 +116,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const userSettings = localUserSettings ? JSON.parse(localUserSettings) : {};
     const bandNames: string[] = userSettings.bandNames || [];
 
-    // Загрузка забронированных часов для изначально выбранной даты (сегодня) при монтировании или изменении selectedDate
-    useEffect(() => {
-        if (selectedDate) {
-            fetchBookedHours(selectedDate).then();
-        }
-    }, [selectedDate, fetchBookedHours]);
-
-
-
     // Показать toast при ошибке загрузки данных
     useEffect(() => {
         if (error) {
@@ -122,6 +131,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
      */
     const onDateChange = (newDate: Moment | null) => {
         if (!newDate) return;
+        setDayTransition(true);
         setSelectedDate(newDate);
         setSelectedHours([]);
         setHoursToCancel([]);
@@ -134,8 +144,10 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
      * @param {Moment} newMonth - Первый день нового месяца.
      */
     const onMonthChange = (newMonth: Moment) => {
-        setViewDate(newMonth); // Обновляем состояние viewDate для вызова API в хуке
-        setSelectedDate(newMonth); // Опционально выбираем первый день нового месяца
+        setMonthTransition(true);
+        setDayTransition(true);
+        setViewDate(newMonth);
+        setSelectedDate(newMonth);
         setSelectedHours([]);
         setHoursToCancel([]);
     };
@@ -240,10 +252,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         }
     };
 
-    if (loading) {
-        return <DelayedLoader active fullScreen reserveSpace />;
-    }
-
     const isSelectedDayBeforeToday = moment(selectedDate).startOf('day').isBefore(moment().startOf('day'));
     const isToday = moment(selectedDate).startOf('day').isSame(moment().startOf('day'));
     const hasBookedHours = bookedHours.length > 0;
@@ -291,70 +299,91 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
             )}
 
             <div className={css.card}>
-                <Suspense
-                    fallback={(
-                        <SuspenseLoaderFallback
-                            fullScreen={false}
-                            className={css.suspenseLoader}
-                        />
-                    )}
-                >
-                    <LazyTimeTableCalendarBlock
-                        onDateChange={onDateChange}
-                        onMonthChange={onMonthChange}
-                        date={selectedDate}
-                        highlightedDates={highlightedDates}
-                    />
-                </Suspense>
-                <Suspense
-                    fallback={(
-                        <SuspenseLoaderFallback
-                            fullScreen={false}
-                            className={`${css.tabWrapper} ${css.suspenseLoader} ${css.suspenseLoaderTabs}`}
-                        />
-                    )}
-                >
-                    <LazyTimeTableDayTabs
-                        activeTab={activeTab}
-                        hasBookedHours={hasBookedHours}
-                        hoursLoading={hoursLoading}
-                        showHoursLoading={showHoursLoading}
-                        canManageSelectedDate={canManageSelectedDate}
-                        selectedDate={selectedDate}
-                        bookedHours={bookedHours}
-                        selectedHours={selectedHours}
-                        hoursToCancel={hoursToCancel}
-                        readonlyMessage={getReadonlyMessage()}
-                        canViewUserDetails={canViewUserDetails}
-                        currentUserId={String(user?._id)}
-                        isAdmin={isAdmin}
-                        isSelectedDayBeforeToday={isSelectedDayBeforeToday}
-                        isToday={isToday}
-                        onScheduleModeChange={handleScheduleModeChange}
-                        onHourClick={handleHourClick}
-                    />
-                </Suspense>
-                {isBookingEnabled && (
-                    <div className={css.bookingButtonContainer}>
-                        <button
-                            className={css.confirmButton}
-                            onClick={openBookingModal}
-                        >
-                            Забронировать
-                        </button>
+                {showCardLoader ? (
+                    <div
+                        className={`${css.cardLoader} ${css.cardLoaderFull}`}
+                        aria-busy="true"
+                        aria-label="Загрузка расписания"
+                    >
+                        <Loader fullScreen={false} />
                     </div>
-                )}
-                {isBookingCancelling && (
-                    <div className={css.bookingButtonContainer}>
-                        <button
-                            className={css.cancelButton}
-                            onClick={handleCancel}
+                ) : (
+                    <>
+                        <Suspense
+                            fallback={(
+                                <SuspenseLoaderFallback
+                                    fullScreen={false}
+                                    className={css.suspenseLoader}
+                                />
+                            )}
                         >
-                            Отменить
-                        </button>
-                    </div>
+                            <LazyTimeTableCalendarBlock
+                                onDateChange={onDateChange}
+                                onMonthChange={onMonthChange}
+                                date={selectedDate}
+                                highlightedDates={highlightedDates}
+                            />
+                        </Suspense>
+                        {showTabsLoader ? (
+                            <div
+                                className={`${css.cardLoader} ${css.cardLoaderTabs}`}
+                                aria-busy="true"
+                                aria-label="Загрузка слотов"
+                            >
+                                <Loader fullScreen={false} />
+                            </div>
+                        ) : (
+                            <>
+                                <Suspense
+                                    fallback={(
+                                        <SuspenseLoaderFallback
+                                            fullScreen={false}
+                                            className={`${css.tabWrapper} ${css.suspenseLoader} ${css.suspenseLoaderTabs}`}
+                                        />
+                                    )}
+                                >
+                                    <LazyTimeTableDayTabs
+                                        activeTab={activeTab}
+                                        hasBookedHours={hasBookedHours}
+                                        canManageSelectedDate={canManageSelectedDate}
+                                        selectedDate={selectedDate}
+                                        bookedHours={bookedHours}
+                                        selectedHours={selectedHours}
+                                        hoursToCancel={hoursToCancel}
+                                        readonlyMessage={getReadonlyMessage()}
+                                        canViewUserDetails={canViewUserDetails}
+                                        currentUserId={String(user?._id)}
+                                        isAdmin={isAdmin}
+                                        isSelectedDayBeforeToday={isSelectedDayBeforeToday}
+                                        isToday={isToday}
+                                        onScheduleModeChange={handleScheduleModeChange}
+                                        onHourClick={handleHourClick}
+                                    />
+                                </Suspense>
+                                {isBookingEnabled && (
+                                    <div className={css.bookingButtonContainer}>
+                                        <button
+                                            className={css.confirmButton}
+                                            onClick={openBookingModal}
+                                        >
+                                            Забронировать
+                                        </button>
+                                    </div>
+                                )}
+                                {isBookingCancelling && (
+                                    <div className={css.bookingButtonContainer}>
+                                        <button
+                                            className={css.cancelButton}
+                                            onClick={handleCancel}
+                                        >
+                                            Отменить
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </>
                 )}
-
             </div>
         </div >
     );

@@ -1,5 +1,5 @@
 // src/hooks/useTimeTableData.ts
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { APIGetTimeTable, APIGetHours } from '@/api/timetable.api.ts';
 import moment, { type Moment } from '@/lib/moment';
 import type { IHour } from '@/types/timetable.types.ts';
@@ -19,7 +19,8 @@ export type FetchTimetableOptions = {
  * Поддерживает автоматические повторные попытки при ошибке загрузки.
  * Интегрирован с проверкой сетевого подключения и WebSocket для real-time обновлений.
  *
- * @param date - Текущая выбранная дата (Moment объект) или null.
+ * @param date - Просматриваемый месяц (Moment) или null.
+ * @param selectedDate - Выбранный день для слотов (Moment) или null.
  * @param isOnline - Статус сетевого подключения (опционально, по умолчанию true).
  * @returns {object} Объект, содержащий:
  * - highlightedDates: массив чисел (дней месяца), где есть бронирования.
@@ -30,11 +31,15 @@ export type FetchTimetableOptions = {
  * - refetch: функция для повторной загрузки данных.
  * - isWebSocketConnected: статус WebSocket соединения.
  */
-export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) => {
+export const useTimeTableData = (
+    date: Moment | null,
+    selectedDate: Moment | null,
+    isOnline: boolean = true,
+) => {
     const [highlightedDates, setHighlightedDates] = useState<number[]>([]);
     const [bookedHours, setBookedHours] = useState<IHour[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
-    const [hoursLoading, setHoursLoading] = useState<boolean>(false);
+    const [hoursLoading, setHoursLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState<number>(0);
     const retryCountRef = useRef(retryCount);
@@ -122,6 +127,7 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
     }, [date]);
 
     const viewMonthKey = date?.format('YYYY-MM') ?? '';
+    const selectedDateKey = selectedDate?.format('DD/MM/YYYY') ?? '';
 
     // Смена месяца: сброс попыток и отмена отложенного retry (иначе счётчик «ехал» бы на старый месяц)
     useEffect(() => {
@@ -132,6 +138,20 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         setRetryCount(0);
         setError(null);
     }, [viewMonthKey]);
+
+    /** До paint: лоадер месяца и без старых подсветок в календаре */
+    useLayoutEffect(() => {
+        if (!viewMonthKey) return;
+        setLoading(true);
+        setHighlightedDates([]);
+    }, [viewMonthKey]);
+
+    /** До paint: лоадер дня и без старых слотов */
+    useLayoutEffect(() => {
+        if (!selectedDateKey) return;
+        setHoursLoading(true);
+        setBookedHours([]);
+    }, [selectedDateKey]);
 
     // Основная функция загрузки данных (стабильная ссылка — без лишних эффектов при retry)
     const fetchData = useCallback(async (targetDate: Moment, options: FetchTimetableOptions = {}) => {
@@ -191,29 +211,11 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         }
     }, []);
 
-    // Эффект для загрузки данных при изменении даты или retry
-    useEffect(() => {
-        if (!date) return;
-        
-        // Не запускаем, если офлайн (кроме первого рендера для показа ошибки)
-        if (!isOnline && retryCount > 0) return;
-        
-        fetchData(date, { silent: retryCount > 0 });
-    }, [date, retryCount, isOnline, fetchData]);
-
-    // Эффект для автоматического refetch при восстановлении связи
-    useEffect(() => {
-        // Если были офлайн и теперь онлайн - обновляем данные
-        if (!wasOnlineRef.current && isOnline && currentDateRef.current) {
-            setRetryCount(0);
-            fetchData(currentDateRef.current, { silent: false });
-        }
-        wasOnlineRef.current = isOnline;
-    }, [isOnline, fetchData]);
-
-    // Fetch booked hours for a specific date
+    /**
+     * Загружает забронированные часы для выбранного дня.
+     * @param targetDate - Дата (Moment)
+     */
     const fetchBookedHours = useCallback(async (targetDate: Moment) => {
-        // Проверяем подключение перед запросом
         if (!navigator.onLine) {
             setError('Нет подключения к интернету');
             return;
@@ -221,9 +223,8 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
         setHoursLoading(true);
         try {
             const formattedDate = targetDate.format('DD/MM/YYYY');
-            // Сохраняем текущую выбранную дату для WebSocket сравнения
             selectedDateRef.current = formattedDate;
-            
+
             const response = await APIGetHours(formattedDate);
             if (!response.ok) {
                 throw new Error('Не получилось загрузить забронированное время.');
@@ -243,6 +244,30 @@ export const useTimeTableData = (date: Moment | null, isOnline: boolean = true) 
             setHoursLoading(false);
         }
     }, []);
+
+    // Эффект для загрузки данных при изменении даты или retry
+    useEffect(() => {
+        if (!date) return;
+
+        if (!isOnline && retryCount > 0) return;
+
+        fetchData(date, { silent: retryCount > 0 });
+    }, [date, retryCount, isOnline, fetchData]);
+
+    // Загрузка слотов выбранного дня (ключ даты — без лишних запросов при новом объекте Moment)
+    useEffect(() => {
+        if (!selectedDate || !selectedDateKey) return;
+        fetchBookedHours(selectedDate);
+    }, [selectedDateKey, selectedDate, fetchBookedHours]);
+
+    // Эффект для автоматического refetch при восстановлении связи
+    useEffect(() => {
+        if (!wasOnlineRef.current && isOnline && currentDateRef.current) {
+            setRetryCount(0);
+            fetchData(currentDateRef.current, { silent: false });
+        }
+        wasOnlineRef.current = isOnline;
+    }, [isOnline, fetchData]);
 
     // Function to manually trigger a refetch
     const refetch = useCallback(() => {

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Loader } from '@/components/Loader/Loader.tsx';
 import { Tab } from '@mui/material';
 import { TabList, TabContext, TabPanel } from '@mui/lab';
 import { TimeSlots } from '@/components/TimeSlots/TimeSlots.tsx';
@@ -14,9 +13,6 @@ import css from '@/pages/TimeTablePage/TimeTable.module.css';
 export interface ITimeTableDayTabsProps {
     activeTab: string;
     hasBookedHours: boolean;
-    hoursLoading: boolean;
-    /** Сглаженный показ оверлея лоадера (см. useDelayedLoading). */
-    showHoursLoading: boolean;
     canManageSelectedDate: boolean;
     selectedDate: Moment | null;
     bookedHours: IHour[];
@@ -38,8 +34,6 @@ export interface ITimeTableDayTabsProps {
 export const TimeTableDayTabs: React.FC<ITimeTableDayTabsProps> = ({
     activeTab,
     hasBookedHours,
-    hoursLoading,
-    showHoursLoading,
     canManageSelectedDate,
     selectedDate,
     bookedHours,
@@ -55,7 +49,7 @@ export const TimeTableDayTabs: React.FC<ITimeTableDayTabsProps> = ({
     onHourClick,
 }) => (
     <TabContext value={activeTab}>
-        {hasBookedHours && !hoursLoading && canManageSelectedDate && (
+        {hasBookedHours && canManageSelectedDate && (
             <TabList onChange={onScheduleModeChange} variant="fullWidth">
                 <Tab label={selectedDate?.format('DD.MM.YYYY')} value="schedule" />
                 <Tab label="Бронирование" value="booking" />
@@ -63,40 +57,30 @@ export const TimeTableDayTabs: React.FC<ITimeTableDayTabsProps> = ({
         )}
 
         <div className={css.tabWrapper}>
-            {showHoursLoading && (
-                <div className={css.tabLoader} aria-busy="true" aria-label="Загрузка слотов">
-                    <Loader fullScreen={false} />
-                </div>
-            )}
-            <div
-                className={css.tabContent}
-                style={{ opacity: showHoursLoading ? 0 : 1 }}
-            >
-                <TabPanel value="schedule" style={{ padding: '20px 0' }}>
-                    {hasBookedHours ? (
-                        <Schedule
-                            bookedHours={bookedHours}
-                            canViewUserDetails={canViewUserDetails}
-                        />
-                    ) : (
-                        <div className={css.noRehearsals}>{readonlyMessage}</div>
-                    )}
-                </TabPanel>
-                {canManageSelectedDate && (
-                    <TabPanel value="booking" style={{ padding: '20px 0' }}>
-                        <TimeSlots
-                            bookedHours={bookedHours}
-                            selectedHours={selectedHours}
-                            hoursToCancel={hoursToCancel}
-                            onHourClick={onHourClick}
-                            currentUserId={currentUserId}
-                            isAdmin={isAdmin}
-                            isSelectedDayBeforeToday={isSelectedDayBeforeToday}
-                            isToday={isToday}
-                        />
-                    </TabPanel>
+            <TabPanel value="schedule" style={{ padding: '20px 0' }}>
+                {hasBookedHours ? (
+                    <Schedule
+                        bookedHours={bookedHours}
+                        canViewUserDetails={canViewUserDetails}
+                    />
+                ) : (
+                    <div className={css.noRehearsals}>{readonlyMessage}</div>
                 )}
-            </div>
+            </TabPanel>
+            {canManageSelectedDate && (
+                <TabPanel value="booking" style={{ padding: '20px 0' }}>
+                    <TimeSlots
+                        bookedHours={bookedHours}
+                        selectedHours={selectedHours}
+                        hoursToCancel={hoursToCancel}
+                        onHourClick={onHourClick}
+                        currentUserId={currentUserId}
+                        isAdmin={isAdmin}
+                        isSelectedDayBeforeToday={isSelectedDayBeforeToday}
+                        isToday={isToday}
+                    />
+                </TabPanel>
+            )}
         </div>
     </TabContext>
 );

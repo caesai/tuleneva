@@ -78,7 +78,7 @@ export const RehearsalCard: React.FC<IRehearsalCardProps> = ({
     rehearsalType = 'rehearsal',
     canViewUserDetails,
 }): JSX.Element => {
-    const displayName = canViewUserDetails ? username : 'Занято';
+    const displayName = canViewUserDetails ? username : 'Забронировано';
     const avatarSrc = canViewUserDetails && photoUrl ? photoUrl : undefined;
 
     return (
@@ -96,7 +96,7 @@ export const RehearsalCard: React.FC<IRehearsalCardProps> = ({
                     <span className={css.time}>🕓 {formatSelectedHoursRange(selectedHours)}</span>
                 </div>
             </div>
-            {bookingBandName && (
+            {bookingBandName && canViewUserDetails && (
                 <div className={css.timeContainer} style={{ marginTop: '10px' }}>
                     <span className={css.bandIcon}>🎸 </span>
                     <span className={css.bandName}>{bookingBandName}</span>

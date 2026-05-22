@@ -5,7 +5,7 @@ export const LOADER_TIMING = {
     /** Показ сразу при старте загрузки (смена даты/месяца). */
     showDelayMs: 0,
     /** Не убирать лоадер сразу после ответа API — сглаживает UX. */
-    minVisibleMs: 350,
+    minVisibleMs: 500,
     /** Только для Suspense (подгрузка JS-чанков). */
     suspenseShowDelayMs: 150,
 } as const;
@@ -32,7 +32,8 @@ export const useDelayedLoading = (
     const [visible, setVisible] = useState(false);
     const shownAtRef = useRef<number | null>(null);
     const isLoadingRef = useRef(isLoading);
-    const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** ID таймера в браузере (DOM), не NodeJS.Timeout. */
+    const hideTimerRef = useRef<number | null>(null);
 
     isLoadingRef.current = isLoading;
 

@@ -13,11 +13,28 @@
 }
 
 .card {
+    position: relative;
     background-color: white;
     color: black;
     width: 360px;
     max-width: 100%;
     box-sizing: border-box;
+}
+
+.cardLoader {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: white;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.cardLoaderFull {
+    min-height: 520px;
+}
+
+.cardLoaderTabs {
+    min-height: 280px;
 }
 
 .cardHeader {
