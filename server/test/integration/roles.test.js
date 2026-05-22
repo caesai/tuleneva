@@ -27,6 +27,34 @@ describe('role integration', () => {
         await clearTestDb();
     });
 
+    it('GET /api/users returns 403 for regular user', async () => {
+        const user = await seedUser({ role: 'user' });
+
+        const res = await request(app)
+            .get('/api/users')
+            .set(authHeader(user));
+
+        expect(res.status).toBe(403);
+    });
+
+    it('GET /api/users returns 401 without token', async () => {
+        const res = await request(app).get('/api/users');
+        expect(res.status).toBe(401);
+    });
+
+    it('GET /api/users returns list for admin', async () => {
+        const admin = await seedUser({ role: 'admin' });
+        await seedUser({ role: 'guest', first_name: 'Listed' });
+
+        const res = await request(app)
+            .get('/api/users')
+            .set(authHeader(admin));
+
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body)).toBe(true);
+        expect(res.body.length).toBeGreaterThanOrEqual(2);
+    });
+
     it('admin cannot assign super_admin', async () => {
         const admin = await seedUser({ role: 'admin' });
         const guest = await seedUser({ role: 'guest', first_name: 'Target' });

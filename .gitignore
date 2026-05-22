@@ -27,3 +27,5 @@ dist-ssr
 # Local deploy artifacts (rsync/scp output)
 sushkazzlo@*/
 **/*@*.*.*/
+.env
+server/.env

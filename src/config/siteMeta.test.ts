@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LANDING_PAGE_META, SITE_ORIGIN, toAbsoluteUrl } from '@/config/siteMeta.ts';
+import { APP_PAGE_META, LANDING_PAGE_META, SITE_ORIGIN, toAbsoluteUrl } from '@/config/siteMeta.ts';
 
 describe('siteMeta', () => {
     it('toAbsoluteUrl builds production URLs', () => {
@@ -11,5 +11,10 @@ describe('siteMeta', () => {
         expect(LANDING_PAGE_META.canonicalPath).toBe('/');
         expect(LANDING_PAGE_META.ogImagePath).toBe('/og-image.jpg');
         expect(LANDING_PAGE_META.jsonLd?.url).toBe(SITE_ORIGIN);
+    });
+
+    it('APP_PAGE_META указывает canonical /app', () => {
+        expect(APP_PAGE_META.canonicalPath).toBe('/app');
+        expect(toAbsoluteUrl(APP_PAGE_META.canonicalPath!)).toBe(`${SITE_ORIGIN}/app`);
     });
 });

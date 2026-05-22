@@ -21,6 +21,8 @@ import {
     preloadTimeTableMuiChunks,
 } from '@/pages/TimeTablePage/lazyMuiChunks.ts';
 import type { TRehearsalType } from '@/types/timetable.types';
+import { APP_PAGE_META } from '@/config/siteMeta.ts';
+import { usePageMeta } from '@/hooks/usePageMeta.ts';
 
 
 /**
@@ -40,6 +42,8 @@ import type { TRehearsalType } from '@/types/timetable.types';
  * @returns {JSX.Element} Отрисованный компонент TimeTablePage.
  */
 export const TimeTablePage: React.FC = (): JSX.Element => {
+    usePageMeta(APP_PAGE_META);
+
     // const navigate = useNavigate();
     // Состояние для текущей выбранной даты в календаре
     const [selectedDate, setSelectedDate] = useState<Moment | null>(moment());
@@ -62,8 +66,27 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     /** Синхронно с кликом — до useLayoutEffect в хуке */
     const [monthTransition, setMonthTransition] = useState(false);
     const [dayTransition, setDayTransition] = useState(false);
-    const showCardLoader = loading || showPageLoading || monthTransition;
-    const showTabsLoader = hoursLoading || showHoursLoading || dayTransition;
+    /** После первого полного показа — слоты грузятся отдельным лоадером под календарём */
+    const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+    const isMonthLoading = loading || showPageLoading || monthTransition;
+    const isDayLoading = hoursLoading || showHoursLoading || dayTransition;
+
+    useEffect(() => {
+        if (
+            initialLoadDone
+            || loading
+            || hoursLoading
+            || showPageLoading
+            || showHoursLoading
+        ) {
+            return;
+        }
+        setInitialLoadDone(true);
+    }, [initialLoadDone, loading, hoursLoading, showPageLoading, showHoursLoading]);
+
+    const showCardLoader = initialLoadDone ? isMonthLoading : (isMonthLoading || isDayLoading);
+    const showTabsLoader = initialLoadDone && isDayLoading;
     // Состояние видимости модального окна подтверждения бронирования
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
     // Состояние для поля "Имя пользователя" в форме бронирования

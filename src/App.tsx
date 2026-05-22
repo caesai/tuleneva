@@ -7,6 +7,7 @@ import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
 import { LandingScreen } from '@/components/LandingScreen/LandingScreen.tsx';
+import { AdminRoute } from '@/components/AdminRoute/AdminRoute.tsx';
 import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
@@ -256,7 +257,14 @@ const App: React.FC = () => {
                         <Routes>
                             <Route path="/" element={<IndexPage />} />
                             <Route path="/app" element={<TimeTablePage />} />
-                            <Route path="/admin" element={<AdminPage />} />
+                            <Route
+                                path="/admin"
+                                element={
+                                    <AdminRoute>
+                                        <AdminPage />
+                                    </AdminRoute>
+                                }
+                            />
                         </Routes>
                     </Suspense>
                 </BrowserRouter>

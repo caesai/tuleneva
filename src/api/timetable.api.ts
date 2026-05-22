@@ -15,6 +15,7 @@ export const APIGetTimeTable = async (date: string) => {
 
 /**
  * Получает список забронированных часов на конкретную дату.
+ * Без валидного JWT участника в ответе только hour и rehearsalType; PII — с Bearer-токеном (role !== guest).
  * @param date - Дата в формате 'DD/MM/YYYY'.
  * @returns {Promise<Response>} Ответ сервера со списком часов.
  */

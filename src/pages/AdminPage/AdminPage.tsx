@@ -75,16 +75,11 @@ export const AdminPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (!userRole) {
-            setLoading(false);
-            return;
-        }
-        if (!isAdminLike(userRole)) {
-            navigate('/');
+        if (!userRole || !isAdminLike(userRole)) {
             return;
         }
         fetchUsers();
-    }, [userId, userRole, navigate, fetchUsers]);
+    }, [userId, userRole, fetchUsers]);
 
     const handleRoleChange = async (userId: string, newRole: TRole, targetRole: TRole) => {
         if (!user || !canAssignRole(user.role, targetRole, newRole)) {

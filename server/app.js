@@ -25,6 +25,12 @@ const {
     buildTelegramGuestUser,
 } = require('./auth/identityService');
 const { isAdminLike, canAssignRole, canDeleteUser } = require('./auth/roleHelpers');
+const { requireAdmin } = require('./auth/requireAdmin');
+const { createOptionalAuth } = require('./auth/optionalAuth');
+const {
+    canViewBookingUserDetails,
+    sanitizeHoursForViewer,
+} = require('./auth/hourPrivacy');
 
 /**
  * @param {object} options
@@ -204,7 +210,7 @@ const convertOldFormatToNew = (oldFormatObj) => {
     app.use(express.json());
 
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'https://127.0.0.1:443'); // Replace with your frontend's origin
+    res.setHeader('Access-Control-Allow-Origin', 'https://tuleneva25.ru'); // Replace with your frontend's origin
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     next();
@@ -242,6 +248,8 @@ const authenticateToken = (req, res, next) => {
  * @param {import('express').NextFunction} next - Функция передачи управления следующему middleware.
  * @returns {void}
  */
+const optionalAuthenticate = createOptionalAuth(jwtSecret);
+
 const verifyUserExists = async (req, res, next) => {
     try {
         const user = await User.findById(req.user.userId);
@@ -352,14 +360,11 @@ app.post('/api/users/register', async (req, res) => {
 /**
  * @route GET /api/users
  * @description Получает список всех пользователей.
- * @access Protected
+ * @access Admin
  * @returns {Array<Object>} Список пользователей.
  */
-app.get('/api/users', authenticateToken, verifyUserExists, async (req, res) => {
+app.get('/api/users', authenticateToken, verifyUserExists, requireAdmin, async (req, res) => {
     try {
-        // Optional: Check if admin using actual DB role
-        // if (req.dbUser.role !== 'admin') return res.sendStatus(403);
-
         const users = await User.find();
         res.json(users);
     } catch (err) {
@@ -556,16 +561,10 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
         `
         await notifyAdmins(BOOK_MESSAGE);
 
-        // Broadcast WebSocket update to all clients
+        // WebSocket: только публичные поля (PII — через GET /api/hours с токеном)
         broadcastUpdate('booking_update', {
             date,
-            hours: updatedRehearsal.hours.map(h => ({
-                hour: h.hour,
-                userId: h.userId,
-                username: h.username,
-                band_name: h.band_name,
-                userPhotoUrl: h.userPhotoUrl
-            }))
+            hours: sanitizeHoursForViewer(normalizeHoursData(updatedRehearsal.hours), false),
         });
 
         return res.status(201).json(updatedRehearsal);
@@ -713,16 +712,10 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
             return res.status(404).json({ error: 'Booking not found or already canceled.' });
         }
 
-        // Broadcast WebSocket update with remaining hours
+        // WebSocket: только публичные поля
         broadcastUpdate('booking_cancel', {
             date,
-            hours: updatedRehearsal.hours.map(h => ({
-                hour: h.hour,
-                userId: h.userId,
-                username: h.username,
-                band_name: h.band_name,
-                userPhotoUrl: h.userPhotoUrl
-            }))
+            hours: sanitizeHoursForViewer(normalizeHoursData(updatedRehearsal.hours), false),
         });
 
         res.status(200).json({
@@ -785,11 +778,11 @@ app.get('/api/timetable', async (req, res) => {
 /**
  * @route GET /api/hours
  * @description Получает список забронированных часов на конкретную дату.
- * @access Public
+ * @access Public (опциональный Bearer JWT: полные данные только для role !== guest)
  * @param {string} req.query.date - Дата (DD/MM/YYYY).
- * @returns {Object} JSON с массивом забронированных часов (объекты с hour, userId, etc.).
+ * @returns {Object} JSON с массивом слотов; PII только для авторизованных участников.
  */
-app.get('/api/hours', async (req, res) => {
+app.get('/api/hours', optionalAuthenticate, async (req, res) => {
     // ... (existing implementation)
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
@@ -821,8 +814,10 @@ app.get('/api/hours', async (req, res) => {
 
         // Нормализуем данные из БД (поддержка старого и нового формата)
         const normalizedHours = normalizeHoursData(rehearsalRecord.hours);
+        const canViewDetails = canViewBookingUserDetails(req.dbUser);
+        const hours = sanitizeHoursForViewer(normalizedHours, canViewDetails);
 
-        return res.status(200).json({ hours: normalizedHours });
+        return res.status(200).json({ hours });
 
     } catch (error) {
         console.error('Error fetching hours:', error);

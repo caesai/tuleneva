@@ -4,15 +4,21 @@ import { type IPageMeta, toAbsoluteUrl } from '@/config/siteMeta.ts';
 const META_ATTR = 'data-page-meta';
 
 /**
- * Устанавливает или обновляет meta-тег в head.
+ * Находит meta-тег в head (в т.ч. из статического `index.html`).
+ * @param attribute - `name` или `property`
+ * @param key - Имя/свойство
+ */
+const findMeta = (attribute: 'name' | 'property', key: string): HTMLMetaElement | null =>
+    document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
+
+/**
+ * Обновляет существующий meta или создаёт новый (без дубликатов og:/twitter:).
  * @param attribute - `name` или `property` (Open Graph)
  * @param key - Имя/свойство тега
  * @param content - Значение content
  */
 const upsertMeta = (attribute: 'name' | 'property', key: string, content: string): void => {
-    let element = document.head.querySelector<HTMLMetaElement>(
-        `meta[${attribute}="${key}"][${META_ATTR}="true"]`,
-    );
+    let element = findMeta(attribute, key);
 
     if (!element) {
         element = document.createElement('meta');
@@ -25,7 +31,25 @@ const upsertMeta = (attribute: 'name' | 'property', key: string, content: string
 };
 
 /**
- * Удаляет meta-теги, созданные хуком (при размонтировании).
+ * Удаляет дубликаты meta с тем же ключом, оставляя один управляемый тег.
+ * @param attribute - `name` или `property`
+ * @param key - Имя/свойство
+ */
+const dedupeMeta = (attribute: 'name' | 'property', key: string): void => {
+    const nodes = document.head.querySelectorAll<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
+    if (nodes.length <= 1) {
+        return;
+    }
+    const keep = nodes[nodes.length - 1];
+    nodes.forEach((node) => {
+        if (node !== keep) {
+            node.remove();
+        }
+    });
+};
+
+/**
+ * Удаляет meta-теги, созданные/помеченные хуком (при размонтировании).
  */
 const removeManagedMeta = (): void => {
     document.head.querySelectorAll(`meta[${META_ATTR}]`).forEach((node) => node.remove());
@@ -47,11 +71,11 @@ const applyPageMeta = (meta: IPageMeta): void => {
     }
 
     const canonicalUrl = toAbsoluteUrl(meta.canonicalPath ?? '/');
-    let canonical = document.head.querySelector<HTMLLinkElement>(`link[rel="canonical"][${META_ATTR}]`);
+    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (!canonical) {
         canonical = document.createElement('link');
         canonical.setAttribute('rel', 'canonical');
-        canonical.setAttribute(META_ATTR, 'canonical');
+        canonical.setAttribute(META_ATTR, 'true');
         document.head.appendChild(canonical);
     }
     canonical.href = canonicalUrl;
@@ -97,6 +121,27 @@ const applyPageMeta = (meta: IPageMeta): void => {
         script.textContent = JSON.stringify(meta.jsonLd);
         document.head.appendChild(script);
     }
+
+    const metaKeys: Array<{ attribute: 'name' | 'property'; key: string }> = [
+        { attribute: 'name', key: 'description' },
+        { attribute: 'name', key: 'robots' },
+        { attribute: 'property', key: 'og:title' },
+        { attribute: 'property', key: 'og:description' },
+        { attribute: 'property', key: 'og:url' },
+        { attribute: 'property', key: 'og:type' },
+        { attribute: 'property', key: 'og:locale' },
+        { attribute: 'property', key: 'og:site_name' },
+        { attribute: 'property', key: 'og:image' },
+        { attribute: 'property', key: 'og:image:secure_url' },
+        { attribute: 'property', key: 'og:image:width' },
+        { attribute: 'property', key: 'og:image:height' },
+        { attribute: 'property', key: 'og:image:alt' },
+        { attribute: 'name', key: 'twitter:card' },
+        { attribute: 'name', key: 'twitter:title' },
+        { attribute: 'name', key: 'twitter:description' },
+        { attribute: 'name', key: 'twitter:image' },
+    ];
+    metaKeys.forEach(({ attribute, key }) => dedupeMeta(attribute, key));
 };
 
 /**

@@ -4,6 +4,7 @@ import { APIGetTimeTable, APIGetHours } from '@/api/timetable.api.ts';
 import moment, { type Moment } from '@/lib/moment';
 import type { IHour } from '@/types/timetable.types.ts';
 import { useWebSocket, type WebSocketMessage } from './useWebSocket';
+import { useAuth } from '@/hooks/useAuth.ts';
 
 const MAX_RETRIES = 2;
 const INITIAL_RETRY_DELAY = 1000;
@@ -41,6 +42,8 @@ export const useTimeTableData = (
     const [loading, setLoading] = useState<boolean>(true);
     const [hoursLoading, setHoursLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const { capabilities } = useAuth();
+    const { canViewUserDetails } = capabilities;
     const [retryCount, setRetryCount] = useState<number>(0);
     const retryCountRef = useRef(retryCount);
     retryCountRef.current = retryCount;
@@ -52,6 +55,17 @@ export const useTimeTableData = (
     const currentDateRef = useRef<Moment | null>(date);
     // Ref для хранения текущей выбранной даты (для сравнения в WebSocket callback)
     const selectedDateRef = useRef<string | null>(null);
+    const selectedDateMomentRef = useRef<Moment | null>(selectedDate);
+    const canViewUserDetailsRef = useRef(canViewUserDetails);
+    const fetchBookedHoursRef = useRef<(targetDate: Moment) => Promise<void>>(async () => {});
+
+    useEffect(() => {
+        selectedDateMomentRef.current = selectedDate;
+    }, [selectedDate]);
+
+    useEffect(() => {
+        canViewUserDetailsRef.current = canViewUserDetails;
+    }, [canViewUserDetails]);
 
     /**
      * Callback для обработки WebSocket сообщений.
@@ -65,10 +79,14 @@ export const useTimeTableData = (
             const wsDate = data.date; // формат DD/MM/YYYY
             const currentSelectedDate = selectedDateRef.current;
             
-            // Если дата совпадает с текущей выбранной - обновляем bookedHours
+            // WS отдаёт только публичные поля; участники подтягивают полный ответ через API
             if (currentSelectedDate === wsDate) {
                 console.log('WebSocket: Updating booked hours for current date', wsDate);
-                setBookedHours(data.hours);
+                if (canViewUserDetailsRef.current && selectedDateMomentRef.current) {
+                    void fetchBookedHoursRef.current(selectedDateMomentRef.current);
+                } else {
+                    setBookedHours(data.hours);
+                }
             }
             
             // Обновляем highlightedDates
@@ -244,6 +262,10 @@ export const useTimeTableData = (
             setHoursLoading(false);
         }
     }, []);
+
+    useEffect(() => {
+        fetchBookedHoursRef.current = fetchBookedHours;
+    }, [fetchBookedHours]);
 
     // Эффект для загрузки данных при изменении даты или retry
     useEffect(() => {

@@ -102,7 +102,7 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 | PUT | `/api/users/:id/role` | Смена роли (admin+) |
 | DELETE | `/api/users/:id` | Удаление (admin+) |
 | GET | `/api/timetable?date=DD/MM/YYYY` | Занятые даты месяца |
-| GET | `/api/hours?date=DD/MM/YYYY` | Слоты на день |
+| GET | `/api/hours?date=DD/MM/YYYY` | Слоты на день (PII только с JWT участника, `role !== guest`) |
 | POST | `/api/book` | Бронирование |
 | DELETE | `/api/cancel` | Отмена |
 

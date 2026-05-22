@@ -75,3 +75,23 @@ export const LANDING_PAGE_META: IPageMeta = {
         ],
     },
 };
+
+/**
+ * Метаданные страницы расписания (`/app`).
+ * В статическом `index.html` остаётся лендинг; при открытии SPA хук обновляет head под маршрут.
+ */
+export const APP_PAGE_META: IPageMeta = {
+    title: 'Расписание — Тюленева 25',
+    description:
+        'Бронирование репетиций в музыкальной студии «Тюленева 25», Москва, Тёплый Стан.',
+    canonicalPath: '/app',
+    ogImagePath: '/og-image.jpg',
+    ogImageWidth: 1024,
+    ogImageHeight: 1467,
+    ogImageAlt: 'Тюленева 25 — расписание репетиций',
+    ogType: 'website',
+    locale: 'ru_RU',
+    siteName: 'Тюленева 25',
+    robots: 'index, follow',
+    twitterCard: 'summary_large_image',
+};
