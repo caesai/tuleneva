@@ -65,6 +65,8 @@ npm run dev
 
 Для Telegram SDK локально приложение эмулирует среду Mini App в браузере.
 
+**SEO / Open Graph:** `index.html` собирается автоматически из `index.template.html` и `src/config/siteMeta.ts` при `npm run dev` и `npm run build`. Метатеги для шеринга и индексации править только в `siteMeta.ts`.
+
 ## Тестирование
 
 ```bash

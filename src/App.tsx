@@ -7,6 +7,7 @@ import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { Loader } from '@/components/Loader/Loader.tsx';
+import { LandingScreen } from '@/components/LandingScreen/LandingScreen.tsx';
 import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
@@ -224,7 +225,7 @@ const IndexPage: React.FC = () => {
                 </div>
             </ModalPopup>
 
-            <TimeTablePage />
+            <LandingScreen />
         </>
     );
 };
@@ -251,6 +252,7 @@ const App: React.FC = () => {
                     <Suspense fallback={<Loader />}>
                         <Routes>
                             <Route path="/" element={<IndexPage />} />
+                            <Route path="/app" element={<TimeTablePage />} />
                             <Route path="/admin" element={<AdminPage />} />
                         </Routes>
                     </Suspense>

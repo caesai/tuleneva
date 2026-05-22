@@ -7,6 +7,12 @@
     width: 100%;
 }
 
+.loaderInline {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .logo {
     height: 6em;
     padding: 1.5em;

@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- index.html генерируется из этого шаблона при npm run dev / npm run build (см. siteMeta.ts) -->
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/logo_main512.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- PAGE_META -->
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
+  <!-- Не подключать telegram.org/js/telegram-web-app.js: блокируется без VPN и задерживает загрузку на 30+ с -->
+  <!-- <script type="text/javascript">
+    (function (l) {
+      if (l.search[1] === "/") {
+        var decoded = l.search
+          .slice(1)
+          .split("&")
+          .map(function (s) {
+            return s.replace(/~and~/g, "&");
+          })
+          .join("?");
+        window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+      }
+    })(window.location);
+  </script>
+  <script src="https://telegram.org/js/telegram-web-app.js?58"></script> -->
+  <!-- <script src="https://telegram.org/js/telegram-web-app.js"></script> -->
+  <script>
+    if (!window.TelegramGameProxy) {
+      window.TelegramGameProxy = {
+        receiveEvent: function () { }
+      };
+    }
+  </script>
+  <base href="/" />
+</head>
+
+<body>
+  <main id="root"></main>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

@@ -2,10 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import fs from 'fs';
+import { indexHtmlMetaPlugin } from './vite-plugins/indexHtmlMetaPlugin.ts';
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
         base: '/',
         plugins: [
+            indexHtmlMetaPlugin(),
             react(),
             tsconfigPaths(),
         ],
