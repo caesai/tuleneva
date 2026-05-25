@@ -59,6 +59,19 @@ const generateHoursInRange = (startHour: string, endHour: string): string[] => {
 };
 
 /**
+ * Собирает поля MergedSlot из слота (PII может отсутствовать у публичных зрителей).
+ * @param slot - Забронированный час из API.
+ * @returns Поля для объединённого слота с безопасными значениями по умолчанию.
+ */
+const slotToMergedFields = (slot: IHour): Pick<MergedSlot, 'userId' | 'username' | 'band_name' | 'userPhotoUrl' | 'rehearsalType'> => ({
+    userId: slot.userId ?? '',
+    username: slot.username ?? '',
+    band_name: slot.band_name ?? '',
+    userPhotoUrl: slot.userPhotoUrl ?? '',
+    rehearsalType: slot.rehearsalType ?? 'rehearsal',
+});
+
+/**
  * Группирует последовательные временные слоты одного пользователя/группы
  */
 const mergeConsecutiveSlots = (bookedHours: IHour[]): MergedSlot[] => {
@@ -94,11 +107,7 @@ const mergeConsecutiveSlots = (bookedHours: IHour[]): MergedSlot[] => {
             mergedSlots.push({
                 startHour: firstSlot.hour,
                 endHour: calculateEndTime(lastSlot.hour),
-                userId: firstSlot.userId,
-                username: firstSlot.username,
-                band_name: firstSlot.band_name,
-                userPhotoUrl: firstSlot.userPhotoUrl,
-                rehearsalType: firstSlot.rehearsalType,
+                ...slotToMergedFields(firstSlot),
             });
             currentGroup = [current];
         }
@@ -111,11 +120,7 @@ const mergeConsecutiveSlots = (bookedHours: IHour[]): MergedSlot[] => {
         mergedSlots.push({
             startHour: firstSlot.hour,
             endHour: calculateEndTime(lastSlot.hour),
-            userId: firstSlot.userId,
-            username: firstSlot.username,
-            band_name: firstSlot.band_name,
-            userPhotoUrl: firstSlot.userPhotoUrl,
-            rehearsalType: firstSlot.rehearsalType,
+            ...slotToMergedFields(firstSlot),
         });
     }
 
