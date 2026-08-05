@@ -6,5 +6,24 @@
     min-height: 100vh;
     width: 100%;
     background-color: #fff;
-    gap: 1.25rem;
+}
+
+.hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    --hero-logo-size: 12em;
+    --hero-logo-padding: 3em;
+    --y-arm-x: calc(var(--hero-logo-size) / 2 + var(--hero-logo-padding) + 0.25rem);
+    --y-arm-y: calc(var(--hero-logo-size) / 2 + var(--hero-logo-padding) + 3.5rem);
+    width: calc(var(--y-arm-x) * 2 + 4rem);
+    height: calc(
+        var(--hero-logo-size) + var(--hero-logo-padding) * 2 + var(--y-arm-y) * 0.42 + var(--y-arm-y)
+    );
+}
+
+.heroLogo {
+    height: var(--hero-logo-size);
+    padding: var(--hero-logo-padding);
 }

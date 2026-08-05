@@ -6,6 +6,12 @@
     margin-top: 0.5rem;
 }
 
+.linksY {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
 .link {
     display: flex;
     align-items: center;
@@ -15,12 +21,36 @@
     transition: color 0.2s ease;
 }
 
+.linkY {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9e9e9e;
+    text-decoration: none;
+    pointer-events: auto;
+    opacity: 0;
+    transform: translate(-50%, -50%)
+        translate(
+            calc(var(--y-x-mult) * var(--y-arm-x)),
+            calc(var(--y-y-mult) * var(--y-arm-y))
+        );
+    animation: y-appear 0.5s ease-out forwards;
+    animation-delay: var(--y-delay, 0s);
+    transition: color 0.2s ease;
+}
+
 .link:hover,
-.link:focus-visible {
+.link:focus-visible,
+.linkY:hover,
+.linkY:focus-visible {
     color: #000;
 }
 
-.link:focus-visible {
+.link:focus-visible,
+.linkY:focus-visible {
     outline: 2px solid #000;
     outline-offset: 4px;
     border-radius: 4px;
@@ -29,4 +59,45 @@
 .icon {
     width: 2rem;
     height: 2rem;
+}
+
+.iconY {
+    width: 4rem;
+    height: 4rem;
+    filter: invert(1);
+    transition: filter 0.2s ease;
+}
+
+.linkY:hover .iconY,
+.linkY:focus-visible .iconY {
+    filter: invert(0);
+}
+
+@keyframes y-appear {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.35);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translate(-50%, -50%)
+            translate(
+                calc(var(--y-x-mult) * var(--y-arm-x)),
+                calc(var(--y-y-mult) * var(--y-arm-y))
+            )
+            scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .linkY {
+        opacity: 1;
+        animation: none;
+        transform: translate(-50%, -50%)
+            translate(
+                calc(var(--y-x-mult) * var(--y-arm-x)),
+                calc(var(--y-y-mult) * var(--y-arm-y))
+            );
+    }
 }
