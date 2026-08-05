@@ -31,14 +31,15 @@ const clearTestDb = async () => {
 
 const createTestApp = (overrides = {}) => {
     const notifyAdmins = overrides.notifyAdmins ?? (async () => {});
+    const notifyUser = overrides.notifyUser ?? (async () => {});
     return createApp({
         jwtSecret: JWT_SECRET,
         botToken: BOT_TOKEN,
         miniAppUrl: 'https://t.me/test_bot',
         webAppBaseUrl: 'https://test.example',
         notifyAdmins,
+        notifyUser,
         broadcastUpdate: () => {},
-        bot: null,
         ...overrides,
     });
 };

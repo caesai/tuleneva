@@ -15,11 +15,18 @@ const mongoose = require('mongoose');
 const User = require('./models/User');
 const { migrateLegacyTelegramIdentities } = require('./auth/identityService');
 const { createApp } = require('./app');
+const {
+    createNotifyAdmins,
+    sendTelegramMessage,
+    DEFAULT_TIMEOUT_MS,
+} = require('./notifications/telegramNotify');
 
 const port = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const JWT_SECRET = process.env.JWT_SECRET;
 const WEB_APP_BASE_URL = process.env.WEB_APP_BASE_URL || 'https://tuleneva25.ru';
+const TELEGRAM_API_ROOT = process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org';
+const TELEGRAM_NOTIFY_TIMEOUT_MS = Number(process.env.TELEGRAM_NOTIFY_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
 const miniAppUrl = 'https://t.me/tuleneva25_bot';
 
 if (!BOT_TOKEN) {
@@ -46,7 +53,11 @@ mongoose.connect('mongodb://localhost:27017')
     })
     .catch((err) => console.error('MongoDB connection failed:', err.message));
 
-const bot = new Telegraf(BOT_TOKEN);
+const bot = new Telegraf(BOT_TOKEN, {
+    telegram: {
+        apiRoot: TELEGRAM_API_ROOT,
+    },
+});
 
 const BOT_START_MESSAGE = 'Мини аппка'.trim();
 bot.start((ctx) => ctx.reply(
@@ -57,25 +68,27 @@ bot.start((ctx) => ctx.reply(
 ));
 bot.launch();
 
-const notifyAdmins = async (message, extra) => {
-    try {
-        const admins = await User.find({ role: { $in: ['admin', 'super_admin'] } });
-        for (const admin of admins) {
-            if (!admin.telegram_id) continue;
-            try {
-                if (extra) {
-                    await bot.telegram.sendMessage(admin.telegram_id, message, extra);
-                } else {
-                    await bot.telegram.sendMessage(admin.telegram_id, message);
-                }
-            } catch (e) {
-                console.error(`Failed to send notification to admin ${admin.telegram_id}:`, e);
-            }
-        }
-    } catch (err) {
-        console.error('Failed to fetch admins for notification:', err);
-    }
-};
+/**
+ * Уведомляет админов через Telegram (параллельно, с таймаутом).
+ * @param {string} message
+ * @param {object} [extra]
+ * @returns {Promise<void>}
+ */
+const notifyAdmins = createNotifyAdmins({
+    bot,
+    User,
+    timeoutMs: TELEGRAM_NOTIFY_TIMEOUT_MS,
+});
+
+/**
+ * Отправляет сообщение пользователю с таймаутом из env.
+ * @param {string|number} chatId
+ * @param {string} text
+ * @param {object} [extra]
+ * @returns {Promise<unknown>}
+ */
+const notifyUser = (chatId, text, extra) =>
+    sendTelegramMessage(bot, chatId, text, extra, TELEGRAM_NOTIFY_TIMEOUT_MS);
 
 const clients = new Set();
 
@@ -95,8 +108,8 @@ const app = createApp({
     miniAppUrl,
     webAppBaseUrl: WEB_APP_BASE_URL,
     notifyAdmins,
+    notifyUser,
     broadcastUpdate,
-    bot,
 });
 
 const server = http.createServer(app);

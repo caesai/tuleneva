@@ -31,6 +31,7 @@ const {
     canViewBookingUserDetails,
     sanitizeHoursForViewer,
 } = require('./auth/hourPrivacy');
+const { safeNotify } = require('./notifications/telegramNotify');
 
 /**
  * @param {object} options
@@ -39,8 +40,8 @@ const {
  * @param {string} [options.miniAppUrl]
  * @param {string} [options.webAppBaseUrl]
  * @param {Function} [options.notifyAdmins]
+ * @param {Function} [options.notifyUser] - Отправка сообщения пользователю (с таймаутом)
  * @param {Function} [options.broadcastUpdate]
- * @param {object} [options.bot] - Telegraf instance for direct user messages
  */
 const createApp = ({
     jwtSecret,
@@ -48,8 +49,8 @@ const createApp = ({
     miniAppUrl = 'https://t.me/tuleneva25_bot',
     webAppBaseUrl = 'https://tuleneva25.ru',
     notifyAdmins = async () => {},
+    notifyUser = async () => {},
     broadcastUpdate = () => {},
-    bot = null,
 }) => {
 /**
  * Проверяет, является ли строка временем в формате HH:MM
@@ -346,9 +347,11 @@ app.post('/api/users/register', async (req, res) => {
             return res.status(400).json({ valid: false, message: 'User already registered' });
         }
         const user = await upsertTelegramUser(tg.user, { role: 'guest' });
-        await notifyAdmins(`@${user.username || user.first_name} запрашивает доступ к бронированию.`);
         const token = signAuthToken(user, jwtSecret);
         res.status(201).json(buildAuthResponse(user, token, 'telegram'));
+        safeNotify(
+            notifyAdmins(`@${user.username || user.first_name} запрашивает доступ к бронированию.`),
+        );
     } catch (error) {
         console.log(error);
         res.status(500).json({ valid: false, message: 'Registration error' });
@@ -412,22 +415,22 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
         user.role = role;
         await user.save();
 
-        if (oldRole === 'guest' && role === 'user') {
-            try {
-                const message = `
-                    Авторизация подтверждена, теперь вы можете бронировать репетиции, для этого запустите мини аппку по кнопке
-                `
-                if (bot) {
-                    await bot.telegram.sendMessage(user.telegram_id, message, Markup.inlineKeyboard([
-                        [Markup.button.webApp('Запустить мини аппку', miniAppUrl)],
-                    ]));
-                }
-            } catch (e) {
-                console.error('Failed to send telegram notification:', e);
-            }
-        }
-
         res.json(user);
+
+        if (oldRole === 'guest' && role === 'user' && user.telegram_id) {
+            const message = `
+                    Авторизация подтверждена, теперь вы можете бронировать репетиции, для этого запустите мини аппку по кнопке
+                `;
+            safeNotify(
+                notifyUser(
+                    user.telegram_id,
+                    message,
+                    Markup.inlineKeyboard([
+                        [Markup.button.webApp('Запустить мини аппку', miniAppUrl)],
+                    ]),
+                ),
+            );
+        }
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -550,7 +553,7 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
             { $push: { hours: { $each: newBookings } } },
             { new: true, upsert: true }
         );
-        console.log('username: ', username, date, hours.join(','))
+        console.log('username: ', username, date, hours.join(','));
         const BOOK_MESSAGE = `
 **РЕПЕТИЦИЯ**
 
@@ -558,8 +561,7 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
 
 📅 ${date.replaceAll('/', '.')} 
 🕓 ${formatHoursRange(hours)}
-        `
-        await notifyAdmins(BOOK_MESSAGE);
+        `;
 
         // WebSocket: только публичные поля (PII — через GET /api/hours с токеном)
         broadcastUpdate('booking_update', {
@@ -567,7 +569,9 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
             hours: sanitizeHoursForViewer(normalizeHoursData(updatedRehearsal.hours), false),
         });
 
-        return res.status(201).json(updatedRehearsal);
+        res.status(201).json(updatedRehearsal);
+        safeNotify(notifyAdmins(BOOK_MESSAGE));
+        return;
     } catch (err) {
         console.error('An error occurred during booking:', err);
         res.status(500).json({ error: 'An internal server error occurred.' });
@@ -668,44 +672,47 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
 Репетиция была отменена администратором
         `
 
-        // Логика уведомлений
-        if (isAdmin) {
-            // Администратор отменяет бронирования
-            // Нужно найти пользователей, чьи брони были отменены
-            // hoursToCancel содержит список часов
-            // Мы можем найти userId для каждого часа из hoursToCancel в исходном rehearsalDoc
-            const affectedUserIds = [...new Set(rehearsalDoc.hours
-                .filter(h => hoursToCancel.includes(h.hour))
-                .map(h => h.userId))];
+        /**
+         * Фоновые Telegram-уведомления после ответа клиенту.
+         * @returns {Promise<void>}
+         */
+        const sendCancelNotifications = async () => {
+            if (isAdmin) {
+                const affectedUserIds = [...new Set(rehearsalDoc.hours
+                    .filter((h) => hoursToCancel.includes(h.hour))
+                    .map((h) => h.userId))];
 
-            for (const affectedUserId of affectedUserIds) {
-                try {
-                    // Найти telegram_id пользователя по affectedUserId
-                    const affectedUser = await User.findById(affectedUserId);
-                    if (affectedUser) {
-                        if (bot) {
-                            await bot.telegram.sendMessage(affectedUser.telegram_id, CANCEL_MESSAGE_USER);
+                await Promise.allSettled(
+                    affectedUserIds.map(async (affectedUserId) => {
+                        try {
+                            const affectedUser = await User.findById(affectedUserId);
+                            if (affectedUser?.telegram_id) {
+                                await notifyUser(affectedUser.telegram_id, CANCEL_MESSAGE_USER);
+                            }
+                        } catch (e) {
+                            console.error(
+                                `Failed to notify user ${affectedUserId} about cancellation:`,
+                                e?.code || e?.message || e,
+                            );
                         }
-                    }
-                } catch (e) {
-                    console.error(`Failed to notify user ${affectedUserId} about cancellation:`, e);
-                }
+                    }),
+                );
+            } else {
+                await notifyAdmins(CANCEL_MESSAGE_ADMIN);
             }
-        } else {
-            // Пользователь отменяет свое бронирование - уведомляем всех админов
-            await notifyAdmins(CANCEL_MESSAGE_ADMIN);
-        }
+        };
 
         if (updatedRehearsal && updatedRehearsal.hours.length === 0) {
             await Rehearsal.deleteOne({ _id: updatedRehearsal._id });
 
-            // Broadcast WebSocket update - all bookings removed for this day
             broadcastUpdate('booking_cancel', {
                 date,
-                hours: []
+                hours: [],
             });
 
-            return res.status(200).json({ message: 'All bookings for this day canceled, document deleted.' });
+            res.status(200).json({ message: 'All bookings for this day canceled, document deleted.' });
+            safeNotify(sendCancelNotifications());
+            return;
         }
 
         if (!updatedRehearsal) {
@@ -720,9 +727,9 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
 
         res.status(200).json({
             message: 'Bookings canceled successfully.',
-            rehearsal: updatedRehearsal
+            rehearsal: updatedRehearsal,
         });
-
+        safeNotify(sendCancelNotifications());
     } catch (err) {
         console.error('An error occurred during cancellation:', err);
         res.status(500).json({ error: 'An internal server error occurred.' });
@@ -950,10 +957,6 @@ app.post('/api/invite/use', async (req, res) => {
         });
         await user.save();
 
-        // Уведомляем всех админов
-        const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию (по инвайт-ссылке).`;
-        await notifyAdmins(inviteNotifyMessage);
-
         const token = jwt.sign(
             { userId: user._id, telegramId: user.telegram_id, role: user.role },
             jwtSecret,
@@ -965,6 +968,9 @@ app.post('/api/invite/use', async (req, res) => {
             token,
             user: { ...user.toObject(), isRegistered: true },
         });
+
+        const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию (по инвайт-ссылке).`;
+        safeNotify(notifyAdmins(inviteNotifyMessage));
     } catch (err) {
         console.error('Error using invite code:', err);
         res.status(500).json({ message: 'Failed to use invite code.' });

@@ -13,9 +13,18 @@ const { signAuthToken, buildAuthResponse } = require('./tokenService');
 const { isAdminLike } = require('./roleHelpers');
 const { findValidInvite, consumeInvite } = require('./inviteService');
 const { parseWebProfile, upsertWebUser } = require('./webProvider');
+const { safeNotify } = require('../notifications/telegramNotify');
 
 /**
  * Регистрирует маршруты /api/auth/*.
+ * @param {object} options
+ * @param {string} options.jwtSecret
+ * @param {string} options.botToken
+ * @param {string} options.miniAppUrl
+ * @param {string} options.webAppBaseUrl
+ * @param {Function} options.authenticateToken
+ * @param {Function} options.verifyUserExists
+ * @param {Function} options.notifyAdmins
  */
 const createAuthRouter = ({
     jwtSecret,
@@ -87,11 +96,11 @@ const createAuthRouter = ({
             }
 
             const user = await upsertTelegramUser(tg.user, { role: 'guest' });
-            const notifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию.`;
-            await notifyAdmins(notifyMessage);
-
             const token = signAuthToken(user, jwtSecret);
             res.status(201).json(buildAuthResponse(user, token, 'telegram'));
+
+            const notifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию.`;
+            safeNotify(notifyAdmins(notifyMessage));
         } catch (err) {
             console.error('Telegram register error:', err);
             res.status(500).json({ valid: false, message: 'Registration error' });
@@ -151,11 +160,11 @@ const createAuthRouter = ({
                 return res.status(400).json({ valid: false, message: 'Invalid or expired invite code.' });
             }
 
-            const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ (инвайт).`;
-            await notifyAdmins(inviteNotifyMessage);
-
             const token = signAuthToken(user, jwtSecret);
             res.status(201).json(buildAuthResponse(user, token, provider));
+
+            const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ (инвайт).`;
+            safeNotify(notifyAdmins(inviteNotifyMessage));
         } catch (err) {
             console.error('Invite use error:', err);
             const status = err.message?.includes('required') ? 400 : 500;

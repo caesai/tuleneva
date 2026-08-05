@@ -113,7 +113,7 @@ AuthContext
 | В браузере нет входа без JWT (кроме будущего web-провайдера) | `AuthContext` |
 | `register` / `registerWithInvite` требуют Telegram | `AuthContext.tsx` |
 | Telegram CDN аватарки могут не грузиться без VPN | `SafeAvatar`, timeout 1.2s |
-| `notifyAdmins` только через Telegram bot | `server/index.js` — нужен `telegram_id` у админа |
+| `notifyAdmins` / user notify — асинхронно, таймаут `TELEGRAM_NOTIFY_TIMEOUT_MS` (8s); при ETIMEDOUT на VPS задать `TELEGRAM_API_ROOT` | `server/notifications/telegramNotify.js`, `server/index.js` |
 | ESLint: `NetworkContext.tsx` — `react-refresh/only-export-components` | не связано с auth |
 
 ---

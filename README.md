@@ -49,6 +49,10 @@ TELEGRAM_TOKEN=ваш_токен_бота
 JWT_SECRET=секретный_ключ
 WEB_APP_BASE_URL=https://tuleneva25.ru
 PORT=3000
+# Опционально: таймаут одного Telegram-сообщения (мс), по умолчанию 8000
+# TELEGRAM_NOTIFY_TIMEOUT_MS=8000
+# Опционально: прокси / local Bot API при блокировке api.telegram.org
+# TELEGRAM_API_ROOT=https://api.telegram.org
 ```
 
 ```bash
