@@ -35,4 +35,21 @@ describe('tokenService', () => {
         expect(res.token).toBeNull();
         expect(res.user.isRegistered).toBe(false);
     });
+
+    it('buildAuthResponse strips passwordHash', () => {
+        const withHash = {
+            ...user,
+            passwordHash: 'secret-hash',
+            toObject() {
+                return {
+                    _id: this._id,
+                    first_name: this.first_name,
+                    role: this.role,
+                    passwordHash: 'secret-hash',
+                };
+            },
+        };
+        const res = buildAuthResponse(withHash, 'tok', 'email');
+        expect(res.user.passwordHash).toBeUndefined();
+    });
 });

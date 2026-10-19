@@ -17,6 +17,8 @@ export interface IUser {
     photo_url?: string;
     role: TRole;
     identities?: IUserIdentity[];
+    /** Почта для входа в браузере (без passwordHash). */
+    emailLogin?: string | null;
     createdAt?: string;
     updatedAt?: string;
     isRegistered?: boolean;

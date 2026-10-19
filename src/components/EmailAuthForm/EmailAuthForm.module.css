@@ -1,0 +1,44 @@
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(320px, 100%);
+    margin: 0 auto;
+}
+
+.formCompact {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 280px;
+}
+
+.input {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+}
+
+.submit {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    background: #007aff;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.error {
+    margin: 0;
+    font-size: 13px;
+    color: #c0392b;
+}

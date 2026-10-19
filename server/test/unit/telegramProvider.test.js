@@ -38,4 +38,12 @@ describe('telegramProvider', () => {
             'Invalid Telegram user payload',
         );
     });
+
+    it('parseTelegramUser rejects expired auth_date', () => {
+        const stale = Math.floor(Date.now() / 1000) - 25 * 60 * 60;
+        const initData = buildInitData(user, BOT_TOKEN, stale);
+        expect(() => parseTelegramUser(initData, BOT_TOKEN)).toThrow(
+            'Telegram init data expired',
+        );
+    });
 });

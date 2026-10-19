@@ -40,8 +40,13 @@ const IndexPage: React.FC = () => {
     const showWebInviteForm =
         !isInTelegram && inviteAllowedProviders.includes('web');
 
-    // Используем контекст авторизации
-    const { user, isLoading, isAuthenticated, register, registerWithInvite } = useAuth();
+    const {
+        user,
+        isLoading,
+        isAuthenticated,
+        register,
+        registerWithInvite,
+    } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
     const clearInviteParams = useCallback(() => {

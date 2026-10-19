@@ -18,6 +18,10 @@ const userIdentitySchema = new mongoose.Schema(
     { _id: false },
 );
 
+/**
+ * Пользователь студии: Telegram и/или почта на одном документе.
+ * passwordHash не попадает в обычные find без явного select('+passwordHash').
+ */
 const userSchema = new mongoose.Schema(
     {
         telegram_id: {
@@ -46,6 +50,17 @@ const userSchema = new mongoose.Schema(
         identities: {
             type: [userIdentitySchema],
             default: [],
+        },
+        emailLogin: {
+            type: String,
+            lowercase: true,
+            trim: true,
+            sparse: true,
+            unique: true,
+        },
+        passwordHash: {
+            type: String,
+            select: false,
         },
     },
     {

@@ -2,8 +2,63 @@
     margin: 0 auto;
     width: 100%;
     display: flex;
-    justify-content: center;
-    align-items: start;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 12px;
+}
+
+.emailLinkBlock {
+    width: 360px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    background: #f7f7f8;
+    border-radius: 12px;
+}
+
+.emailLinkTitle {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #333;
+    line-height: 1.3;
+}
+
+.emailLoginBar {
+    width: 360px;
+    max-width: 100%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.emailLoginOpenButton {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #007aff;
+    background: transparent;
+    color: #007aff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.emailLoginModal {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 260px;
+}
+
+.emailLoginTitle {
+    margin: 0;
+    font-size: 18px;
+}
+
+.emailLoginHint {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #555;
 }
 
 .title {

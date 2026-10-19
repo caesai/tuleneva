@@ -40,6 +40,24 @@ export const APIDeleteUser = async (userId: string) => {
     });
 };
 
+/**
+ * Админ задаёт почту и пароль существующему пользователю.
+ * @param userId - Mongo _id
+ * @param email - Почта для входа
+ * @param password - Временный пароль (мин. 8 символов)
+ */
+export const APISetUserEmailLogin = async (
+    userId: string,
+    email: string,
+    password: string,
+) => {
+    return await fetch(`${DEV_URL + USERS_LIST_URL}/${userId}/email-login`, {
+        method: 'PUT',
+        body: JSON.stringify({ email, password }),
+        headers: getAuthHeaders(),
+    });
+};
+
 /** @deprecated Используйте getAuthSession из auth.api.ts */
 export { getAuthSession as APIGetUserInfo } from '@/api/auth.api.ts';
 

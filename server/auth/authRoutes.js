@@ -13,6 +13,10 @@ const { signAuthToken, buildAuthResponse } = require('./tokenService');
 const { isAdminLike } = require('./roleHelpers');
 const { findValidInvite, consumeInvite } = require('./inviteService');
 const { parseWebProfile, upsertWebUser } = require('./webProvider');
+const {
+    linkEmailCredentials,
+    authenticateEmailPassword,
+} = require('./emailProvider');
 const { safeNotify } = require('../notifications/telegramNotify');
 
 /**
@@ -235,15 +239,79 @@ const createAuthRouter = ({
         }
     });
 
-    router.post('/migrate/telegram-identities', async (req, res) => {
+    /**
+     * @route POST /api/auth/providers/email/link
+     * @description Привязывает почту и пароль к текущему пользователю (JWT).
+     */
+    router.post(
+        '/providers/email/link',
+        authenticateToken,
+        verifyUserExists,
+        async (req, res) => {
+            noCache(res);
+            const { email, password } = req.body || {};
+            try {
+                const user = await linkEmailCredentials(req.dbUser, email, password);
+                const token = signAuthToken(user, jwtSecret);
+                res.status(200).json(buildAuthResponse(user, token, 'email'));
+            } catch (err) {
+                console.error('Email link error:', err);
+                const status = err.status || (err.message?.includes('Invalid') || err.message?.includes('Password')
+                    ? 400
+                    : 500);
+                res.status(status).json({
+                    valid: false,
+                    message: err.message || 'Failed to link email',
+                });
+            }
+        },
+    );
+
+    /**
+     * @route POST /api/auth/providers/email/login
+     * @description Вход по почте и паролю; JWT с тем же _id, что у Telegram-аккаунта.
+     */
+    router.post('/providers/email/login', async (req, res) => {
+        noCache(res);
+        const { email, password } = req.body || {};
         try {
-            const count = await migrateLegacyTelegramIdentities();
-            res.json({ migrated: count });
+            const user = await authenticateEmailPassword(email, password);
+            if (!user) {
+                return res.status(401).json({
+                    valid: false,
+                    message: 'Invalid email or password',
+                });
+            }
+            const token =
+                user.role === 'guest' ? null : signAuthToken(user, jwtSecret);
+            res.status(200).json(buildAuthResponse(user, token, 'email'));
         } catch (err) {
-            console.error('Migration error:', err);
-            res.status(500).json({ message: 'Migration failed' });
+            console.error('Email login error:', err);
+            const status = err.status || 500;
+            res.status(status).json({
+                valid: false,
+                message: err.message || 'Login failed',
+            });
         }
     });
+
+    router.post(
+        '/migrate/telegram-identities',
+        authenticateToken,
+        verifyUserExists,
+        async (req, res) => {
+            if (!isAdminLike(req.dbUser.role)) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
+            try {
+                const count = await migrateLegacyTelegramIdentities();
+                res.json({ migrated: count });
+            } catch (err) {
+                console.error('Migration error:', err);
+                res.status(500).json({ message: 'Migration failed' });
+            }
+        },
+    );
 
     return router;
 };

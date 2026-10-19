@@ -48,12 +48,15 @@ npm install
 TELEGRAM_TOKEN=ваш_токен_бота
 JWT_SECRET=секретный_ключ
 WEB_APP_BASE_URL=https://tuleneva25.ru
+MONGO_URI=mongodb://127.0.0.1:27017/test
 PORT=3000
 # Опционально: таймаут одного Telegram-сообщения (мс), по умолчанию 8000
 # TELEGRAM_NOTIFY_TIMEOUT_MS=8000
 # Опционально: прокси / local Bot API при блокировке api.telegram.org
 # TELEGRAM_API_ROOT=https://api.telegram.org
 ```
+
+Деплой на новый VPS (Nginx, systemd, первый `super_admin`, бэкапы, восстановление дампа): [docs/VPS.md](docs/VPS.md).
 
 ```bash
 npm start      # production
@@ -94,6 +97,8 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 | GET | `/api/auth/session` | Сессия по JWT |
 | POST | `/api/auth/providers/telegram/login` | Вход Telegram |
 | POST | `/api/auth/providers/telegram/register` | Запрос доступа |
+| POST | `/api/auth/providers/email/login` | Вход по почте и паролю (браузер) |
+| POST | `/api/auth/providers/email/link` | Привязка почты к текущей сессии (JWT) |
 | POST | `/api/auth/invite/use` | Регистрация по инвайту (`provider`, `telegram?`, `web?`) |
 | POST | `/api/auth/invite/generate` | Админ: код и ссылки |
 | GET | `/api/auth/invite/validate/:code` | Проверка кода |
@@ -104,6 +109,7 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 |--------|------|------------|
 | GET | `/api/users` | Список пользователей (JWT) |
 | PUT | `/api/users/:id/role` | Смена роли (admin+) |
+| PUT | `/api/users/:id/email-login` | Админ: почта и пароль на существующего пользователя |
 | DELETE | `/api/users/:id` | Удаление (admin+) |
 | GET | `/api/timetable?date=DD/MM/YYYY` | Занятые даты месяца |
 | GET | `/api/hours?date=DD/MM/YYYY` | Слоты на день (PII только с JWT участника, `role !== guest`) |
@@ -137,6 +143,8 @@ npm run build
 ```
 
 Статика из `dist/` раздаётся веб-сервером (Nginx и т.д.). Папка `dist/` в `.gitignore`.
+
+Полный чеклист нового сервера: [docs/VPS.md](docs/VPS.md). Бэкап Mongo: `server/scripts/backup-mongo.sh`.
 
 Подробный handoff по auth: [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md).
 

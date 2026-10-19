@@ -39,7 +39,9 @@ if (!JWT_SECRET) {
     process.exit(1);
 }
 
-mongoose.connect('mongodb://localhost:27017')
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/test';
+
+mongoose.connect(MONGO_URI)
     .then(async () => {
         console.log('MongoDB connection established successfully!');
         try {

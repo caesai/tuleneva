@@ -17,8 +17,15 @@ export const UserSchema = z.object({
     photo_url: z.string().nullable().optional(),
     role: z.enum(['super_admin', 'admin', 'user', 'guest']),
     identities: z.array(UserIdentitySchema).optional(),
+    emailLogin: z.string().nullable().optional(),
     isRegistered: z.boolean().optional(),
 }).passthrough();
+
+/** Запрос привязки или входа по почте (passwordHash в ответах не бывает). */
+export const EmailCredentialsRequestSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+});
 
 export const AuthSessionResponseSchema = z.object({
     valid: z.boolean(),

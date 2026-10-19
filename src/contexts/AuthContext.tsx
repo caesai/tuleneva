@@ -10,6 +10,8 @@ import {
     loginWithTelegram,
     requestAccessWithTelegram,
     applyInviteWithProvider,
+    loginWithEmail,
+    linkEmailCredentials,
     parseAuthResponse,
 } from '@/api/auth.api.ts';
 import { buildTelegramAuthPayload } from '@/auth/telegramAuth.ts';
@@ -162,6 +164,34 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
         throw new Error('Invite registration failed');
     };
 
+    /**
+     * Вход по почте и паролю (без Telegram).
+     */
+    const loginWithEmailPassword = async (email: string, password: string) => {
+        const response = await loginWithEmail(email, password);
+        const data = await parseAuthResponse(response);
+        if (!response.ok || !data.valid || !data.user) {
+            throw new Error(
+                (data as { message?: string }).message || 'Неверный email или пароль',
+            );
+        }
+        applySession({ ...data, authProvider: 'email' });
+    };
+
+    /**
+     * Привязка почты и пароля к текущему пользователю.
+     */
+    const linkEmailPassword = async (email: string, password: string) => {
+        const response = await linkEmailCredentials(email, password);
+        const data = await parseAuthResponse(response);
+        if (!response.ok || !data.valid || !data.user) {
+            throw new Error(
+                (data as { message?: string }).message || 'Не удалось привязать почту',
+            );
+        }
+        applySession({ ...data, authProvider: data.authProvider ?? 'email' });
+    };
+
     const capabilities = useMemo(
         () => buildAuthCapabilities(user, isAuthenticated),
         [user, isAuthenticated],
@@ -185,6 +215,8 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
                 logout,
                 register,
                 registerWithInvite,
+                loginWithEmailPassword,
+                linkEmailPassword,
             }}
         >
             {children}

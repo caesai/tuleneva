@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { APIGetUsers, APIUpdateUserRole, APIDeleteUser, APIGenerateInvite } from '@/api/user.api.ts';
+import {
+    APIGetUsers,
+    APIUpdateUserRole,
+    APIDeleteUser,
+    APIGenerateInvite,
+    APISetUserEmailLogin,
+} from '@/api/user.api.ts';
+import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import type { IUser, TRole } from '@/types/user.types.ts';
 import type { TAuthProvider } from '@/types/auth.types.ts';
 import { DelayedLoader } from '@/components/Loader/DelayedLoader.tsx';
@@ -45,6 +52,8 @@ export const AdminPage: React.FC = () => {
     const [inviteInitialRole, setInviteInitialRole] = useState<'guest' | 'user'>('guest');
     const [inviteAllowTelegram, setInviteAllowTelegram] = useState(true);
     const [inviteAllowWeb, setInviteAllowWeb] = useState(true);
+    const [emailLoginUserId, setEmailLoginUserId] = useState<string | null>(null);
+    const [emailLoginLoading, setEmailLoginLoading] = useState(false);
     const { user } = useAuth();
     const navigate = useNavigate();
     const userId = user?._id;
@@ -98,6 +107,41 @@ export const AdminPage: React.FC = () => {
         } catch (err) {
             console.error(err);
             alert('An error occurred');
+        }
+    };
+
+    /**
+     * Задаёт почту и временный пароль пользователю (тот же _id).
+     */
+    const handleSetEmailLogin = async (
+        targetId: string,
+        targetRole: TRole,
+        email: string,
+        password: string,
+    ) => {
+        if (!user || !canAssignRole(user.role, targetRole, targetRole)) {
+            alert('Недостаточно прав для изменения этого пользователя');
+            return;
+        }
+        setEmailLoginLoading(true);
+        try {
+            const response = await APISetUserEmailLogin(targetId, email, password);
+            if (response.ok) {
+                const updated = await response.json() as IUser;
+                setUsers((prev) =>
+                    prev.map((u) => (u._id === targetId ? { ...u, ...updated } : u)),
+                );
+                setEmailLoginUserId(null);
+                alert('Почта и пароль сохранены.');
+            } else {
+                const data = await response.json().catch(() => ({}));
+                alert(data.message || 'Не удалось сохранить почту');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Ошибка при сохранении почты');
+        } finally {
+            setEmailLoginLoading(false);
         }
     };
 
@@ -306,6 +350,7 @@ export const AdminPage: React.FC = () => {
                         <tr>
                             <th>Имя</th>
                             <th>Username</th>
+                            <th>Почта</th>
                             <th>Роль</th>
                             <th>Действия</th>
                         </tr>
@@ -322,41 +367,82 @@ export const AdminPage: React.FC = () => {
                             const deleteDisabled =
                                 !user ||
                                 !canDeleteUser(user.role, u.role, u._id === user._id);
+                            const canEditEmail =
+                                !!user &&
+                                canAssignRole(user.role, u.role, u.role);
+                            const showEmailForm = emailLoginUserId === u._id;
 
                             return (
-                                <tr key={u._id}>
-                                    <td>{u.first_name} {u.last_name}</td>
-                                    <td>{u.username ? `@${u.username}` : '-'}</td>
-                                    <td>
-                                        <select
-                                            className={css.roleSelect}
-                                            value={u.role}
-                                            onChange={(e) =>
-                                                handleRoleChange(
-                                                    u._id || '',
-                                                    e.target.value as TRole,
-                                                    u.role,
-                                                )
-                                            }
-                                            disabled={roleSelectDisabled}
-                                        >
-                                            {assignableRoles.map(role => (
-                                                <option key={role} value={role}>
-                                                    {ROLE_LABELS[role]}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className={css.deleteButton}
-                                            onClick={() => handleDeleteUser(u._id || '', u.role)}
-                                            disabled={deleteDisabled}
-                                        >
-                                            Удалить
-                                        </button>
-                                    </td>
-                                </tr>
+                                <React.Fragment key={u._id}>
+                                    <tr>
+                                        <td>{u.first_name} {u.last_name}</td>
+                                        <td>{u.username ? `@${u.username}` : '-'}</td>
+                                        <td>{u.emailLogin || '—'}</td>
+                                        <td>
+                                            <select
+                                                className={css.roleSelect}
+                                                value={u.role}
+                                                onChange={(e) =>
+                                                    handleRoleChange(
+                                                        u._id || '',
+                                                        e.target.value as TRole,
+                                                        u.role,
+                                                    )
+                                                }
+                                                disabled={roleSelectDisabled}
+                                            >
+                                                {assignableRoles.map(role => (
+                                                    <option key={role} value={role}>
+                                                        {ROLE_LABELS[role]}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </td>
+                                        <td>
+                                            {canEditEmail && (
+                                                <button
+                                                    className={css.inviteButton}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setEmailLoginUserId(
+                                                            showEmailForm ? null : (u._id || null),
+                                                        )
+                                                    }
+                                                    style={{ marginRight: 8 }}
+                                                >
+                                                    {showEmailForm ? 'Скрыть' : 'Почта'}
+                                                </button>
+                                            )}
+                                            <button
+                                                className={css.deleteButton}
+                                                onClick={() => handleDeleteUser(u._id || '', u.role)}
+                                                disabled={deleteDisabled}
+                                            >
+                                                Удалить
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {showEmailForm && canEditEmail && (
+                                        <tr>
+                                            <td colSpan={5}>
+                                                <EmailAuthForm
+                                                    compact
+                                                    submitLabel="Сохранить вход"
+                                                    defaultEmail={u.emailLogin || ''}
+                                                    loading={emailLoginLoading}
+                                                    onSubmit={(email, password) =>
+                                                        handleSetEmailLogin(
+                                                            u._id || '',
+                                                            u.role,
+                                                            email,
+                                                            password,
+                                                        )
+                                                    }
+                                                />
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
                             );
                         })}
                     </tbody>

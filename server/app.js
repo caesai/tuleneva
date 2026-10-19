@@ -13,11 +13,9 @@ const Rehearsal = require('./models/Rehearsal');
 const InviteCode = require('./models/InviteCode');
 const { INVITE_CODE_TTL_SECONDS } = require('./models/InviteCode');
 const { createAuthRouter } = require('./auth/authRoutes');
-const { signAuthToken, buildAuthResponse } = require('./auth/tokenService');
+const { signAuthToken, buildAuthResponse, toPublicUser } = require('./auth/tokenService');
 const {
     parseTelegramUser,
-    verifyTelegramInitData,
-    parseQueryToNestedJson,
 } = require('./auth/telegramProvider');
 const {
     findUserByTelegramId,
@@ -31,6 +29,8 @@ const {
     canViewBookingUserDetails,
     sanitizeHoursForViewer,
 } = require('./auth/hourPrivacy');
+const { findValidInvite, consumeInvite } = require('./auth/inviteService');
+const { linkEmailCredentials } = require('./auth/emailProvider');
 const { safeNotify } = require('./notifications/telegramNotify');
 
 /**
@@ -207,15 +207,12 @@ const convertOldFormatToNew = (oldFormatObj) => {
 };
 
     const app = express();
-    app.use(cors());
+    app.use(cors({
+        origin: webAppBaseUrl,
+        methods: ['GET', 'POST', 'PUT', 'DELETE'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+    }));
     app.use(express.json());
-
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'https://tuleneva25.ru'); // Replace with your frontend's origin
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    next();
-});
 
 /**
  * Middleware для аутентификации JWT токена.
@@ -369,7 +366,7 @@ app.post('/api/users/register', async (req, res) => {
 app.get('/api/users', authenticateToken, verifyUserExists, requireAdmin, async (req, res) => {
     try {
         const users = await User.find();
-        res.json(users);
+        res.json(users.map((u) => toPublicUser(u)));
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -415,7 +412,7 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
         user.role = role;
         await user.save();
 
-        res.json(user);
+        res.json(toPublicUser(user));
 
         if (oldRole === 'guest' && role === 'user' && user.telegram_id) {
             const message = `
@@ -443,6 +440,41 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
  * @param {string} req.params.id - ID пользователя для удаления.
  * @returns {Object} Сообщение об успешном удалении.
  */
+/**
+ * @route PUT /api/users/:id/email-login
+ * @description Админ задаёт почту и пароль существующему пользователю (тот же _id).
+ * @access Admin
+ */
+app.put('/api/users/:id/email-login', authenticateToken, verifyUserExists, async (req, res) => {
+    if (!isAdminLike(req.dbUser.role)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const { id } = req.params;
+    const { email, password } = req.body || {};
+
+    try {
+        const targetUser = await User.findById(id);
+        if (!targetUser) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // Те же границы, что для смены роли: admin не трогает admin/super_admin
+        if (!canAssignRole(req.dbUser.role, targetUser.role, targetUser.role)) {
+            return res.status(403).json({ message: 'Insufficient permissions to edit this user.' });
+        }
+
+        const updated = await linkEmailCredentials(targetUser, email, password);
+        res.status(200).json(toPublicUser(updated));
+    } catch (err) {
+        console.error('Admin email-login error:', err);
+        const status = err.status || (err.message?.includes('Invalid') || err.message?.includes('Password')
+            ? 400
+            : 500);
+        res.status(status).json({ message: err.message || 'Failed to set email login' });
+    }
+});
+
 app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, res) => {
     if (!isAdminLike(req.dbUser.role)) {
         return res.status(403).json({ message: 'Access denied' });
@@ -876,22 +908,18 @@ app.post('/api/invite/generate', authenticateToken, verifyUserExists, async (req
 
 /**
  * @route GET /api/invite/validate/:code
- * @description Проверяет валидность инвайт-кода. Публичный эндпоинт.
- * Если документ существует в коллекции — код валиден (просроченные удаляются MongoDB автоматически).
- * @access Public
- * @param {string} req.params.code - Инвайт-код.
- * @returns {Object} JSON с полем valid (boolean).
+ * @description Проверяет валидность инвайт-кода (не использован, не просрочен).
+ * @deprecated Используйте GET /api/auth/invite/validate/:code
  */
 app.get('/api/invite/validate/:code', async (req, res) => {
     try {
         const { code } = req.params;
-        const inviteCode = await InviteCode.findOne({ code });
-
-        if (!inviteCode) {
-            return res.status(200).json({ valid: false });
-        }
-
-        res.status(200).json({ valid: true });
+        const inviteCode = await findValidInvite(code);
+        res.status(200).json({
+            valid: !!inviteCode,
+            purpose: inviteCode?.purpose,
+            allowedProviders: inviteCode?.allowedProviders,
+        });
     } catch (err) {
         console.error('Error validating invite code:', err);
         res.status(500).json({ message: 'Failed to validate invite code.' });
@@ -900,80 +928,48 @@ app.get('/api/invite/validate/:code', async (req, res) => {
 
 /**
  * @route POST /api/invite/use
- * @description Использует инвайт-код для регистрации пользователя.
- * Создаёт пользователя в БД с ролью guest и удаляет использованный код.
- * @access Public (требует Telegram initData)
- * @param {string} req.body.code - Инвайт-код.
- * @param {string} req.body.initData - Сырые данные инициализации Telegram.
- * @param {string} req.body.user - JSON строка с данными пользователя.
- * @returns {Object} JSON с токеном и данными пользователя.
+ * @description Legacy: использует инвайт через Telegram init data (consumeInvite, без удаления досрочно).
+ * @deprecated Используйте POST /api/auth/invite/use
  */
 app.post('/api/invite/use', async (req, res) => {
-    const { code, initData: rawInitData, user: userData } = req.body;
+    const { code, user: userData } = req.body;
 
-    if (!code || !rawInitData || !userData) {
+    if (!code || !userData) {
         return res.status(400).json({ message: 'Missing required data.' });
     }
 
-    const isValid = verifyTelegramInitData(userData, botToken);
-    if (!isValid) {
-        return res.status(401).json({ message: 'Invalid Telegram data signature.' });
-    }
-
     try {
-        // Атомарно находим и удаляем код — гарантирует одноразовость даже при параллельных запросах
-        const inviteCode = await InviteCode.findOneAndDelete({ code });
+        const inviteCode = await findValidInvite(code);
         if (!inviteCode) {
             return res.status(400).json({ message: 'Invalid or expired invite code.' });
         }
 
-        const tg = parseQueryToNestedJson(userData);
+        const tg = parseTelegramUser(userData, botToken);
+        let user = await findUserByTelegramId(tg.user.id);
 
-        // Проверяем, не зарегистрирован ли уже пользователь
-        let user = await User.findOne({ telegram_id: tg.user.id });
-        if (user) {
-            // Пользователь уже существует — код уже удалён, возвращаем существующего
-            const token = jwt.sign(
-                { userId: user._id, telegramId: user.telegram_id, role: user.role },
-                jwtSecret,
-                { expiresIn: '1d' }
-            );
-
-            return res.status(200).json({
-                valid: true,
-                token,
-                user: { ...user.toObject(), isRegistered: true },
+        if (!user) {
+            user = await upsertTelegramUser(tg.user, {
+                role: inviteCode.initialRole || 'guest',
             });
         }
 
-        // Создаём нового пользователя с ролью guest
-        user = new User({
-            telegram_id: tg.user.id,
-            first_name: tg.user.first_name,
-            last_name: tg.user.last_name || null,
-            username: tg.user.username || null,
-            photo_url: tg.user.photo_url || null,
-            role: 'guest',
-        });
-        await user.save();
+        const consumed = await consumeInvite(code, user._id);
+        if (!consumed) {
+            return res.status(400).json({ message: 'Invalid or expired invite code.' });
+        }
 
-        const token = jwt.sign(
-            { userId: user._id, telegramId: user.telegram_id, role: user.role },
-            jwtSecret,
-            { expiresIn: '1d' }
-        );
-
-        res.status(201).json({
-            valid: true,
-            token,
-            user: { ...user.toObject(), isRegistered: true },
-        });
+        const token = signAuthToken(user, jwtSecret);
+        res.status(201).json(buildAuthResponse(user, token, 'telegram'));
 
         const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию (по инвайт-ссылке).`;
         safeNotify(notifyAdmins(inviteNotifyMessage));
     } catch (err) {
         console.error('Error using invite code:', err);
-        res.status(500).json({ message: 'Failed to use invite code.' });
+        const status = err.message?.includes('Telegram') || err.message?.includes('signature')
+            || err.message?.includes('auth_date') || err.message?.includes('expired')
+            ? 401
+            : 500;
+        res.status(status).json({ message: err.message || 'Failed to use invite code.' });
     }
 });
 

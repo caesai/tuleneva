@@ -11,6 +11,10 @@ import { useAuth } from '@/hooks/useAuth.ts';
 import { useNetwork } from '@/hooks/useNetwork.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useToast } from '@/hooks/useToast.ts';
+import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
+import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
+import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
+import { getTelegramEnvironment } from '@/telegram/env.ts';
 // import logo from '/logo_main512.svg';
 // import { useNavigate } from 'react-router-dom';
 import {
@@ -131,8 +135,23 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     };
     const closeBookingModal = () => setIsBookingModalOpen(false);
 
-    const { user, capabilities } = useAuth();
+    const {
+        user,
+        capabilities,
+        isAuthenticated,
+        isLoading: authLoading,
+        linkEmailPassword,
+        loginWithEmailPassword,
+    } = useAuth();
     const { isAdmin, isGuest, canManageBookings, canViewUserDetails } = capabilities;
+    const { isTelegram } = useSafeLaunchParams();
+    const isInTelegram = isTelegram && getTelegramEnvironment();
+    const [emailLinkLoading, setEmailLinkLoading] = useState(false);
+    const [isEmailLoginOpen, setIsEmailLoginOpen] = useState(false);
+    const [emailLoginLoading, setEmailLoginLoading] = useState(false);
+    const showEmailLinkForm = isAuthenticated && !!user && !isGuest;
+    const showEmailLoginButton =
+        !isInTelegram && !authLoading && !isAuthenticated;
 
     // Получаем сохранённые настройки пользователя (история названий групп)
     const localUserSettings = localStorage.getItem('userSettings');
@@ -319,6 +338,81 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                         onRehearsalTypeChange={setRehearsalType}
                     />
                 </Suspense>
+            )}
+
+            <ModalPopup
+                isOpen={isEmailLoginOpen}
+                onClose={() => setIsEmailLoginOpen(false)}
+            >
+                <div className={css.emailLoginModal}>
+                    <h3 className={css.emailLoginTitle}>Вход по почте</h3>
+                    <p className={css.emailLoginHint}>
+                        Тот же аккаунт, что в Telegram-приложении, после привязки почты.
+                    </p>
+                    <EmailAuthForm
+                        submitLabel="Войти"
+                        loading={emailLoginLoading}
+                        onSubmit={async (email, password) => {
+                            setEmailLoginLoading(true);
+                            try {
+                                await loginWithEmailPassword(email, password);
+                                showToast('Вход выполнен.', 'success');
+                                setIsEmailLoginOpen(false);
+                            } catch (err) {
+                                showToast(
+                                    err instanceof Error ? err.message : 'Не удалось войти.',
+                                    'error',
+                                );
+                                throw err;
+                            } finally {
+                                setEmailLoginLoading(false);
+                            }
+                        }}
+                    />
+                </div>
+            </ModalPopup>
+
+            {showEmailLoginButton && (
+                <div className={css.emailLoginBar}>
+                    <button
+                        type="button"
+                        className={css.emailLoginOpenButton}
+                        onClick={() => setIsEmailLoginOpen(true)}
+                    >
+                        Войти по почте
+                    </button>
+                </div>
+            )}
+
+            {showEmailLinkForm && (
+                <div className={css.emailLinkBlock}>
+                    <p className={css.emailLinkTitle}>
+                        {user?.emailLogin
+                            ? `Вход в браузере: ${user.emailLogin}`
+                            : 'Вход в браузере — привяжите почту и пароль'}
+                    </p>
+                    <EmailAuthForm
+                        compact
+                        submitLabel={user?.emailLogin ? 'Сменить пароль' : 'Привязать'}
+                        defaultEmail={user?.emailLogin || ''}
+                        loading={emailLinkLoading}
+                        onSubmit={async (email, password) => {
+                            setEmailLinkLoading(true);
+                            try {
+                                await linkEmailPassword(email, password);
+                                showToast('Почта для входа сохранена.', 'success');
+                            } catch (err) {
+                                showToast(
+                                    err instanceof Error ? err.message : 'Не удалось сохранить.',
+                                    'error',
+                                );
+                                throw err;
+                            } finally {
+                                setEmailLinkLoading(false);
+                            }
+                        }}
+                    />
+                </div>
             )}
 
             <div className={css.card}>

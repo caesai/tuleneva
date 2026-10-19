@@ -59,6 +59,38 @@ export const applyInviteWithProvider = async (
     });
 };
 
+/**
+ * Вход по почте и паролю (браузер, тот же User._id что у Telegram).
+ * @param email - Адрес почты
+ * @param password - Пароль (мин. 8 символов)
+ */
+export const loginWithEmail = async (
+    email: string,
+    password: string,
+): Promise<Response> => {
+    return fetch(`${AUTH_BASE}/providers/email/login`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+        headers: jsonHeaders,
+    });
+};
+
+/**
+ * Привязка почты и пароля к текущей JWT-сессии.
+ * @param email - Адрес почты
+ * @param password - Пароль (мин. 8 символов)
+ */
+export const linkEmailCredentials = async (
+    email: string,
+    password: string,
+): Promise<Response> => {
+    return fetch(`${AUTH_BASE}/providers/email/link`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+        headers: getAuthHeaders(),
+    });
+};
+
 export const parseAuthResponse = async (
     response: Response,
 ): Promise<IAuthSessionResponse> => {

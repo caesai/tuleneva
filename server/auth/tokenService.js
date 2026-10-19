@@ -1,7 +1,24 @@
 /**
- * JWT helpers for auth sessions.
+ * JWT и публичное представление пользователя (без passwordHash).
  */
 
+/**
+ * Убирает чувствительные поля из объекта пользователя для API.
+ * @param {object|import('mongoose').Document} user
+ * @returns {object}
+ */
+const toPublicUser = (user) => {
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    delete userObj.passwordHash;
+    return userObj;
+};
+
+/**
+ * Подписывает JWT сессии (userId + role).
+ * @param {object} user
+ * @param {string} jwtSecret
+ * @returns {string}
+ */
 const signAuthToken = (user, jwtSecret) => {
     const jwt = require('jsonwebtoken');
     return jwt.sign(
@@ -11,8 +28,15 @@ const signAuthToken = (user, jwtSecret) => {
     );
 };
 
+/**
+ * Собирает стандартный ответ auth (valid, token, authProvider, user).
+ * @param {object} user
+ * @param {string|null} token
+ * @param {string|null} [authProvider]
+ * @returns {object}
+ */
 const buildAuthResponse = (user, token, authProvider = null) => {
-    const userObj = user.toObject ? user.toObject() : { ...user };
+    const userObj = toPublicUser(user);
     return {
         valid: true,
         token: token ?? null,
@@ -25,6 +49,7 @@ const buildAuthResponse = (user, token, authProvider = null) => {
 };
 
 module.exports = {
+    toPublicUser,
     signAuthToken,
     buildAuthResponse,
 };
