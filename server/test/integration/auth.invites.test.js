@@ -112,4 +112,50 @@ describe('invite integration', () => {
         const user = await User.findOne({ telegram_id: 424242 });
         expect(user).toBeTruthy();
     });
+
+    it('parallel invite use with initialRole user leaves only one new user', async () => {
+        const admin = await seedUser({ role: 'admin' });
+        await InviteCode.create({
+            code: 'race-once',
+            createdBy: admin._id,
+            expiresAt: new Date(Date.now() + 60_000),
+            allowedProviders: ['telegram'],
+            initialRole: 'user',
+        });
+
+        const initA = buildInitData(
+            { id: 500001, first_name: 'RaceA', username: 'race_a' },
+            BOT_TOKEN,
+        );
+        const initB = buildInitData(
+            { id: 500002, first_name: 'RaceB', username: 'race_b' },
+            BOT_TOKEN,
+        );
+
+        const [resA, resB] = await Promise.all([
+            request(app)
+                .post('/api/auth/invite/use')
+                .send({
+                    code: 'race-once',
+                    provider: 'telegram',
+                    telegram: { user: initA },
+                }),
+            request(app)
+                .post('/api/auth/invite/use')
+                .send({
+                    code: 'race-once',
+                    provider: 'telegram',
+                    telegram: { user: initB },
+                }),
+        ]);
+
+        const statuses = [resA.status, resB.status].sort();
+        expect(statuses).toEqual([201, 400]);
+
+        const created = await User.find({
+            telegram_id: { $in: [500001, 500002] },
+        });
+        expect(created).toHaveLength(1);
+        expect(created[0].role).toBe('user');
+    });
 });

@@ -46,4 +46,19 @@ describe('telegramProvider', () => {
             'Telegram init data expired',
         );
     });
+
+    it('parseTelegramUser accepts auth_date slightly in the future', () => {
+        const skew = Math.floor(Date.now() / 1000) + 30;
+        const initData = buildInitData(user, BOT_TOKEN, skew);
+        const tg = parseTelegramUser(initData, BOT_TOKEN);
+        expect(tg.user.id).toBe(12345);
+    });
+
+    it('parseTelegramUser rejects auth_date far in the future', () => {
+        const farFuture = Math.floor(Date.now() / 1000) + 60 * 60;
+        const initData = buildInitData(user, BOT_TOKEN, farFuture);
+        expect(() => parseTelegramUser(initData, BOT_TOKEN)).toThrow(
+            'Telegram init data expired',
+        );
+    });
 });

@@ -15,6 +15,9 @@ export interface IAuthSessionResponse {
     token?: string | null;
     user?: IUser;
     authProvider?: TAuthProvider | null;
+    /** true, если на почту ушла ссылка подтверждения */
+    pendingConfirmation?: boolean;
+    message?: string;
 }
 
 export interface ITelegramAuthPayload {

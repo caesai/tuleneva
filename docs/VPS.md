@@ -6,13 +6,20 @@
 
 ```bash
 sudo apt update
-sudo apt install -y nginx certbot python3-certbot-nginx mongodb-org
+sudo apt install -y nginx certbot python3-certbot-nginx gnupg curl
+
+# Репозиторий MongoDB (официальный; пакет mongodb-org иначе не найдётся)
+curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+sudo apt update
+sudo apt install -y mongodb-org
+
 # Node 18+ (через nodesource или nvm)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 ```
 
-MongoDB слушает только localhost и требует пользователя/пароль (см. документацию MongoDB `security.authorization`).
+MongoDB слушает только localhost и требует пользователя/пароль (см. документацию MongoDB `security.authorization`). Подставьте кодовое имя Ubuntu (`jammy`, `noble` и т.д.) в URL репозитория MongoDB.
 
 ## 2. Репозиторий
 
@@ -36,9 +43,22 @@ PORT=3000
 # Если api.telegram.org с этой машины недоступен — прокси или local Bot API:
 # TELEGRAM_API_ROOT=https://ваш-прокси
 # TELEGRAM_NOTIFY_TIMEOUT_MS=8000
+# SMTP для писем подтверждения почты
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+MAIL_FROM=noreply@tuleneva25.ru
 ```
 
 `JWT_SECRET` новый на каждом чистом деплое: старые токены перестанут действовать.
+
+Сервис systemd идёт от `www-data` — сделайте `server/.env` читаемым для него:
+
+```bash
+sudo chown root:www-data /var/www/tuleneva/server/.env
+sudo chmod 640 /var/www/tuleneva/server/.env
+```
 
 ## 4. Установка и сборка
 
@@ -153,8 +173,13 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo mkdir -p /var/backups/tuleneva
 sudo chmod +x /var/www/tuleneva/server/scripts/backup-mongo.sh
 
-# cron (ежедневно в 03:15 UTC), каталог бэкапа — другой диск при возможности
-# 15 3 * * * MONGO_URI='...' BACKUP_DIR=/mnt/backups/tuleneva /var/www/tuleneva/server/scripts/backup-mongo.sh >> /var/log/tuleneva-backup.log 2>&1
+# Файл с URI (не кладите пароль в строку crontab — он виден в ps)
+# /etc/tuleneva/backup.env:
+#   MONGO_URI=mongodb://...
+#   BACKUP_DIR=/mnt/backups/tuleneva
+#
+# cron (ежедневно в 03:15 UTC), каталог бэкапа — другой диск при возможности:
+# 15 3 * * * set -a; . /etc/tuleneva/backup.env; set +a; /var/www/tuleneva/server/scripts/backup-mongo.sh >> /var/log/tuleneva-backup.log 2>&1
 ```
 
 ## 9. Восстановление пользователей после потери диска
@@ -170,7 +195,8 @@ sudo chmod +x /var/www/tuleneva/server/scripts/backup-mongo.sh
 
 - `curl -s https://tuleneva25.ru/api/` — ответ API.
 - Мини-приложение: вход Telegram, запрос доступа, бронь.
-- Браузер: `/app` → «Войти по почте» → модалка с тем же аккаунтом.
+- Браузер: `/app` → «Войти по почте» → модалка с тем же аккаунтом (после подтверждения ссылки из письма).
+- SMTP задан: привязка почты в мини-приложении или админке шлёт письмо со ссылкой `/app?emailConfirm=...`.
 - Если уведомления бота молчат — задайте `TELEGRAM_API_ROOT` на хост, который видит Telegram Bot API.
 
 ## 11. Обновление

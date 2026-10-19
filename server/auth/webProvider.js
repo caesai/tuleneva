@@ -29,6 +29,27 @@ const resolveWebProviderUserId = (email) => {
 };
 
 /**
+ * Ищет существующего web-пользователя по email identity без изменения роли.
+ * @param {{ firstName: string, lastName: string|null, email: string|null }} profile
+ * @returns {Promise<import('mongoose').Document|null>}
+ */
+const findWebUser = async (profile) => {
+    if (!profile.email) {
+        return null;
+    }
+    const providerUserId = resolveWebProviderUserId(profile.email);
+    let user = await findUserByIdentity('web', providerUserId);
+    if (!user) {
+        user = await User.findOne({
+            identities: {
+                $elemMatch: { provider: 'web', email: profile.email },
+            },
+        });
+    }
+    return user;
+};
+
+/**
  * Creates or finds user for web invite registration.
  */
 const upsertWebUser = async (profile, options = {}) => {
@@ -40,15 +61,7 @@ const upsertWebUser = async (profile, options = {}) => {
         verifiedAt: new Date(),
     };
 
-    let user = await findUserByIdentity('web', providerUserId);
-
-    if (!user && profile.email) {
-        user = await User.findOne({
-            identities: {
-                $elemMatch: { provider: 'web', email: profile.email },
-            },
-        });
-    }
+    let user = await findWebUser(profile);
 
     if (!user) {
         user = new User({
@@ -75,5 +88,6 @@ const upsertWebUser = async (profile, options = {}) => {
 
 module.exports = {
     parseWebProfile,
+    findWebUser,
     upsertWebUser,
 };

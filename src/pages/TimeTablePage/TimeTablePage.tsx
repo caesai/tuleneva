@@ -1,5 +1,6 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
 import React, { useState, useEffect, Suspense, type JSX } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading.ts';
@@ -142,10 +143,12 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         isLoading: authLoading,
         linkEmailPassword,
         loginWithEmailPassword,
+        confirmEmailToken,
     } = useAuth();
     const { isAdmin, isGuest, canManageBookings, canViewUserDetails } = capabilities;
     const { isTelegram } = useSafeLaunchParams();
     const isInTelegram = isTelegram && getTelegramEnvironment();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [emailLinkLoading, setEmailLinkLoading] = useState(false);
     const [isEmailLoginOpen, setIsEmailLoginOpen] = useState(false);
     const [emailLoginLoading, setEmailLoginLoading] = useState(false);
@@ -164,6 +167,46 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
             showToast(error, 'error');
         }
     }, [error, showToast]);
+
+    const emailConfirmParam = searchParams.get('emailConfirm');
+
+    /**
+     * Подтверждение почты по ссылке из письма (?emailConfirm=token).
+     */
+    useEffect(() => {
+        if (!emailConfirmParam || authLoading) {
+            return;
+        }
+
+        let cancelled = false;
+        const run = async () => {
+            try {
+                await confirmEmailToken(emailConfirmParam);
+                if (!cancelled) {
+                    showToast('Почта подтверждена. Вход выполнен.', 'success');
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    showToast(
+                        err instanceof Error ? err.message : 'Не удалось подтвердить почту.',
+                        'error',
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev);
+                        next.delete('emailConfirm');
+                        return next;
+                    }, { replace: true });
+                }
+            }
+        };
+        void run();
+        return () => {
+            cancelled = true;
+        };
+    }, [authLoading, confirmEmailToken, emailConfirmParam, setSearchParams, showToast]);
 
     /**
      * Обрабатывает изменение даты в компоненте Calendar.
@@ -389,18 +432,30 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                     <p className={css.emailLinkTitle}>
                         {user?.emailLogin
                             ? `Вход в браузере: ${user.emailLogin}`
-                            : 'Вход в браузере — привяжите почту и пароль'}
+                            : 'Вход в браузере — привяжите почту (ссылка в письме)'}
                     </p>
                     <EmailAuthForm
                         compact
-                        submitLabel={user?.emailLogin ? 'Сменить пароль' : 'Привязать'}
+                        submitLabel={user?.emailLogin ? 'Сохранить' : 'Привязать'}
                         defaultEmail={user?.emailLogin || ''}
                         loading={emailLinkLoading}
-                        onSubmit={async (email, password) => {
+                        requireCurrentPassword={!!user?.emailLogin}
+                        onSubmit={async (email, password, currentPassword) => {
                             setEmailLinkLoading(true);
                             try {
-                                await linkEmailPassword(email, password);
-                                showToast('Почта для входа сохранена.', 'success');
+                                const result = await linkEmailPassword(
+                                    email,
+                                    password,
+                                    currentPassword,
+                                );
+                                if (result.pendingConfirmation) {
+                                    showToast(
+                                        'Проверьте почту — перейдите по ссылке для подтверждения.',
+                                        'success',
+                                    );
+                                } else {
+                                    showToast('Пароль для входа обновлён.', 'success');
+                                }
                             } catch (err) {
                                 showToast(
                                     err instanceof Error ? err.message : 'Не удалось сохранить.',

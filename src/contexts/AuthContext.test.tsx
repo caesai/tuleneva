@@ -4,7 +4,7 @@
  * `globalThis.fetch`, telegram-окружение принудительно отключается.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { AuthProvider } from './AuthContext.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 
@@ -31,6 +31,27 @@ function Probe() {
             <span data-testid="status">{authStatus}</span>
             <span data-testid="provider">{authProvider ?? 'none'}</span>
             <span data-testid="loading">{String(isLoading)}</span>
+        </div>
+    );
+}
+
+function EmailLoginProbe() {
+    const { loginWithEmailPassword, isAuthenticated } = useAuth();
+    return (
+        <div>
+            <span data-testid="authed">{String(isAuthenticated)}</span>
+            <button
+                type="button"
+                onClick={() => {
+                    void loginWithEmailPassword('g@ex.com', 'password12').catch((err: Error) => {
+                        const el = document.querySelector('[data-testid="err"]');
+                        if (el) el.textContent = err.message;
+                    });
+                }}
+            >
+                login
+            </button>
+            <span data-testid="err" />
         </div>
     );
 }
@@ -68,5 +89,39 @@ describe('AuthContext', () => {
             expect.stringContaining('/api/auth/session'),
             expect.objectContaining({ method: 'GET' }),
         );
+    });
+
+    it('rejects email login without token (guest)', async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                valid: true,
+                token: null,
+                authProvider: 'email',
+                user: { _id: '2', first_name: 'G', role: 'guest' },
+            }),
+        });
+
+        render(
+            <AuthProvider>
+                <EmailLoginProbe />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('authed').textContent).toBe('false');
+        });
+
+        await act(async () => {
+            screen.getByRole('button', { name: 'login' }).click();
+        });
+
+        await waitFor(() => {
+            expect(screen.getByTestId('err').textContent).toContain(
+                'после одобрения',
+            );
+        });
+        expect(screen.getByTestId('authed').textContent).toBe('false');
+        expect(localStorage.getItem('authToken')).toBeNull();
     });
 });

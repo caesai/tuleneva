@@ -10,12 +10,19 @@ export interface IEmailAuthFormProps {
     loading?: boolean;
     /** Компактный вид (админка / блок в расписании) */
     compact?: boolean;
+    /** Показать поле текущего пароля (смена при уже привязанной почте) */
+    requireCurrentPassword?: boolean;
     /**
      * Отправка формы.
      * @param email - Нормализованная почта
-     * @param password - Пароль
+     * @param password - Новый пароль
+     * @param currentPassword - Текущий пароль, если requireCurrentPassword
      */
-    onSubmit: (email: string, password: string) => Promise<void> | void;
+    onSubmit: (
+        email: string,
+        password: string,
+        currentPassword?: string,
+    ) => Promise<void> | void;
 }
 
 /**
@@ -26,10 +33,12 @@ export const EmailAuthForm: React.FC<IEmailAuthFormProps> = ({
     defaultEmail = '',
     loading = false,
     compact = false,
+    requireCurrentPassword = false,
     onSubmit,
 }) => {
     const [email, setEmail] = useState(defaultEmail);
     const [password, setPassword] = useState('');
+    const [currentPassword, setCurrentPassword] = useState('');
     const [localError, setLocalError] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -44,9 +53,18 @@ export const EmailAuthForm: React.FC<IEmailAuthFormProps> = ({
             setLocalError('Пароль не короче 8 символов.');
             return;
         }
+        if (requireCurrentPassword && currentPassword.length < 8) {
+            setLocalError('Укажите текущий пароль.');
+            return;
+        }
         try {
-            await onSubmit(trimmed, password);
+            await onSubmit(
+                trimmed,
+                password,
+                requireCurrentPassword ? currentPassword : undefined,
+            );
             setPassword('');
+            setCurrentPassword('');
         } catch (err) {
             setLocalError(err instanceof Error ? err.message : 'Не удалось отправить.');
         }
@@ -69,12 +87,25 @@ export const EmailAuthForm: React.FC<IEmailAuthFormProps> = ({
                 disabled={loading}
                 aria-label="Почта"
             />
+            {requireCurrentPassword && (
+                <input
+                    className={css.input}
+                    type="password"
+                    name="currentPassword"
+                    autoComplete="current-password"
+                    placeholder="Текущий пароль"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    disabled={loading}
+                    aria-label="Текущий пароль"
+                />
+            )}
             <input
                 className={css.input}
                 type="password"
                 name="password"
-                autoComplete="current-password"
-                placeholder="Пароль (мин. 8)"
+                autoComplete={requireCurrentPassword ? 'new-password' : 'current-password'}
+                placeholder={requireCurrentPassword ? 'Новый пароль (мин. 8)' : 'Пароль (мин. 8)'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}

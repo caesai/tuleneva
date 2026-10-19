@@ -30,7 +30,11 @@ const {
     sanitizeHoursForViewer,
 } = require('./auth/hourPrivacy');
 const { findValidInvite, consumeInvite } = require('./auth/inviteService');
-const { linkEmailCredentials } = require('./auth/emailProvider');
+const {
+    linkEmailCredentials,
+    mapDuplicateEmailError,
+} = require('./auth/emailProvider');
+const { createSmtpSendMail } = require('./auth/mailer');
 const { safeNotify } = require('./notifications/telegramNotify');
 
 /**
@@ -42,6 +46,7 @@ const { safeNotify } = require('./notifications/telegramNotify');
  * @param {Function} [options.notifyAdmins]
  * @param {Function} [options.notifyUser] - Отправка сообщения пользователю (с таймаутом)
  * @param {Function} [options.broadcastUpdate]
+ * @param {Function|null} [options.sendMail] - Отправка писем; по умолчанию SMTP из env
  */
 const createApp = ({
     jwtSecret,
@@ -51,7 +56,9 @@ const createApp = ({
     notifyAdmins = async () => {},
     notifyUser = async () => {},
     broadcastUpdate = () => {},
+    sendMail = undefined,
 }) => {
+    const mailSender = sendMail === undefined ? createSmtpSendMail() : sendMail;
 /**
  * Проверяет, является ли строка временем в формате HH:MM
  * @param {string} str - Строка для проверки
@@ -270,6 +277,7 @@ app.use('/api/auth', createAuthRouter({
     authenticateToken,
     verifyUserExists,
     notifyAdmins,
+    sendMail: mailSender,
 }));
 
 app.get('/', (req, res) => {
@@ -442,7 +450,7 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
  */
 /**
  * @route PUT /api/users/:id/email-login
- * @description Админ задаёт почту и пароль существующему пользователю (тот же _id).
+ * @description Админ задаёт почту и пароль; на почту уходит ссылка подтверждения.
  * @access Admin
  */
 app.put('/api/users/:id/email-login', authenticateToken, verifyUserExists, async (req, res) => {
@@ -464,14 +472,37 @@ app.put('/api/users/:id/email-login', authenticateToken, verifyUserExists, async
             return res.status(403).json({ message: 'Insufficient permissions to edit this user.' });
         }
 
-        const updated = await linkEmailCredentials(targetUser, email, password);
-        res.status(200).json(toPublicUser(updated));
+        const { user: updated, pendingConfirmation } = await linkEmailCredentials(
+            targetUser,
+            email,
+            password,
+            {
+                skipCurrentPassword: true,
+                webAppBaseUrl,
+                sendMail: mailSender,
+            },
+        );
+        res.status(200).json({
+            ...toPublicUser(updated),
+            pendingConfirmation,
+            message: pendingConfirmation
+                ? 'Confirmation email sent'
+                : 'Password updated',
+        });
     } catch (err) {
-        console.error('Admin email-login error:', err);
-        const status = err.status || (err.message?.includes('Invalid') || err.message?.includes('Password')
-            ? 400
-            : 500);
-        res.status(status).json({ message: err.message || 'Failed to set email login' });
+        const mapped = mapDuplicateEmailError(err);
+        console.error('Admin email-login error:', mapped);
+        const status = mapped.status
+            || (mapped.message?.includes('Invalid') || mapped.message?.includes('Password')
+                || mapped.message?.includes('Current password')
+                ? 400
+                : 500);
+        const message = mapped.status === 409
+            ? 'Email already in use'
+            : (mapped.status && mapped.status < 500
+                ? mapped.message
+                : 'Failed to set email login');
+        res.status(status).json({ message });
     }
 });
 
@@ -946,23 +977,30 @@ app.post('/api/invite/use', async (req, res) => {
 
         const tg = parseTelegramUser(userData, botToken);
         let user = await findUserByTelegramId(tg.user.id);
+        let isNewUser = false;
 
         if (!user) {
             user = await upsertTelegramUser(tg.user, {
                 role: inviteCode.initialRole || 'guest',
             });
+            isNewUser = true;
         }
 
         const consumed = await consumeInvite(code, user._id);
         if (!consumed) {
+            if (isNewUser) {
+                await User.deleteOne({ _id: user._id });
+            }
             return res.status(400).json({ message: 'Invalid or expired invite code.' });
         }
 
         const token = signAuthToken(user, jwtSecret);
         res.status(201).json(buildAuthResponse(user, token, 'telegram'));
 
-        const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию (по инвайт-ссылке).`;
-        safeNotify(notifyAdmins(inviteNotifyMessage));
+        if (isNewUser) {
+            const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию (по инвайт-ссылке).`;
+            safeNotify(notifyAdmins(inviteNotifyMessage));
+        }
     } catch (err) {
         console.error('Error using invite code:', err);
         const status = err.message?.includes('Telegram') || err.message?.includes('signature')

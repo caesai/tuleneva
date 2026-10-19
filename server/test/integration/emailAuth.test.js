@@ -1,4 +1,4 @@
-import { describe, it, beforeAll, afterAll, beforeEach, expect } from 'vitest';
+import { describe, it, beforeAll, afterAll, beforeEach, expect, vi } from 'vitest';
 import request from 'supertest';
 import InviteCode from '../../models/InviteCode.js';
 import User from '../../models/User.js';
@@ -13,14 +13,18 @@ import {
 } from '../helpers/testApp.js';
 import { buildInitData } from '../fixtures/buildInitData.js';
 import { resetLoginAttemptsForTests } from '../../auth/emailProvider.js';
-import { AuthSessionResponseSchema } from '../../../shared/contracts/auth.ts';
+import {
+    AuthSessionResponseSchema,
+    EmailLinkResponseSchema,
+} from '../../../shared/contracts/auth.ts';
 
 describe('email auth integration', () => {
     let app;
+    let sentMails;
+    let sendMail;
 
     beforeAll(async () => {
         await connectTestDb();
-        app = createTestApp();
     });
 
     afterAll(async () => {
@@ -30,9 +34,44 @@ describe('email auth integration', () => {
     beforeEach(async () => {
         await clearTestDb();
         resetLoginAttemptsForTests();
+        sentMails = [];
+        sendMail = vi.fn(async (opts) => {
+            sentMails.push(opts);
+        });
+        app = createTestApp({ sendMail });
     });
 
-    it('link then login keeps the same _id', async () => {
+    /**
+     * Достаёт сырой токен из последнего письма.
+     * @returns {string}
+     */
+    const lastConfirmToken = () => {
+        const last = sentMails[sentMails.length - 1];
+        const match = String(last?.text || '').match(/emailConfirm=([a-f0-9]+)/i);
+        if (!match) {
+            throw new Error('Confirm token not found in mail');
+        }
+        return match[1];
+    };
+
+    it('link without SMTP returns 503', async () => {
+        const noMailApp = createTestApp({ sendMail: null });
+        const user = await seedUser({
+            role: 'user',
+            telegram_id: 111000,
+            identities: [{ provider: 'telegram', providerUserId: '111000' }],
+        });
+
+        const link = await request(noMailApp)
+            .post('/api/auth/providers/email/link')
+            .set(authHeader(user))
+            .send({ email: 'nosmtp@example.com', password: 'password12' });
+
+        expect(link.status).toBe(503);
+        expect(link.body.valid).toBe(false);
+    });
+
+    it('link then confirm then login keeps the same _id', async () => {
         const user = await seedUser({
             role: 'user',
             telegram_id: 111001,
@@ -45,10 +84,26 @@ describe('email auth integration', () => {
             .send({ email: 'same@example.com', password: 'password12' });
 
         expect(link.status).toBe(200);
-        expect(() => AuthSessionResponseSchema.parse(link.body)).not.toThrow();
-        expect(link.body.user._id).toBe(String(user._id));
-        expect(link.body.user.emailLogin).toBe('same@example.com');
-        expect(link.body.user.passwordHash).toBeUndefined();
+        expect(() => EmailLinkResponseSchema.parse(link.body)).not.toThrow();
+        expect(link.body.pendingConfirmation).toBe(true);
+        expect(link.body.user.emailLogin).toBeFalsy();
+        expect(sendMail).toHaveBeenCalledOnce();
+
+        const beforeConfirm = await request(app)
+            .post('/api/auth/providers/email/login')
+            .send({ email: 'same@example.com', password: 'password12' });
+        expect(beforeConfirm.status).toBe(401);
+
+        const confirm = await request(app)
+            .post('/api/auth/providers/email/confirm')
+            .send({ token: lastConfirmToken() });
+
+        expect(confirm.status).toBe(200);
+        expect(() => AuthSessionResponseSchema.parse(confirm.body)).not.toThrow();
+        expect(confirm.body.user._id).toBe(String(user._id));
+        expect(confirm.body.user.emailLogin).toBe('same@example.com');
+        expect(confirm.body.user.passwordHash).toBeUndefined();
+        expect(confirm.body.token).toBeTruthy();
 
         const login = await request(app)
             .post('/api/auth/providers/email/login')
@@ -60,12 +115,65 @@ describe('email auth integration', () => {
         expect(login.body.authProvider).toBe('email');
     });
 
-    it('link returns 409 when email belongs to another user', async () => {
-        await seedUser({
+    it('password change on same email requires currentPassword', async () => {
+        const user = await seedUser({
             role: 'user',
-            emailLogin: 'taken@example.com',
-            first_name: 'Other',
+            telegram_id: 111010,
+            identities: [{ provider: 'telegram', providerUserId: '111010' }],
         });
+
+        await request(app)
+            .post('/api/auth/providers/email/link')
+            .set(authHeader(user))
+            .send({ email: 'chg@example.com', password: 'password12' });
+        await request(app)
+            .post('/api/auth/providers/email/confirm')
+            .send({ token: lastConfirmToken() });
+
+        const missing = await request(app)
+            .post('/api/auth/providers/email/link')
+            .set(authHeader(user))
+            .send({ email: 'chg@example.com', password: 'password99' });
+        expect(missing.status).toBe(400);
+
+        const ok = await request(app)
+            .post('/api/auth/providers/email/link')
+            .set(authHeader(user))
+            .send({
+                email: 'chg@example.com',
+                password: 'password99',
+                currentPassword: 'password12',
+            });
+        expect(ok.status).toBe(200);
+        expect(ok.body.pendingConfirmation).toBe(false);
+
+        const login = await request(app)
+            .post('/api/auth/providers/email/login')
+            .send({ email: 'chg@example.com', password: 'password99' });
+        expect(login.status).toBe(200);
+    });
+
+    it('invalid confirm token returns 400', async () => {
+        const res = await request(app)
+            .post('/api/auth/providers/email/confirm')
+            .send({ token: 'deadbeef'.repeat(8) });
+        expect(res.status).toBe(400);
+    });
+
+    it('link returns 409 when email belongs to another user', async () => {
+        const first = await seedUser({
+            role: 'user',
+            telegram_id: 111020,
+            identities: [{ provider: 'telegram', providerUserId: '111020' }],
+        });
+        await request(app)
+            .post('/api/auth/providers/email/link')
+            .set(authHeader(first))
+            .send({ email: 'taken@example.com', password: 'password12' });
+        await request(app)
+            .post('/api/auth/providers/email/confirm')
+            .send({ token: lastConfirmToken() });
+
         const user = await seedUser({ role: 'user', first_name: 'Me' });
 
         const res = await request(app)
@@ -74,6 +182,7 @@ describe('email auth integration', () => {
             .send({ email: 'taken@example.com', password: 'password12' });
 
         expect(res.status).toBe(409);
+        expect(res.body.message).toBe('Email already in use');
     });
 
     it('admin can set email-login; plain admin cannot set for another admin', async () => {
@@ -86,8 +195,10 @@ describe('email auth integration', () => {
             .set(authHeader(admin))
             .send({ email: 'target@example.com', password: 'password12' });
         expect(ok.status).toBe(200);
-        expect(ok.body.emailLogin).toBe('target@example.com');
+        expect(ok.body.pendingConfirmation).toBe(true);
+        expect(ok.body.emailLogin).toBeFalsy();
         expect(ok.body.passwordHash).toBeUndefined();
+        expect(sendMail).toHaveBeenCalled();
 
         const denied = await request(app)
             .put(`/api/users/${otherAdmin._id}/email-login`)
@@ -102,6 +213,11 @@ describe('email auth integration', () => {
             .post('/api/auth/providers/email/link')
             .set(authHeader(guest))
             .send({ email: 'guest@example.com', password: 'password12' });
+        const guestConfirm = await request(app)
+            .post('/api/auth/providers/email/confirm')
+            .send({ token: lastConfirmToken() });
+        expect(guestConfirm.status).toBe(200);
+        expect(guestConfirm.body.token).toBeNull();
 
         const login = await request(app)
             .post('/api/auth/providers/email/login')
@@ -109,22 +225,9 @@ describe('email auth integration', () => {
         expect(login.status).toBe(200);
         expect(login.body.token).toBeNull();
 
-        const user = await seedUser({ role: 'user', first_name: 'Booker' });
-        await request(app)
-            .post('/api/auth/providers/email/link')
-            .set(authHeader(user))
-            .send({ email: 'booker@example.com', password: 'password12' });
-
-        // guest JWT was signed at link time before role check on login;
-        // book with guest session from link response
-        const guestLink = await request(app)
-            .post('/api/auth/providers/email/link')
-            .set(authHeader(guest))
-            .send({ email: 'guest2@example.com', password: 'password12' });
-
         const book = await request(app)
             .post('/api/book')
-            .set({ Authorization: `Bearer ${guestLink.body.token}` })
+            .set(authHeader(guest))
             .send({
                 date: '01/01/2030',
                 hours: ['12:00'],

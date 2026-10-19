@@ -111,7 +111,8 @@ export const AdminPage: React.FC = () => {
     };
 
     /**
-     * Задаёт почту и временный пароль пользователю (тот же _id).
+     * Задаёт почту и временный пароль; на почту уходит ссылка подтверждения.
+     * При ошибке бросает исключение, чтобы EmailAuthForm не очищал пароль.
      */
     const handleSetEmailLogin = async (
         targetId: string,
@@ -120,26 +121,39 @@ export const AdminPage: React.FC = () => {
         password: string,
     ) => {
         if (!user || !canAssignRole(user.role, targetRole, targetRole)) {
-            alert('Недостаточно прав для изменения этого пользователя');
-            return;
+            const message = 'Недостаточно прав для изменения этого пользователя';
+            alert(message);
+            throw new Error(message);
         }
         setEmailLoginLoading(true);
         try {
             const response = await APISetUserEmailLogin(targetId, email, password);
-            if (response.ok) {
-                const updated = await response.json() as IUser;
-                setUsers((prev) =>
-                    prev.map((u) => (u._id === targetId ? { ...u, ...updated } : u)),
-                );
-                setEmailLoginUserId(null);
-                alert('Почта и пароль сохранены.');
-            } else {
+            if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
-                alert(data.message || 'Не удалось сохранить почту');
+                const message = data.message || 'Не удалось сохранить почту';
+                alert(message);
+                throw new Error(message);
             }
+            const updated = await response.json() as IUser & {
+                pendingConfirmation?: boolean;
+            };
+            setUsers((prev) =>
+                prev.map((u) => (u._id === targetId ? { ...u, ...updated } : u)),
+            );
+            setEmailLoginUserId(null);
+            alert(
+                updated.pendingConfirmation
+                    ? 'На почту отправлена ссылка для подтверждения.'
+                    : 'Почта и пароль сохранены.',
+            );
         } catch (err) {
             console.error(err);
-            alert('Ошибка при сохранении почты');
+            if (err instanceof Error) {
+                throw err;
+            }
+            const message = 'Ошибка при сохранении почты';
+            alert(message);
+            throw new Error(message);
         } finally {
             setEmailLoginLoading(false);
         }
@@ -427,7 +441,7 @@ export const AdminPage: React.FC = () => {
                                             <td colSpan={5}>
                                                 <EmailAuthForm
                                                     compact
-                                                    submitLabel="Сохранить вход"
+                                                    submitLabel="Отправить ссылку на почту"
                                                     defaultEmail={u.emailLogin || ''}
                                                     loading={emailLoginLoading}
                                                     onSubmit={(email, password) =>

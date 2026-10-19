@@ -12,6 +12,7 @@ import {
     applyInviteWithProvider,
     loginWithEmail,
     linkEmailCredentials,
+    confirmEmail,
     parseAuthResponse,
 } from '@/api/auth.api.ts';
 import { buildTelegramAuthPayload } from '@/auth/telegramAuth.ts';
@@ -166,30 +167,62 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
 
     /**
      * Вход по почте и паролю (без Telegram).
+     * Без JWT (гость) вход в браузере недоступен.
      */
     const loginWithEmailPassword = async (email: string, password: string) => {
         const response = await loginWithEmail(email, password);
         const data = await parseAuthResponse(response);
         if (!response.ok || !data.valid || !data.user) {
             throw new Error(
-                (data as { message?: string }).message || 'Неверный email или пароль',
+                data.message || 'Неверный email или пароль',
             );
+        }
+        if (!data.token) {
+            throw new Error('Вход по почте доступен после одобрения');
         }
         applySession({ ...data, authProvider: 'email' });
     };
 
     /**
      * Привязка почты и пароля к текущему пользователю.
+     * При смене адреса сессия не обновляется до клика по ссылке в письме.
      */
-    const linkEmailPassword = async (email: string, password: string) => {
-        const response = await linkEmailCredentials(email, password);
+    const linkEmailPassword = async (
+        email: string,
+        password: string,
+        currentPassword?: string,
+    ) => {
+        const response = await linkEmailCredentials(email, password, currentPassword);
+        const data = await parseAuthResponse(response);
+        if (!response.ok || !data.valid) {
+            throw new Error(
+                data.message || 'Не удалось привязать почту',
+            );
+        }
+        if (data.pendingConfirmation) {
+            return { pendingConfirmation: true };
+        }
+        if (data.user) {
+            applySession({ ...data, authProvider: data.authProvider ?? 'email' });
+        }
+        return { pendingConfirmation: false };
+    };
+
+    /**
+     * Подтверждает почту по токену из письма и применяет сессию.
+     */
+    const confirmEmailToken = async (token: string) => {
+        const response = await confirmEmail(token);
         const data = await parseAuthResponse(response);
         if (!response.ok || !data.valid || !data.user) {
             throw new Error(
-                (data as { message?: string }).message || 'Не удалось привязать почту',
+                data.message || 'Не удалось подтвердить почту',
             );
         }
-        applySession({ ...data, authProvider: data.authProvider ?? 'email' });
+        if (!data.token) {
+            throw new Error('Вход по почте доступен после одобрения');
+        }
+        applySession({ ...data, authProvider: 'email' });
     };
 
     const capabilities = useMemo(
@@ -217,6 +250,7 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
                 registerWithInvite,
                 loginWithEmailPassword,
                 linkEmailPassword,
+                confirmEmailToken,
             }}
         >
             {children}

@@ -24,8 +24,17 @@ export interface IAuthContext {
     registerWithInvite: (code: string, webProfile?: IWebInviteProfile) => Promise<void>;
     /** Вход по почте и паролю (браузер). */
     loginWithEmailPassword: (email: string, password: string) => Promise<void>;
-    /** Привязка почты к текущей сессии. */
-    linkEmailPassword: (email: string, password: string) => Promise<void>;
+    /**
+     * Привязка почты к текущей сессии.
+     * @returns pendingConfirmation — нужно подтвердить ссылку из письма
+     */
+    linkEmailPassword: (
+        email: string,
+        password: string,
+        currentPassword?: string,
+    ) => Promise<{ pendingConfirmation: boolean }>;
+    /** Подтверждение почты по токену из письма. */
+    confirmEmailToken: (token: string) => Promise<void>;
 }
 
 export const initialAuthCapabilities = buildAuthCapabilities(null, false);
@@ -45,7 +54,8 @@ export const initialAuthState: IAuthContext = {
     register: async () => {},
     registerWithInvite: async () => {},
     loginWithEmailPassword: async () => {},
-    linkEmailPassword: async () => {},
+    linkEmailPassword: async () => ({ pendingConfirmation: false }),
+    confirmEmailToken: async () => {},
 };
 
 export const AuthContext = createContext<IAuthContext>(initialAuthState);

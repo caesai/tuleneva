@@ -62,6 +62,25 @@ const userSchema = new mongoose.Schema(
             type: String,
             select: false,
         },
+        /** Почта, ожидающая подтверждения по ссылке из письма. */
+        pendingEmail: {
+            type: String,
+            lowercase: true,
+            trim: true,
+            select: false,
+        },
+        pendingPasswordHash: {
+            type: String,
+            select: false,
+        },
+        emailConfirmTokenHash: {
+            type: String,
+            select: false,
+        },
+        emailConfirmExpires: {
+            type: Date,
+            select: false,
+        },
     },
     {
         timestamps: true,

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const InviteCode = require('../models/InviteCode');
 const { INVITE_CODE_TTL_SECONDS } = require('../models/InviteCode');
 const { parseTelegramUser } = require('./telegramProvider');
+const User = require('../models/User');
 const {
     findUserByTelegramId,
     upsertTelegramUser,
@@ -12,12 +13,32 @@ const {
 const { signAuthToken, buildAuthResponse } = require('./tokenService');
 const { isAdminLike } = require('./roleHelpers');
 const { findValidInvite, consumeInvite } = require('./inviteService');
-const { parseWebProfile, upsertWebUser } = require('./webProvider');
+const { parseWebProfile, findWebUser, upsertWebUser } = require('./webProvider');
 const {
     linkEmailCredentials,
+    confirmEmailToken,
     authenticateEmailPassword,
+    mapDuplicateEmailError,
 } = require('./emailProvider');
 const { safeNotify } = require('../notifications/telegramNotify');
+
+/**
+ * Статус HTTP для ошибок email-провайдера.
+ * @param {Error} err
+ * @returns {number}
+ */
+const emailErrorStatus = (err) => {
+    if (err?.status) return err.status;
+    if (
+        err?.message?.includes('Invalid')
+        || err?.message?.includes('Password')
+        || err?.message?.includes('Current password')
+        || err?.message?.includes('confirmation token')
+    ) {
+        return 400;
+    }
+    return 500;
+};
 
 /**
  * Регистрирует маршруты /api/auth/*.
@@ -29,6 +50,7 @@ const { safeNotify } = require('../notifications/telegramNotify');
  * @param {Function} options.authenticateToken
  * @param {Function} options.verifyUserExists
  * @param {Function} options.notifyAdmins
+ * @param {Function|null} [options.sendMail]
  */
 const createAuthRouter = ({
     jwtSecret,
@@ -38,6 +60,7 @@ const createAuthRouter = ({
     authenticateToken,
     verifyUserExists,
     notifyAdmins,
+    sendMail = null,
 }) => {
     const router = express.Router();
 
@@ -133,6 +156,7 @@ const createAuthRouter = ({
             }
 
             let user;
+            let isNewUser = false;
 
             if (provider === 'telegram') {
                 if (!telegram?.user) {
@@ -146,12 +170,17 @@ const createAuthRouter = ({
                     user = await upsertTelegramUser(tg.user, {
                         role: inviteCode.initialRole || 'guest',
                     });
+                    isNewUser = true;
                 }
             } else if (provider === 'web') {
                 const profile = parseWebProfile(web);
-                user = await upsertWebUser(profile, {
-                    role: inviteCode.initialRole || 'guest',
-                });
+                user = await findWebUser(profile);
+                if (!user) {
+                    user = await upsertWebUser(profile, {
+                        role: inviteCode.initialRole || 'guest',
+                    });
+                    isNewUser = true;
+                }
             } else {
                 return res.status(400).json({
                     valid: false,
@@ -161,14 +190,19 @@ const createAuthRouter = ({
 
             const consumed = await consumeInvite(code, user._id);
             if (!consumed) {
+                if (isNewUser) {
+                    await User.deleteOne({ _id: user._id });
+                }
                 return res.status(400).json({ valid: false, message: 'Invalid or expired invite code.' });
             }
 
             const token = signAuthToken(user, jwtSecret);
             res.status(201).json(buildAuthResponse(user, token, provider));
 
-            const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ (инвайт).`;
-            safeNotify(notifyAdmins(inviteNotifyMessage));
+            if (isNewUser) {
+                const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ (инвайт).`;
+                safeNotify(notifyAdmins(inviteNotifyMessage));
+            }
         } catch (err) {
             console.error('Invite use error:', err);
             const status = err.message?.includes('required') ? 400 : 500;
@@ -241,7 +275,7 @@ const createAuthRouter = ({
 
     /**
      * @route POST /api/auth/providers/email/link
-     * @description Привязывает почту и пароль к текущему пользователю (JWT).
+     * @description Запрашивает привязку почты (письмо с подтверждением) или сразу меняет пароль на той же почте.
      */
     router.post(
         '/providers/email/link',
@@ -249,23 +283,70 @@ const createAuthRouter = ({
         verifyUserExists,
         async (req, res) => {
             noCache(res);
-            const { email, password } = req.body || {};
+            const { email, password, currentPassword } = req.body || {};
             try {
-                const user = await linkEmailCredentials(req.dbUser, email, password);
-                const token = signAuthToken(user, jwtSecret);
-                res.status(200).json(buildAuthResponse(user, token, 'email'));
+                const { user, pendingConfirmation } = await linkEmailCredentials(
+                    req.dbUser,
+                    email,
+                    password,
+                    {
+                        currentPassword,
+                        webAppBaseUrl,
+                        sendMail,
+                    },
+                );
+                if (pendingConfirmation) {
+                    return res.status(200).json({
+                        valid: true,
+                        pendingConfirmation: true,
+                        message: 'Confirmation email sent',
+                        user: buildAuthResponse(user, null, 'email').user,
+                    });
+                }
+                const token =
+                    user.role === 'guest' ? null : signAuthToken(user, jwtSecret);
+                res.status(200).json({
+                    ...buildAuthResponse(user, token, 'email'),
+                    pendingConfirmation: false,
+                });
             } catch (err) {
-                console.error('Email link error:', err);
-                const status = err.status || (err.message?.includes('Invalid') || err.message?.includes('Password')
-                    ? 400
-                    : 500);
+                const mapped = mapDuplicateEmailError(err);
+                console.error('Email link error:', mapped);
+                const status = emailErrorStatus(mapped);
                 res.status(status).json({
                     valid: false,
-                    message: err.message || 'Failed to link email',
+                    message: status === 409
+                        ? 'Email already in use'
+                        : (status < 500 ? mapped.message : 'Failed to link email'),
                 });
             }
         },
     );
+
+    /**
+     * @route POST /api/auth/providers/email/confirm
+     * @description Подтверждает почту по одноразовому токену из письма.
+     */
+    router.post('/providers/email/confirm', async (req, res) => {
+        noCache(res);
+        const { token } = req.body || {};
+        try {
+            const user = await confirmEmailToken(token);
+            const authToken =
+                user.role === 'guest' ? null : signAuthToken(user, jwtSecret);
+            res.status(200).json(buildAuthResponse(user, authToken, 'email'));
+        } catch (err) {
+            const mapped = mapDuplicateEmailError(err);
+            console.error('Email confirm error:', mapped);
+            const status = emailErrorStatus(mapped);
+            res.status(status).json({
+                valid: false,
+                message: status === 409
+                    ? 'Email already in use'
+                    : (status < 500 ? mapped.message : 'Failed to confirm email'),
+            });
+        }
+    });
 
     /**
      * @route POST /api/auth/providers/email/login
@@ -290,7 +371,7 @@ const createAuthRouter = ({
             const status = err.status || 500;
             res.status(status).json({
                 valid: false,
-                message: err.message || 'Login failed',
+                message: status < 500 ? err.message : 'Login failed',
             });
         }
     });

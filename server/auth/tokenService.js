@@ -10,6 +10,10 @@
 const toPublicUser = (user) => {
     const userObj = user.toObject ? user.toObject() : { ...user };
     delete userObj.passwordHash;
+    delete userObj.pendingEmail;
+    delete userObj.pendingPasswordHash;
+    delete userObj.emailConfirmTokenHash;
+    delete userObj.emailConfirmExpires;
     return userObj;
 };
 

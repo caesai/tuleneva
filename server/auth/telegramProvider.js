@@ -3,6 +3,9 @@ const crypto = require('crypto');
 /** Максимальный возраст Telegram init data (секунды). */
 const INIT_DATA_MAX_AGE_SECONDS = 24 * 60 * 60;
 
+/** Допустимый рассинхрон часов: auth_date чуть в будущем (секунды). */
+const INIT_DATA_CLOCK_SKEW_SECONDS = 60;
+
 /**
  * Парсит строку запроса init data Telegram.
  * @param {string} queryString
@@ -79,7 +82,7 @@ const assertFreshAuthDate = (tg) => {
         throw new Error('Invalid Telegram auth_date');
     }
     const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
-    if (ageSeconds < 0 || ageSeconds > INIT_DATA_MAX_AGE_SECONDS) {
+    if (ageSeconds < -INIT_DATA_CLOCK_SKEW_SECONDS || ageSeconds > INIT_DATA_MAX_AGE_SECONDS) {
         throw new Error('Telegram init data expired');
     }
 };
@@ -111,4 +114,5 @@ module.exports = {
     parseTelegramUser,
     assertFreshAuthDate,
     INIT_DATA_MAX_AGE_SECONDS,
+    INIT_DATA_CLOCK_SKEW_SECONDS,
 };

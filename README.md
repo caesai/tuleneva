@@ -54,6 +54,12 @@ PORT=3000
 # TELEGRAM_NOTIFY_TIMEOUT_MS=8000
 # Опционально: прокси / local Bot API при блокировке api.telegram.org
 # TELEGRAM_API_ROOT=https://api.telegram.org
+# SMTP для подтверждения почты (без SMTP_HOST привязка почты отвечает 503)
+# SMTP_HOST=smtp.example.com
+# SMTP_PORT=587
+# SMTP_USER=...
+# SMTP_PASS=...
+# MAIL_FROM=noreply@tuleneva25.ru
 ```
 
 Деплой на новый VPS (Nginx, systemd, первый `super_admin`, бэкапы, восстановление дампа): [docs/VPS.md](docs/VPS.md).
@@ -97,8 +103,9 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 | GET | `/api/auth/session` | Сессия по JWT |
 | POST | `/api/auth/providers/telegram/login` | Вход Telegram |
 | POST | `/api/auth/providers/telegram/register` | Запрос доступа |
-| POST | `/api/auth/providers/email/login` | Вход по почте и паролю (браузер) |
-| POST | `/api/auth/providers/email/link` | Привязка почты к текущей сессии (JWT) |
+| POST | `/api/auth/providers/email/login` | Вход по почте и паролю (браузер, только подтверждённая почта) |
+| POST | `/api/auth/providers/email/link` | Привязка почты (JWT); письмо со ссылкой; `currentPassword` при смене |
+| POST | `/api/auth/providers/email/confirm` | Подтверждение почты по токену из письма |
 | POST | `/api/auth/invite/use` | Регистрация по инвайту (`provider`, `telegram?`, `web?`) |
 | POST | `/api/auth/invite/generate` | Админ: код и ссылки |
 | GET | `/api/auth/invite/validate/:code` | Проверка кода |
@@ -109,7 +116,7 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 |--------|------|------------|
 | GET | `/api/users` | Список пользователей (JWT) |
 | PUT | `/api/users/:id/role` | Смена роли (admin+) |
-| PUT | `/api/users/:id/email-login` | Админ: почта и пароль на существующего пользователя |
+| PUT | `/api/users/:id/email-login` | Админ: почта и пароль (письмо с подтверждением) |
 | DELETE | `/api/users/:id` | Удаление (admin+) |
 | GET | `/api/timetable?date=DD/MM/YYYY` | Занятые даты месяца |
 | GET | `/api/hours?date=DD/MM/YYYY` | Слоты на день (PII только с JWT участника, `role !== guest`) |

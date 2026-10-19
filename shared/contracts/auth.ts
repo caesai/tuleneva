@@ -25,6 +25,23 @@ export const UserSchema = z.object({
 export const EmailCredentialsRequestSchema = z.object({
     email: z.string().email(),
     password: z.string().min(8),
+    /** Обязателен при смене, если пароль уже задан. */
+    currentPassword: z.string().min(8).optional(),
+});
+
+/** Подтверждение почты по токену из письма. */
+export const EmailConfirmRequestSchema = z.object({
+    token: z.string().min(1),
+});
+
+/** Ответ link: либо pendingConfirmation, либо обычная сессия. */
+export const EmailLinkResponseSchema = z.object({
+    valid: z.boolean(),
+    pendingConfirmation: z.boolean().optional(),
+    message: z.string().optional(),
+    token: z.string().nullable().optional(),
+    authProvider: z.enum(['telegram', 'web', 'email', 'phone']).nullable().optional(),
+    user: UserSchema.optional(),
 });
 
 export const AuthSessionResponseSchema = z.object({

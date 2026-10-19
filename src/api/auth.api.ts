@@ -76,18 +76,36 @@ export const loginWithEmail = async (
 };
 
 /**
- * Привязка почты и пароля к текущей JWT-сессии.
+ * Привязка почты и пароля к текущей JWT-сессии (письмо с подтверждением).
  * @param email - Адрес почты
  * @param password - Пароль (мин. 8 символов)
+ * @param currentPassword - Текущий пароль, если уже задан
  */
 export const linkEmailCredentials = async (
     email: string,
     password: string,
+    currentPassword?: string,
 ): Promise<Response> => {
     return fetch(`${AUTH_BASE}/providers/email/link`, {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+            email,
+            password,
+            ...(currentPassword ? { currentPassword } : {}),
+        }),
         headers: getAuthHeaders(),
+    });
+};
+
+/**
+ * Подтверждение почты по токену из письма.
+ * @param token - Одноразовый токен из query emailConfirm
+ */
+export const confirmEmail = async (token: string): Promise<Response> => {
+    return fetch(`${AUTH_BASE}/providers/email/confirm`, {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+        headers: jsonHeaders,
     });
 };
 
