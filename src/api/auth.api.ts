@@ -109,6 +109,34 @@ export const confirmEmail = async (token: string): Promise<Response> => {
     });
 };
 
+/**
+ * Запрос письма со сбросом пароля (ответ всегда «ok»).
+ * @param email - Адрес почты
+ */
+export const requestPasswordResetEmail = async (email: string): Promise<Response> => {
+    return fetch(`${AUTH_BASE}/providers/email/forgot`, {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+        headers: jsonHeaders,
+    });
+};
+
+/**
+ * Установка нового пароля по токену из письма.
+ * @param token - Токен из query passwordReset
+ * @param password - Новый пароль
+ */
+export const resetPasswordWithToken = async (
+    token: string,
+    password: string,
+): Promise<Response> => {
+    return fetch(`${AUTH_BASE}/providers/email/reset`, {
+        method: 'POST',
+        body: JSON.stringify({ token, password }),
+        headers: jsonHeaders,
+    });
+};
+
 export const parseAuthResponse = async (
     response: Response,
 ): Promise<IAuthSessionResponse> => {

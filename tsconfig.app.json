@@ -27,7 +27,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"],
+  "include": ["src", "shared/studioHours.cjs", "shared/studioHours.d.cts"],
   "exclude": [
     "src/**/*.test.ts",
     "src/**/*.test.tsx",

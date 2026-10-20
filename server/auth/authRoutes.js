@@ -21,6 +21,8 @@ const {
     linkEmailCredentials,
     confirmEmailToken,
     authenticateEmailPassword,
+    requestPasswordReset,
+    resetPasswordWithToken,
     mapDuplicateEmailError,
 } = require('./emailProvider');
 const { safeNotify } = require('../notifications/telegramNotify');
@@ -37,6 +39,7 @@ const emailErrorStatus = (err) => {
         || err?.message?.includes('Password')
         || err?.message?.includes('Current password')
         || err?.message?.includes('confirmation token')
+        || err?.message?.includes('reset token')
     ) {
         return 400;
     }
@@ -422,6 +425,53 @@ const createAuthRouter = ({
             res.status(status).json({
                 valid: false,
                 message: status < 500 ? err.message : 'Login failed',
+            });
+        }
+    });
+
+    /**
+     * @route POST /api/auth/providers/email/forgot
+     * @description Запрос сброса пароля. Ответ всегда 200 (без enumeration).
+     */
+    router.post('/providers/email/forgot', async (req, res) => {
+        noCache(res);
+        const { email } = req.body || {};
+        try {
+            await requestPasswordReset(email, {
+                webAppBaseUrl,
+                sendMail,
+            });
+            res.status(200).json({
+                valid: true,
+                message: 'If the email is registered, a reset link was sent',
+            });
+        } catch (err) {
+            console.error('Email forgot error:', err);
+            res.status(200).json({
+                valid: true,
+                message: 'If the email is registered, a reset link was sent',
+            });
+        }
+    });
+
+    /**
+     * @route POST /api/auth/providers/email/reset
+     * @description Установка нового пароля по токену из письма.
+     */
+    router.post('/providers/email/reset', async (req, res) => {
+        noCache(res);
+        const { token, password } = req.body || {};
+        try {
+            const user = await resetPasswordWithToken(token, password);
+            const authToken =
+                user.role === 'guest' ? null : signAuthToken(user, jwtSecret);
+            res.status(200).json(buildAuthResponse(user, authToken, 'email'));
+        } catch (err) {
+            console.error('Email reset error:', err);
+            const status = emailErrorStatus(err);
+            res.status(status).json({
+                valid: false,
+                message: status < 500 ? err.message : 'Failed to reset password',
             });
         }
     });

@@ -146,10 +146,13 @@ WEB_APP_BASE_URL=https://tuleneva25.ru
 # ПАРОЛЬ_ПРИЛОЖЕНИЯ — тот, что задали в §1 при db.createUser для user "tuleneva"
 MONGO_URI=mongodb://tuleneva:ПАРОЛЬ_ПРИЛОЖЕНИЯ@127.0.0.1:27017/test?authSource=admin
 PORT=3000
-# Если api.telegram.org с этой машины недоступен — прокси или local Bot API:
-# TELEGRAM_API_ROOT=https://ваш-прокси
+# Если curl к api.telegram.org с VPS даёт exit 28 — Cloudflare Worker
+# (скрипт deploy/cloudflare-telegram-proxy.js) и webhook:
+# TELEGRAM_API_ROOT=https://<имя>.workers.dev/<длинный-PREFIX>
+# TELEGRAM_WEBHOOK_SECRET=openssl_rand_hex_32
+# STUDIO_CHAT_ID=           # заполнить после /chatid в чате студии
 # TELEGRAM_NOTIFY_TIMEOUT_MS=8000
-# SMTP для писем подтверждения почты
+# SMTP для писем подтверждения почты и сброса пароля
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USER=...
@@ -263,19 +266,39 @@ sudo mkdir -p /var/backups/tuleneva /etc/tuleneva
 4. Когда все нужные люди прошли — «Закрыть ссылку». Новые регистрации по ней прекращаются. Сама ссылка погаснет через 7 дней, даже если забыть закрыть.
 5. Почту каждый привязывает сам после входа или вы задаёте её в админке.
 
-## 10. Проверка
+## 10. Telegram: Worker + webhook (когда api.telegram.org таймаутится)
 
-- `curl -s https://tuleneva25.ru/api/` — ответ API (через Nginx) или `curl -s http://127.0.0.1:3000/` на самом VPS.
+Проверка с VPS:
+
+```bash
+curl -I --max-time 10 https://api.telegram.org; echo "exit:$?"
+# exit:28 → исходящий Bot API с этой машины не работает
+```
+
+1. Cloudflare Dashboard → Workers → Create → вставить [deploy/cloudflare-telegram-proxy.js](../deploy/cloudflare-telegram-proxy.js).
+2. Заменить `PREFIX` на длинный секрет (`openssl rand -hex 24`).
+3. Deploy → скопировать URL вида `https://tuleneva-tg.workers.dev`.
+4. В `/etc/tuleneva/api.env`:
+   ```env
+   TELEGRAM_API_ROOT=https://tuleneva-tg.workers.dev/<PREFIX>
+   TELEGRAM_WEBHOOK_SECRET=<другая_случайная_строка>
+   ```
+5. `sudo systemctl restart tuleneva-api`. В логе: `Telegram webhook set: https://tuleneva25.ru/api/telegram/webhook`.
+6. Добавьте бота в чат студии, напишите `/chatid` (нужен admin в БД), пропишите `STUDIO_CHAT_ID=...`, снова restart.
+7. Проверьте `/today` в чате и бронь в мини-приложении (уведомление админу и в чат).
+
+Без `TELEGRAM_WEBHOOK_SECRET` процесс пытается long polling — на VPS с блокировкой Telegram это бесполезно, API при этом остаётся живым.
+
+## 11. Проверка
+
+- `curl -s http://127.0.0.1:3000/api/health` — `{"ok":true,"mongo":"connected"}` (CD смотрит этот URL).
 - `readlink /var/www/tuleneva/current` — указывает на `releases/<sha>`.
 - Мини-приложение: вход Telegram, запрос доступа, бронь.
-- Браузер: `/app` → «Войти по почте» → модалка с тем же аккаунтом (после подтверждения ссылки из письма).
-- SMTP задан: привязка почты в мини-приложении или админке шлёт письмо со ссылкой `/app?emailConfirm=...`.
-- Если уведомления бота молчат или в `journalctl -u tuleneva-api` есть `ETIMEDOUT` / `FetchError` к `api.telegram.org` — с этой машины Telegram недоступен. Задайте в `/etc/tuleneva/api.env` прокси или local Bot API:
-  `TELEGRAM_API_ROOT=https://ваш-прокси` (без суффикса `/bot`), затем `sudo systemctl restart tuleneva-api`.
-  Проверка: `curl -sI --max-time 10 https://api.telegram.org` (таймаут = нужен прокси).
+- Браузер: `/app` → «Войти по почте» → модалка; «Забыли пароль?» → письмо `/app?passwordReset=...`.
+- SMTP задан: привязка почты шлёт `/app?emailConfirm=...`; после web-инвайта предлагается привязать почту.
 - `systemctl status tuleneva-api` — один процесс; второй инстанс не поднят.
 
-## 11. Обновление (CD)
+## 12. Обновление (CD)
 
 На push в `main` / `master` после зелёных тестов GitHub Actions:
 
@@ -285,7 +308,7 @@ sudo mkdir -p /var/backups/tuleneva /etc/tuleneva
 
 Ручной `git pull` + `npm run build` на сервере **не** используется.
 
-## 12. Секреты GitHub Actions
+## 13. Секреты GitHub Actions
 
 В настройках репозитория → Secrets and variables → Actions добавьте:
 

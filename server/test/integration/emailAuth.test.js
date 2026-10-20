@@ -279,4 +279,54 @@ describe('email auth integration', () => {
         expect(ok.status).toBe(200);
         expect(ok.body).toHaveProperty('migrated');
     });
+
+    it('forgot always 200; reset changes password', async () => {
+        const user = await seedUser({
+            role: 'user',
+            telegram_id: 111030,
+            identities: [{ provider: 'telegram', providerUserId: '111030' }],
+        });
+
+        await request(app)
+            .post('/api/auth/providers/email/link')
+            .set(authHeader(user))
+            .send({ email: 'resetme@example.com', password: 'password12' });
+        await request(app)
+            .post('/api/auth/providers/email/confirm')
+            .send({ token: lastConfirmToken() });
+
+        const unknown = await request(app)
+            .post('/api/auth/providers/email/forgot')
+            .send({ email: 'nobody@example.com' });
+        expect(unknown.status).toBe(200);
+        expect(unknown.body.valid).toBe(true);
+
+        const forgot = await request(app)
+            .post('/api/auth/providers/email/forgot')
+            .send({ email: 'resetme@example.com' });
+        expect(forgot.status).toBe(200);
+
+        const resetMail = sentMails[sentMails.length - 1];
+        const resetMatch = String(resetMail?.text || '').match(/passwordReset=([a-f0-9]+)/i);
+        expect(resetMatch).toBeTruthy();
+        const resetToken = resetMatch[1];
+
+        const reset = await request(app)
+            .post('/api/auth/providers/email/reset')
+            .send({ token: resetToken, password: 'newpassword99' });
+        expect(reset.status).toBe(200);
+        expect(reset.body.token).toBeTruthy();
+        AuthSessionResponseSchema.parse(reset.body);
+
+        const oldLogin = await request(app)
+            .post('/api/auth/providers/email/login')
+            .send({ email: 'resetme@example.com', password: 'password12' });
+        expect(oldLogin.status).toBe(401);
+
+        const newLogin = await request(app)
+            .post('/api/auth/providers/email/login')
+            .send({ email: 'resetme@example.com', password: 'newpassword99' });
+        expect(newLogin.status).toBe(200);
+        expect(newLogin.body.token).toBeTruthy();
+    });
 });

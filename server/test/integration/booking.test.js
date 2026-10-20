@@ -66,7 +66,7 @@ describe('booking integration', () => {
             .set(authHeader(user))
             .send({
                 date: '17/06/2030',
-                hours: ['11:00'],
+                hours: ['12:00'],
                 rehearsalType: 'rehearsal',
             });
         expect(res.status).toBe(201);
@@ -81,10 +81,38 @@ describe('booking integration', () => {
             .set(authHeader(user))
             .send({
                 date: '16/06/2030',
-                hours: ['10:00', '10:00'],
+                hours: ['14:00', '14:00'],
                 band_name: 'Band',
                 rehearsalType: 'rehearsal',
             });
         expect(res.status).toBe(400);
+    });
+
+    it('rejects hours outside studio schedule', async () => {
+        const user = await seedUser({ role: 'user' });
+        const res = await request(app)
+            .post('/api/book')
+            .set(authHeader(user))
+            .send({
+                date: '16/06/2030',
+                hours: ['09:00'],
+                rehearsalType: 'rehearsal',
+            });
+        expect(res.status).toBe(400);
+        expect(res.body.invalidHours).toEqual(['09:00']);
+    });
+
+    it('rejects past time slots', async () => {
+        const user = await seedUser({ role: 'user' });
+        const res = await request(app)
+            .post('/api/book')
+            .set(authHeader(user))
+            .send({
+                date: '01/01/2020',
+                hours: ['14:00'],
+                rehearsalType: 'rehearsal',
+            });
+        expect(res.status).toBe(400);
+        expect(res.body.pastHours).toEqual(['14:00']);
     });
 });

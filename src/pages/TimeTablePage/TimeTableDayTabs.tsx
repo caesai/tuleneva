@@ -23,7 +23,8 @@ export interface ITimeTableDayTabsProps {
     currentUserId: string;
     isAdmin: boolean;
     isSelectedDayBeforeToday: boolean;
-    isToday: boolean;
+    /** Дата выбранного дня DD/MM/YYYY */
+    selectedDateDdMmYyyy: string;
     onScheduleModeChange: (_event: React.SyntheticEvent, value: string) => void;
     onHourClick: (hour: string) => void;
 }
@@ -44,7 +45,7 @@ export const TimeTableDayTabs: React.FC<ITimeTableDayTabsProps> = ({
     currentUserId,
     isAdmin,
     isSelectedDayBeforeToday,
-    isToday,
+    selectedDateDdMmYyyy,
     onScheduleModeChange,
     onHourClick,
 }) => (
@@ -77,7 +78,7 @@ export const TimeTableDayTabs: React.FC<ITimeTableDayTabsProps> = ({
                         currentUserId={currentUserId}
                         isAdmin={isAdmin}
                         isSelectedDayBeforeToday={isSelectedDayBeforeToday}
-                        isToday={isToday}
+                        selectedDateDdMmYyyy={selectedDateDdMmYyyy}
                     />
                 </TabPanel>
             )}
