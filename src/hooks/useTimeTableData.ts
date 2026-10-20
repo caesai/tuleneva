@@ -77,6 +77,10 @@ export const useTimeTableData = (
         
         if (type === 'booking_update' || type === 'booking_cancel') {
             const wsDate = data.date; // формат DD/MM/YYYY
+            const hours = data.hours ?? [];
+            if (!wsDate) {
+                return;
+            }
             const currentSelectedDate = selectedDateRef.current;
             
             // WS отдаёт только публичные поля; участники подтягивают полный ответ через API
@@ -85,7 +89,7 @@ export const useTimeTableData = (
                 if (canViewUserDetailsRef.current && selectedDateMomentRef.current) {
                     void fetchBookedHoursRef.current(selectedDateMomentRef.current);
                 } else {
-                    setBookedHours(data.hours);
+                    setBookedHours(hours);
                 }
             }
             
@@ -102,7 +106,7 @@ export const useTimeTableData = (
                 
                 if (updateMonth === currentMonth && updateYear === currentYear) {
                     setHighlightedDates(prev => {
-                        if (data.hours.length > 0) {
+                        if (hours.length > 0) {
                             // Добавляем день, если его нет
                             if (!prev.includes(updateDay)) {
                                 console.log('WebSocket: Adding day to highlighted', updateDay);

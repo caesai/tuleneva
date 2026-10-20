@@ -31,6 +31,15 @@ vi.mock('@/hooks/useAuth.ts', () => ({
     }),
 }));
 
+vi.mock('@/hooks/useWebSocket.ts', () => ({
+    useWebSocket: () => ({
+        isConnected: false,
+        lastMessage: null,
+        reconnect: vi.fn(),
+        disconnect: vi.fn(),
+    }),
+}));
+
 vi.mock('@/api/user.api.ts', () => ({
     APIGetUsers: vi.fn().mockResolvedValue({
         ok: true,

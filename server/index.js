@@ -79,8 +79,16 @@ bot.launch().catch((err) => {
         err && err.message ? err.message : err,
     );
 });
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+const stopBotSafely = (signal) => {
+    try {
+        bot.stop(signal);
+    } catch (err) {
+        // bot.launch не успел / упал — stop кидает "Bot is not running!"
+        console.warn('Telegram bot.stop skipped:', err && err.message ? err.message : err);
+    }
+};
+process.once('SIGINT', () => stopBotSafely('SIGINT'));
+process.once('SIGTERM', () => stopBotSafely('SIGTERM'));
 
 /**
  * Уведомляет админов через Telegram (параллельно, с таймаутом).

@@ -21,6 +21,7 @@ import {
     getAssignableRoles,
     isAdminLike,
 } from '@/utils/rolePermissions.ts';
+import { useWebSocket, type WebSocketMessage } from '@/hooks/useWebSocket.ts';
 
 const ROLE_LABELS: Record<TRole, string> = {
     guest: 'Гость',
@@ -70,21 +71,33 @@ export const AdminPage: React.FC = () => {
      * было безопасно использовать в зависимостях `useEffect`.
      * @returns {Promise<void>}
      */
-    const fetchUsers = useCallback(async () => {
-        setLoading(true);
+    /**
+     * @description Загружает список пользователей.
+     * @param [options.silent] - Без полноэкранного лоадера (WebSocket-обновление).
+     * @returns {Promise<void>}
+     */
+    const fetchUsers = useCallback(async (options: { silent?: boolean } = {}) => {
+        if (!options.silent) {
+            setLoading(true);
+        }
         try {
             const response = await APIGetUsers();
             if (response.ok) {
                 const data = await response.json();
                 setUsers(data);
-            } else {
+                setError(null);
+            } else if (!options.silent) {
                 setError('Failed to fetch users');
             }
         } catch (err) {
-            setError('An error occurred');
+            if (!options.silent) {
+                setError('An error occurred');
+            }
             console.error(err);
         } finally {
-            setLoading(false);
+            if (!options.silent) {
+                setLoading(false);
+            }
         }
     }, []);
 
@@ -94,6 +107,28 @@ export const AdminPage: React.FC = () => {
         }
         fetchUsers();
     }, [userId, userRole, fetchUsers]);
+
+    /**
+     * При регистрации/инвайте/смене роли без Telegram-уведомлений
+     * админка обновляет список по WebSocket `users_update`.
+     */
+    const handleUsersSocketMessage = useCallback(
+        (message: WebSocketMessage) => {
+            if (message.type !== 'users_update') {
+                return;
+            }
+            if (!userRole || !isAdminLike(userRole)) {
+                return;
+            }
+            void fetchUsers({ silent: true });
+        },
+        [fetchUsers, userRole],
+    );
+
+    useWebSocket({
+        onMessage: handleUsersSocketMessage,
+        autoReconnect: true,
+    });
 
     const handleRoleChange = async (userId: string, newRole: TRole, targetRole: TRole) => {
         if (!user || !canAssignRole(user.role, targetRole, newRole)) {

@@ -6,7 +6,7 @@ import type { IHour } from '@/types/timetable.types';
 /**
  * Типы событий WebSocket
  */
-export type WebSocketEventType = 'booking_update' | 'booking_cancel';
+export type WebSocketEventType = 'booking_update' | 'booking_cancel' | 'users_update';
 
 /**
  * Интерфейс сообщения WebSocket
@@ -14,8 +14,12 @@ export type WebSocketEventType = 'booking_update' | 'booking_cancel';
 export interface WebSocketMessage {
     type: WebSocketEventType;
     data: {
-        date: string;
-        hours: IHour[];
+        /** Дата слота (booking_*) */
+        date?: string;
+        /** Часы слота (booking_*) */
+        hours?: IHour[];
+        /** Причина users_update (register, invite, role_change, …) */
+        reason?: string;
     };
     timestamp: number;
 }
