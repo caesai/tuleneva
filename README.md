@@ -53,9 +53,11 @@ PORT=3000
 # Опционально: таймаут одного Telegram-сообщения (мс), по умолчанию 8000
 # TELEGRAM_NOTIFY_TIMEOUT_MS=8000
 # Если api.telegram.org с VPS недоступен — Cloudflare Worker (см. docs/VPS.md):
-# TELEGRAM_API_ROOT=https://<worker>.workers.dev/<секретный-префикс>
+# TELEGRAM_API_ROOT=https://<worker>.workers.dev/<секретный-префикс>/
 # Webhook вместо long polling (нужен на VPS без исходящего доступа к Telegram):
 # TELEGRAM_WEBHOOK_SECRET=длинная_случайная_строка
+# Если Telegram не достучится до VPS (getWebhookInfo: Connection timed out):
+# TELEGRAM_WEBHOOK_URL=https://<worker>.workers.dev/<префикс>/hook
 # Чат студии для команд /today и оповещений о бронях (бот: /chatid):
 # STUDIO_CHAT_ID=-100...
 # SMTP для подтверждения почты и сброса пароля (без SMTP_HOST привязка отвечает 503)

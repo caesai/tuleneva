@@ -29,10 +29,32 @@ const port = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
 const JWT_SECRET = process.env.JWT_SECRET;
 const WEB_APP_BASE_URL = process.env.WEB_APP_BASE_URL || 'https://tuleneva25.ru';
-const TELEGRAM_API_ROOT = process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org';
+/**
+ * Корень Bot API. Обязателен завершающий `/`: Telegraf делает
+ * `new URL('./bot…/method', apiRoot)` — без слэша последний сегмент пути
+ * (секретный PREFIX воркера) выкидывается.
+ */
+const TELEGRAM_API_ROOT = (() => {
+    const raw = process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org';
+    return raw.endsWith('/') ? raw : `${raw}/`;
+})();
 const TELEGRAM_NOTIFY_TIMEOUT_MS = Number(process.env.TELEGRAM_NOTIFY_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || null;
 const STUDIO_CHAT_ID = process.env.STUDIO_CHAT_ID || null;
+/**
+ * Куда Telegram шлёт апдейты. Если api.telegram.org до VPS не достучится
+ * (Connection timed out), указывайте URL Worker …/hook.
+ * При TELEGRAM_API_ROOT на workers.dev и пустом TELEGRAM_WEBHOOK_URL — …/hook сам.
+ */
+const TELEGRAM_WEBHOOK_URL = (() => {
+    if (process.env.TELEGRAM_WEBHOOK_URL) {
+        return String(process.env.TELEGRAM_WEBHOOK_URL).replace(/\/$/, '');
+    }
+    if (TELEGRAM_API_ROOT.includes('workers.dev')) {
+        return `${TELEGRAM_API_ROOT.replace(/\/$/, '')}/hook`;
+    }
+    return null;
+})();
 const miniAppUrl = 'https://t.me/tuleneva25_bot';
 
 if (!BOT_TOKEN) {
@@ -230,6 +252,7 @@ server.listen(port, () => {
         bot,
         webhookSecret: TELEGRAM_WEBHOOK_SECRET,
         webAppBaseUrl: WEB_APP_BASE_URL,
+        webhookUrl: TELEGRAM_WEBHOOK_URL,
     }).catch((err) => {
         console.error('Bot transport start failed:', err?.message || err);
     });

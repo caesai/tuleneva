@@ -280,8 +280,12 @@ curl -I --max-time 10 https://api.telegram.org; echo "exit:$?"
 3. Deploy → скопировать URL вида `https://tuleneva-tg.workers.dev`.
 4. В `/etc/tuleneva/api.env`:
    ```env
-   TELEGRAM_API_ROOT=https://tuleneva-tg.workers.dev/<PREFIX>
+   TELEGRAM_API_ROOT=https://tuleneva-tg.workers.dev/<PREFIX>/
    TELEGRAM_WEBHOOK_SECRET=<другая_случайная_строка>
+   # Важно: слэш в конце PREFIX обязателен (иначе Telegraf отбрасывает PREFIX).
+   # Если getWebhookInfo → Connection timed out на VPS — webhook через Worker:
+   # TELEGRAM_WEBHOOK_URL=https://tuleneva-tg.workers.dev/<PREFIX>/hook
+   # (в коде Worker: PREFIX, ORIGIN_WEBHOOK, WEBHOOK_SECRET — см. cloudflare-telegram-proxy.js)
    ```
 5. `sudo systemctl restart tuleneva-api`. В логе: `Telegram webhook set: https://tuleneva25.ru/api/telegram/webhook`.
 6. Добавьте бота в чат студии, напишите `/chatid` (нужен admin в БД), пропишите `STUDIO_CHAT_ID=...`, снова restart.

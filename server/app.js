@@ -249,8 +249,17 @@ app.post('/api/telegram/webhook', (req, res) => {
     }
     const header = req.get('X-Telegram-Bot-Api-Secret-Token');
     if (header !== telegramWebhookSecret) {
+        console.warn(
+            'Telegram webhook rejected: secret mismatch or missing header',
+            header ? '(header present, value differs)' : '(header absent)',
+        );
         return res.sendStatus(401);
     }
+    console.log(
+        'Telegram webhook update',
+        req.body?.update_id,
+        req.body?.message?.text || req.body?.message?.entities?.[0]?.type || '',
+    );
     telegramBot.handleUpdate(req.body)
         .then(() => {
             if (!res.headersSent) {
