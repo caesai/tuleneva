@@ -564,6 +564,11 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
             return res.status(400).json({ error: 'Missing or invalid booking data.' });
         }
 
+        const uniqueHours = [...new Set(hours)];
+        if (uniqueHours.length !== hours.length) {
+            return res.status(400).json({ error: 'Duplicate hours in booking request.' });
+        }
+
         const dateMoment = moment.utc(date, 'DD/MM/YYYY');
         if (!dateMoment.isValid()) {
             return res.status(400).json({ error: 'Invalid date format. Please use DD/MM/YYYY.' });
@@ -582,48 +587,75 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
             rehearsalDoc = await Rehearsal.findOne({ date: bookingDate });
         }
 
-        // 3. Check for conflicts
-        const conflictingHours = [];
-        if (rehearsalDoc && Array.isArray(rehearsalDoc.hours)) {
-            const bookedHours = rehearsalDoc.hours.map(slot => slot.hour);
-            for (const hour of hours) {
-                if (bookedHours.includes(hour)) {
-                    conflictingHours.push(hour);
+        const newBookings = uniqueHours.map((hour) => ({
+            hour,
+            userId,
+            username,
+            band_name,
+            userPhotoUrl,
+            rehearsalType,
+        }));
+
+        /**
+         * Условный $push: только если ни один из часов ещё не занят.
+         * Без upsert — $nin + upsert в Mongo не создаёт документ надёжно.
+         * @returns {Promise<object|null>}
+         */
+        const tryPushHours = () => Rehearsal.findOneAndUpdate(
+            {
+                date: bookingDate,
+                'hours.hour': { $nin: uniqueHours },
+            },
+            { $push: { hours: { $each: newBookings } } },
+            { new: true },
+        );
+
+        /**
+         * Собирает список уже занятых часов для ответа 409.
+         * @returns {Promise<string[]>}
+         */
+        const loadConflictingHours = async () => {
+            const current = await Rehearsal.findOne({ date: bookingDate });
+            if (!current || !Array.isArray(current.hours)) {
+                return uniqueHours;
+            }
+            const booked = new Set(current.hours.map((slot) => slot.hour));
+            return uniqueHours.filter((hour) => booked.has(hour));
+        };
+
+        let updatedRehearsal = await tryPushHours();
+
+        if (!updatedRehearsal && !rehearsalDoc) {
+            // Документа дня ещё нет — создаём. Гонку двух create ловим по E11000.
+            try {
+                updatedRehearsal = await Rehearsal.create({
+                    date: bookingDate,
+                    hours: newBookings,
+                });
+            } catch (createErr) {
+                if (createErr?.code !== 11000) {
+                    throw createErr;
                 }
+                updatedRehearsal = await tryPushHours();
             }
         }
 
-        if (conflictingHours.length > 0) {
+        if (!updatedRehearsal) {
+            const conflictingHours = await loadConflictingHours();
             return res.status(409).json({
                 error: 'Some hours are already booked.',
                 conflictingHours,
             });
         }
 
-        // 4. Create the new booking sub-documents
-        const newBookings = hours.map(hour => ({
-            hour,
-            userId,
-            username,
-            band_name,
-            userPhotoUrl,
-            rehearsalType
-        }));
-
-        // 5. Atomically push new hours to the document
-        const updatedRehearsal = await Rehearsal.findOneAndUpdate(
-            { date: bookingDate },
-            { $push: { hours: { $each: newBookings } } },
-            { new: true, upsert: true }
-        );
-        console.log('username: ', username, date, hours.join(','));
+        console.log('username: ', username, date, uniqueHours.join(','));
         const BOOK_MESSAGE = `
 **РЕПЕТИЦИЯ**
 
 👨‍💻 @${username}
 
 📅 ${date.replaceAll('/', '.')} 
-🕓 ${formatHoursRange(hours)}
+🕓 ${formatHoursRange(uniqueHours)}
         `;
 
         // WebSocket: только публичные поля (PII — через GET /api/hours с токеном)

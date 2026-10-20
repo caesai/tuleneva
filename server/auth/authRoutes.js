@@ -1,7 +1,10 @@
 const express = require('express');
 const crypto = require('crypto');
 const InviteCode = require('../models/InviteCode');
-const { INVITE_CODE_TTL_SECONDS } = require('../models/InviteCode');
+const {
+    INVITE_CODE_TTL_SECONDS,
+    INVITE_CODE_MULTI_USE_TTL_SECONDS,
+} = require('../models/InviteCode');
 const { parseTelegramUser } = require('./telegramProvider');
 const User = require('../models/User');
 const {
@@ -12,8 +15,8 @@ const {
 } = require('./identityService');
 const { signAuthToken, buildAuthResponse } = require('./tokenService');
 const { isAdminLike } = require('./roleHelpers');
-const { findValidInvite, consumeInvite } = require('./inviteService');
-const { parseWebProfile, findWebUser, upsertWebUser } = require('./webProvider');
+const { findValidInvite, consumeInvite, revokeInvite } = require('./inviteService');
+const { parseWebProfile, createWebUser } = require('./webProvider');
 const {
     linkEmailCredentials,
     confirmEmailToken,
@@ -173,14 +176,12 @@ const createAuthRouter = ({
                     isNewUser = true;
                 }
             } else if (provider === 'web') {
+                // Всегда новый UUID-identity: заявленный email не даёт вход в чужой аккаунт.
                 const profile = parseWebProfile(web);
-                user = await findWebUser(profile);
-                if (!user) {
-                    user = await upsertWebUser(profile, {
-                        role: inviteCode.initialRole || 'guest',
-                    });
-                    isNewUser = true;
-                }
+                user = await createWebUser(profile, {
+                    role: inviteCode.initialRole || 'guest',
+                });
+                isNewUser = true;
             } else {
                 return res.status(400).json({
                     valid: false,
@@ -223,10 +224,15 @@ const createAuthRouter = ({
                 purpose = 'request_access',
                 initialRole = 'guest',
                 allowedProviders = ['telegram', 'web'],
+                multiUse = false,
             } = req.body || {};
 
+            const reusable = multiUse === true;
             const code = crypto.randomBytes(16).toString('hex');
-            const expiresAt = new Date(Date.now() + INVITE_CODE_TTL_SECONDS * 1000);
+            const ttlSeconds = reusable
+                ? INVITE_CODE_MULTI_USE_TTL_SECONDS
+                : INVITE_CODE_TTL_SECONDS;
+            const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
             const inviteCode = new InviteCode({
                 code,
@@ -235,6 +241,7 @@ const createAuthRouter = ({
                 purpose,
                 initialRole,
                 allowedProviders,
+                multiUse: reusable,
             });
             await inviteCode.save();
 
@@ -249,11 +256,42 @@ const createAuthRouter = ({
                 purpose,
                 initialRole,
                 allowedProviders,
+                multiUse: reusable,
                 expiresAt,
             });
         } catch (err) {
             console.error('Error generating invite code:', err);
             res.status(500).json({ message: 'Failed to generate invite code.' });
+        }
+    });
+
+    /**
+     * @route POST /api/auth/invite/revoke
+     * @description Закрывает инвайт: одноразовый и многоразовый перестают приниматься.
+     */
+    router.post('/invite/revoke', authenticateToken, verifyUserExists, async (req, res) => {
+        if (!isAdminLike(req.dbUser.role)) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        const { code } = req.body || {};
+        if (!code) {
+            return res.status(400).json({ message: 'Missing invite code' });
+        }
+
+        try {
+            const inviteCode = await revokeInvite(code);
+            if (!inviteCode) {
+                return res.status(404).json({ message: 'Invite not found' });
+            }
+            res.status(200).json({
+                revoked: true,
+                code: inviteCode.code,
+                revokedAt: inviteCode.revokedAt,
+            });
+        } catch (err) {
+            console.error('Error revoking invite code:', err);
+            res.status(500).json({ message: 'Failed to revoke invite code.' });
         }
     });
 

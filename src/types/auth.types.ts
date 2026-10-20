@@ -32,10 +32,12 @@ export interface IWebAuthPayload {
 
 export type TProviderAuthPayload = ITelegramAuthPayload | IWebAuthPayload;
 
+/**
+ * Профиль для веб-инвайта. Email не передаётся: нет доказательства владения.
+ */
 export interface IWebInviteProfile {
     firstName: string;
     lastName?: string;
-    email?: string;
 }
 
 export interface IInviteUsePayload {

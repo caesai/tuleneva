@@ -126,6 +126,11 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
         }
     };
 
+    /**
+     * Регистрация по инвайту (Telegram init data или веб-профиль без email).
+     * @param code - Код инвайта
+     * @param webProfile - Имя/фамилия для веб-регистрации вне Telegram
+     */
     const registerWithInvite = async (code: string, webProfile?: IWebInviteProfile) => {
         if (isInTelegram && lp && rawLp) {
             const response = await applyInviteWithProvider({
@@ -154,7 +159,6 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
             web: {
                 firstName: webProfile.firstName.trim(),
                 lastName: webProfile.lastName?.trim() || undefined,
-                email: webProfile.email?.trim() || undefined,
             },
         });
         const data = await parseAuthResponse(response);

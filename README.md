@@ -107,7 +107,8 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 | POST | `/api/auth/providers/email/link` | Привязка почты (JWT); письмо со ссылкой; `currentPassword` при смене |
 | POST | `/api/auth/providers/email/confirm` | Подтверждение почты по токену из письма |
 | POST | `/api/auth/invite/use` | Регистрация по инвайту (`provider`, `telegram?`, `web?`) |
-| POST | `/api/auth/invite/generate` | Админ: код и ссылки |
+| POST | `/api/auth/invite/generate` | Админ: код и ссылки. `multiUse: true` — общая ссылка на 7 дней |
+| POST | `/api/auth/invite/revoke` | Админ: закрыть инвайт по `{ code }` |
 | GET | `/api/auth/invite/validate/:code` | Проверка кода |
 
 ### Пользователи и расписание

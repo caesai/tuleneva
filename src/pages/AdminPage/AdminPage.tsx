@@ -4,6 +4,7 @@ import {
     APIUpdateUserRole,
     APIDeleteUser,
     APIGenerateInvite,
+    APIRevokeInvite,
     APISetUserEmailLogin,
 } from '@/api/user.api.ts';
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
@@ -52,6 +53,10 @@ export const AdminPage: React.FC = () => {
     const [inviteInitialRole, setInviteInitialRole] = useState<'guest' | 'user'>('guest');
     const [inviteAllowTelegram, setInviteAllowTelegram] = useState(true);
     const [inviteAllowWeb, setInviteAllowWeb] = useState(true);
+    const [inviteMultiUse, setInviteMultiUse] = useState(false);
+    const [inviteCode, setInviteCode] = useState<string | null>(null);
+    const [inviteRevoked, setInviteRevoked] = useState(false);
+    const [revokeLoading, setRevokeLoading] = useState(false);
     const [emailLoginUserId, setEmailLoginUserId] = useState<string | null>(null);
     const [emailLoginLoading, setEmailLoginLoading] = useState(false);
     const { user } = useAuth();
@@ -185,6 +190,7 @@ export const AdminPage: React.FC = () => {
         setInviteAllowTelegram(true);
         setInviteAllowWeb(true);
         setInviteInitialRole('guest');
+        setInviteMultiUse(false);
         setIsInviteOptionsOpen(true);
     };
 
@@ -203,15 +209,19 @@ export const AdminPage: React.FC = () => {
         setInviteLink(null);
         setWebInviteLink(null);
         setInviteAllowedProviders([]);
+        setInviteCode(null);
+        setInviteRevoked(false);
 
         try {
             const response = await APIGenerateInvite({
                 initialRole: inviteInitialRole,
                 allowedProviders,
+                multiUse: inviteMultiUse,
             });
             if (response.ok) {
                 const data = await response.json();
                 const providers: TAuthProvider[] = data.allowedProviders ?? allowedProviders;
+                setInviteCode(data.code ?? null);
                 setInviteAllowedProviders(providers);
                 setInviteLink(
                     providers.includes('telegram')
@@ -231,6 +241,27 @@ export const AdminPage: React.FC = () => {
             alert('Произошла ошибка');
         } finally {
             setInviteLoading(false);
+        }
+    };
+
+    /**
+     * Закрывает текущую многоразовую ссылку, чтобы по ней больше нельзя было войти.
+     */
+    const handleRevokeInvite = async () => {
+        if (!inviteCode) return;
+        setRevokeLoading(true);
+        try {
+            const response = await APIRevokeInvite(inviteCode);
+            if (response.ok) {
+                setInviteRevoked(true);
+            } else {
+                alert('Не удалось закрыть ссылку');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Произошла ошибка');
+        } finally {
+            setRevokeLoading(false);
         }
     };
 
@@ -308,6 +339,18 @@ export const AdminPage: React.FC = () => {
                         />
                         {' '}Веб-браузер
                     </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={inviteMultiUse}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                setInviteMultiUse(checked);
+                                if (checked) setInviteInitialRole('user');
+                            }}
+                        />
+                        {' '}Ссылка для общего чата
+                    </label>
                     <button
                         className={css.copyButton}
                         onClick={handleGenerateInvite}
@@ -322,7 +365,9 @@ export const AdminPage: React.FC = () => {
                 <div className={css.inviteModal}>
                     <h3>Пригласить пользователя</h3>
                     <p className={css.inviteDescription}>
-                        Отправьте одноразовую ссылку пользователю. После использования ссылка станет недействительной.
+                        {inviteMultiUse
+                            ? 'Ссылку можно отправить в общий чат. По ней пройдёт несколько человек, пока вы её не закроете. Сама она погаснет через 7 дней.'
+                            : 'Отправьте одноразовую ссылку пользователю. После использования ссылка станет недействительной.'}
                     </p>
                     {inviteLink && inviteAllowedProviders.includes('telegram') && (
                         <div className={css.inviteLinkContainer}>
@@ -348,6 +393,18 @@ export const AdminPage: React.FC = () => {
                                 onClick={(e) => (e.target as HTMLInputElement).select()}
                             />
                         </div>
+                    )}
+                    {inviteMultiUse && inviteCode && !inviteRevoked && (
+                        <button
+                            className={css.copyButton}
+                            onClick={handleRevokeInvite}
+                            disabled={revokeLoading}
+                        >
+                            {revokeLoading ? 'Закрытие...' : 'Закрыть ссылку'}
+                        </button>
+                    )}
+                    {inviteRevoked && (
+                        <p className={css.inviteDescription}>Ссылка закрыта. Новые регистрации по ней не проходят.</p>
                     )}
                     <button
                         className={css.closeModalButton}

@@ -61,15 +61,32 @@ export const APISetUserEmailLogin = async (
 /** @deprecated Используйте getAuthSession из auth.api.ts */
 export { getAuthSession as APIGetUserInfo } from '@/api/auth.api.ts';
 
+/**
+ * Создаёт инвайт. `multiUse` — ссылка для общего чата, пока админ её не закроет.
+ * @param options - Роль, провайдеры и признак многоразовости
+ */
 export const APIGenerateInvite = async (options?: {
     purpose?: string;
     initialRole?: string;
     allowedProviders?: string[];
+    multiUse?: boolean;
 }) => {
     return await fetch(DEV_URL + '/auth/invite/generate', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(options ?? {}),
+    });
+};
+
+/**
+ * Закрывает инвайт по коду. Дальнейшие регистрации по ссылке не проходят.
+ * @param code - Код инвайта
+ */
+export const APIRevokeInvite = async (code: string) => {
+    return await fetch(DEV_URL + '/auth/invite/revoke', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ code }),
     });
 };
 

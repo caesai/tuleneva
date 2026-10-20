@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 
 const INVITE_CODE_TTL_SECONDS = 24 * 60 * 60;
+/** Срок многоразовой ссылки для общего чата, пока её не закроют вручную. */
+const INVITE_CODE_MULTI_USE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const inviteCodeSchema = new mongoose.Schema({
     code: {
@@ -40,6 +42,19 @@ const inviteCodeSchema = new mongoose.Schema({
     usedAt: {
         type: Date,
     },
+    /** Несколько человек могут пройти по одной ссылке, пока её не закроют. */
+    multiUse: {
+        type: Boolean,
+        default: false,
+    },
+    /** Сколько раз многоразовый код успешно применили. */
+    useCount: {
+        type: Number,
+        default: 0,
+    },
+    revokedAt: {
+        type: Date,
+    },
 }, { timestamps: true });
 
 const InviteCode = mongoose.models.InviteCode
@@ -47,3 +62,4 @@ const InviteCode = mongoose.models.InviteCode
 
 module.exports = InviteCode;
 module.exports.INVITE_CODE_TTL_SECONDS = INVITE_CODE_TTL_SECONDS;
+module.exports.INVITE_CODE_MULTI_USE_TTL_SECONDS = INVITE_CODE_MULTI_USE_TTL_SECONDS;

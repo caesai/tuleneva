@@ -12,7 +12,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminPage } from './AdminPage.tsx';
-import { APIGetUsers } from '@/api/user.api.ts';
+import { APIGenerateInvite, APIGetUsers, APIRevokeInvite } from '@/api/user.api.ts';
 
 const mockNavigate = vi.fn();
 
@@ -41,15 +41,19 @@ vi.mock('@/api/user.api.ts', () => ({
     }),
     APIUpdateUserRole: vi.fn(),
     APIDeleteUser: vi.fn(),
-    APIGenerateInvite: vi.fn().mockImplementation(async (body: { allowedProviders: string[] }) => ({
+    APIGenerateInvite: vi.fn().mockImplementation(async (body: { allowedProviders: string[]; multiUse?: boolean }) => ({
         ok: true,
         json: async () => ({
+            code: 'abc',
             inviteLink: 'https://t.me/bot?startapp=abc',
             telegramInviteLink: 'https://t.me/bot?startapp=abc',
             webInviteLink: 'https://test.example/?invite=abc',
             allowedProviders: body.allowedProviders,
+            multiUse: body.multiUse,
         }),
     })),
+    APIRevokeInvite: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ revoked: true }) }),
+    APISetUserEmailLogin: vi.fn(),
 }));
 
 describe('AdminPage', () => {
@@ -102,5 +106,26 @@ describe('AdminPage', () => {
 
         expect(screen.getByDisplayValue('https://test.example/?invite=abc')).toBeInTheDocument();
         expect(screen.queryByDisplayValue('https://t.me/bot?startapp=abc')).not.toBeInTheDocument();
+    });
+
+    it('shared chat invite is multi-use and can be revoked', async () => {
+        const user = userEvent.setup();
+        render(
+            <MemoryRouter>
+                <AdminPage />
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByText('Управление пользователями')).toBeInTheDocument();
+        await user.click(screen.getByText('Пригласить пользователя'));
+        await user.click(screen.getByRole('checkbox', { name: /общего чата/i }));
+        await user.click(await screen.findByText('Сгенерировать ссылку'));
+
+        expect(APIGenerateInvite).toHaveBeenCalledWith(
+            expect.objectContaining({ multiUse: true, initialRole: 'user' }),
+        );
+        await user.click(screen.getByRole('button', { name: 'Закрыть ссылку' }));
+        expect(APIRevokeInvite).toHaveBeenCalledWith('abc');
+        expect(await screen.findByText(/Ссылка закрыта/)).toBeInTheDocument();
     });
 });

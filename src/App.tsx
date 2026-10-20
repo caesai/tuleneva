@@ -31,7 +31,6 @@ const IndexPage: React.FC = () => {
     const [inviteAllowedProviders, setInviteAllowedProviders] = useState<TAuthProvider[]>([]);
     const [webFirstName, setWebFirstName] = useState('');
     const [webLastName, setWebLastName] = useState('');
-    const [webEmail, setWebEmail] = useState('');
     const closeModal = () => setIsModalOpen(false);
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -120,7 +119,6 @@ const IndexPage: React.FC = () => {
                 await registerWithInvite(inviteCode, {
                     firstName: webFirstName.trim(),
                     lastName: webLastName.trim() || undefined,
-                    email: webEmail.trim() || undefined,
                 });
             } else {
                 await registerWithInvite(inviteCode);
@@ -132,7 +130,6 @@ const IndexPage: React.FC = () => {
             setInviteAllowedProviders([]);
             setWebFirstName('');
             setWebLastName('');
-            setWebEmail('');
         } catch (err) {
             console.error('Invite request access failed:', err);
             showToast('Не удалось отправить запрос. Ссылка может быть уже использована.', 'error');
@@ -147,7 +144,6 @@ const IndexPage: React.FC = () => {
         showWebInviteForm,
         webFirstName,
         webLastName,
-        webEmail,
     ]);
 
     // if (isLoading) {
@@ -202,13 +198,6 @@ const IndexPage: React.FC = () => {
                                 placeholder="Фамилия"
                                 value={webLastName}
                                 onChange={(e) => setWebLastName(e.target.value)}
-                                style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ccc' }}
-                            />
-                            <input
-                                type="email"
-                                placeholder="Email (опционально)"
-                                value={webEmail}
-                                onChange={(e) => setWebEmail(e.target.value)}
                                 style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ccc' }}
                             />
                         </>

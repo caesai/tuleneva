@@ -1,32 +1,84 @@
 const InviteCode = require('../models/InviteCode');
 
 /**
- * Finds a valid unused invite code (not expired).
+ * Условие «код ещё действует»: не истёк и не закрыт админом.
+ * @param {string} code
+ * @returns {object}
+ */
+const activeInviteFilter = (code) => ({
+    code,
+    expiresAt: { $gt: new Date() },
+    revokedAt: { $exists: false },
+});
+
+/**
+ * Ищет действующий инвайт: одноразовый ещё не использован, многоразовый — пока не закрыт.
+ * @param {string} code
+ * @returns {Promise<import('mongoose').Document|null>}
  */
 const findValidInvite = async (code) => {
     return InviteCode.findOne({
-        code,
-        expiresAt: { $gt: new Date() },
-        usedAt: { $exists: false },
+        ...activeInviteFilter(code),
+        $or: [
+            { multiUse: true },
+            { usedAt: { $exists: false } },
+        ],
     });
 };
 
 /**
- * Atomically marks invite as used. Returns updated doc or null if already consumed/expired.
+ * Списывает одноразовый инвайт или отмечает ещё одно применение многоразового.
+ * @param {string} code
+ * @param {import('mongoose').Types.ObjectId} usedBy
+ * @returns {Promise<import('mongoose').Document|null>} Документ или null, если код уже нельзя применить.
  */
 const consumeInvite = async (code, usedBy) => {
-    return InviteCode.findOneAndUpdate(
+    const now = new Date();
+    const once = await InviteCode.findOneAndUpdate(
         {
-            code,
-            expiresAt: { $gt: new Date() },
+            ...activeInviteFilter(code),
+            multiUse: { $ne: true },
             usedAt: { $exists: false },
         },
         {
             $set: {
-                usedAt: new Date(),
+                usedAt: now,
                 usedBy,
             },
         },
+        { new: true },
+    );
+    if (once) {
+        return once;
+    }
+
+    return InviteCode.findOneAndUpdate(
+        {
+            ...activeInviteFilter(code),
+            multiUse: true,
+        },
+        { $inc: { useCount: 1 } },
+        { new: true },
+    );
+};
+
+/**
+ * Закрывает инвайт: новые применения перестают проходить сразу.
+ * Повторный вызов для уже закрытого кода возвращает тот же документ.
+ * @param {string} code
+ * @returns {Promise<import('mongoose').Document|null>}
+ */
+const revokeInvite = async (code) => {
+    const existing = await InviteCode.findOne({ code });
+    if (!existing) {
+        return null;
+    }
+    if (existing.revokedAt) {
+        return existing;
+    }
+    return InviteCode.findOneAndUpdate(
+        { code },
+        { $set: { revokedAt: new Date() } },
         { new: true },
     );
 };
@@ -34,4 +86,5 @@ const consumeInvite = async (code, usedBy) => {
 module.exports = {
     findValidInvite,
     consumeInvite,
+    revokeInvite,
 };

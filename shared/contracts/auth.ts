@@ -85,5 +85,6 @@ export const InviteGenerateResponseSchema = z.object({
     purpose: z.string().optional(),
     initialRole: z.string().optional(),
     allowedProviders: z.array(z.string()).optional(),
+    multiUse: z.boolean().optional(),
     expiresAt: z.coerce.date(),
 });
