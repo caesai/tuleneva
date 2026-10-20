@@ -1,6 +1,6 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
 import React, { useState, useEffect, Suspense, type JSX } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading.ts';
@@ -16,8 +16,6 @@ import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { getTelegramEnvironment } from '@/telegram/env.ts';
-// import logo from '/logo_main512.svg';
-// import { useNavigate } from 'react-router-dom';
 import {
     LazyBookModalPopup,
     LazyTimeTableCalendarBlock,
@@ -49,7 +47,7 @@ import { usePageMeta } from '@/hooks/usePageMeta.ts';
 export const TimeTablePage: React.FC = (): JSX.Element => {
     usePageMeta(APP_PAGE_META);
 
-    // const navigate = useNavigate();
+    const navigate = useNavigate();
     // Состояние для текущей выбранной даты в календаре
     const [selectedDate, setSelectedDate] = useState<Moment | null>(moment());
     // Состояние для текущего просматриваемого месяца (влияет на загружаемые данные)
@@ -482,6 +480,29 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
             )}
 
             <div className={css.card}>
+                {isAdmin && (
+                    <button
+                        type="button"
+                        className={css.adminEntryButton}
+                        onClick={() => navigate('/admin')}
+                        aria-label="Админ-панель"
+                        title="Админ-панель"
+                    >
+                        <svg
+                            className={css.adminEntryIcon}
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            aria-hidden="true"
+                            focusable="false"
+                        >
+                            <path
+                                fill="currentColor"
+                                d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"
+                            />
+                        </svg>
+                    </button>
+                )}
                 {showCardLoader ? (
                     <div
                         className={`${css.cardLoader} ${css.cardLoaderFull}`}

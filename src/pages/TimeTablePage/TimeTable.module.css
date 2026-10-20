@@ -76,6 +76,39 @@
     box-sizing: border-box;
 }
 
+/**
+ * Компактный вход в админку (только admin / super_admin),
+ * правый верхний угол над календарём.
+ */
+.adminEntryButton {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #666;
+    cursor: pointer;
+}
+
+.adminEntryButton:hover,
+.adminEntryButton:focus-visible {
+    color: #007aff;
+    background: rgba(0, 122, 255, 0.08);
+    outline: none;
+}
+
+.adminEntryIcon {
+    display: block;
+}
+
 .cardLoader {
     display: flex;
     justify-content: center;
