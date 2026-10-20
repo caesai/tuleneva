@@ -15,7 +15,7 @@ Telegram Mini App и веб-клиент для бронирования вре�
 - Просмотр расписания, бронирование и отмена слотов
 - Авторизация: Telegram Mini App и **web invite** (`?invite=CODE`)
 - Одноразовые инвайты с настраиваемыми `allowedProviders`
-- WebSocket: события `booking_update`, `booking_cancel`
+- WebSocket: события `booking_update`, `booking_cancel`, `users_update` (админка)
 
 ## Роли и права
 
@@ -133,7 +133,7 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 ## WebSocket
 
 - Путь: `/ws`
-- События: `booking_update`, `booking_cancel` (payload: `date`, `hours`, `timestamp`)
+- События: `booking_update`, `booking_cancel` (payload: `date`, `hours`, `timestamp`); `users_update` (payload: `reason` — регистрация/инвайт/роль/удаление, админка перезагружает список)
 
 ## Сборка и деплой
 

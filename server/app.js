@@ -278,6 +278,7 @@ app.use('/api/auth', createAuthRouter({
     verifyUserExists,
     notifyAdmins,
     sendMail: mailSender,
+    broadcastUpdate,
 }));
 
 app.get('/', (req, res) => {
@@ -354,6 +355,7 @@ app.post('/api/users/register', async (req, res) => {
         const user = await upsertTelegramUser(tg.user, { role: 'guest' });
         const token = signAuthToken(user, jwtSecret);
         res.status(201).json(buildAuthResponse(user, token, 'telegram'));
+        broadcastUpdate('users_update', { reason: 'telegram_register_legacy' });
         safeNotify(
             notifyAdmins(`@${user.username || user.first_name} запрашивает доступ к бронированию.`),
         );
@@ -421,6 +423,7 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
         await user.save();
 
         res.json(toPublicUser(user));
+        broadcastUpdate('users_update', { reason: 'role_change' });
 
         if (oldRole === 'guest' && role === 'user' && user.telegram_id) {
             const message = `
@@ -528,6 +531,7 @@ app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, re
             return res.status(404).json({ message: 'User not found.' });
         }
         res.json({ message: 'User deleted successfully.' });
+        broadcastUpdate('users_update', { reason: 'user_deleted' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

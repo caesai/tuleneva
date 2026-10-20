@@ -54,6 +54,7 @@ const emailErrorStatus = (err) => {
  * @param {Function} options.verifyUserExists
  * @param {Function} options.notifyAdmins
  * @param {Function|null} [options.sendMail]
+ * @param {Function} [options.broadcastUpdate] - WebSocket broadcast (например users_update)
  */
 const createAuthRouter = ({
     jwtSecret,
@@ -64,6 +65,7 @@ const createAuthRouter = ({
     verifyUserExists,
     notifyAdmins,
     sendMail = null,
+    broadcastUpdate = () => {},
 }) => {
     const router = express.Router();
 
@@ -129,6 +131,7 @@ const createAuthRouter = ({
             const token = signAuthToken(user, jwtSecret);
             res.status(201).json(buildAuthResponse(user, token, 'telegram'));
 
+            broadcastUpdate('users_update', { reason: 'telegram_register' });
             const notifyMessage = `@${user.username || user.first_name} запрашивает доступ к бронированию.`;
             safeNotify(notifyAdmins(notifyMessage));
         } catch (err) {
@@ -201,6 +204,7 @@ const createAuthRouter = ({
             res.status(201).json(buildAuthResponse(user, token, provider));
 
             if (isNewUser) {
+                broadcastUpdate('users_update', { reason: 'invite_use' });
                 const inviteNotifyMessage = `@${user.username || user.first_name} запрашивает доступ (инвайт).`;
                 safeNotify(notifyAdmins(inviteNotifyMessage));
             }

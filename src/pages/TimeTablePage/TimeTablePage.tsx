@@ -152,9 +152,20 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const [emailLinkLoading, setEmailLinkLoading] = useState(false);
     const [isEmailLoginOpen, setIsEmailLoginOpen] = useState(false);
     const [emailLoginLoading, setEmailLoginLoading] = useState(false);
-    const showEmailLinkForm = isAuthenticated && !!user && !isGuest;
+    /**
+     * Блоки почты на расписании временно скрыты:
+     * позже пользователям придёт уведомление привязать ящик.
+     * Включить снова: оба флага в `true`.
+     */
+    const EMAIL_LINK_BLOCK_ENABLED = false;
+    const EMAIL_LOGIN_BUTTON_ENABLED = false;
+    const showEmailLinkForm =
+        EMAIL_LINK_BLOCK_ENABLED && isAuthenticated && !!user && !isGuest;
     const showEmailLoginButton =
-        !isInTelegram && !authLoading && !isAuthenticated;
+        EMAIL_LOGIN_BUTTON_ENABLED &&
+        !isInTelegram &&
+        !authLoading &&
+        !isAuthenticated;
 
     // Получаем сохранённые настройки пользователя (история названий групп)
     const localUserSettings = localStorage.getItem('userSettings');
