@@ -41,7 +41,25 @@ const startOfDayUtc = (dateDdMmYyyy) =>
     moment.utc(dateDdMmYyyy, 'DD/MM/YYYY').startOf('day').toDate();
 
 /**
+ * Нормализует chat id из env или из Telegram (trim, кавычки, список через запятую).
+ * Топики форума не меняют chat.id — у всех топиков одной группы один и тот же id.
+ * @param {string|number|null|undefined} value
+ * @returns {string[]}
+ */
+const parseStudioChatIds = (value) => {
+    if (value == null || value === '') {
+        return [];
+    }
+    return String(value)
+        .split(/[,;\s]+/)
+        .map((part) => part.trim().replace(/^['"]|['"]$/g, ''))
+        .filter(Boolean);
+};
+
+/**
  * Разрешён ли чат для команд расписания.
+ * Личка — всегда; группа/супергруппа — только если chat.id в STUDIO_CHAT_ID
+ * (один id или несколько через запятую). Топик (message_thread_id) на проверку не влияет.
  * @param {object} ctx
  * @param {string|null} studioChatId
  * @returns {boolean}
@@ -54,10 +72,25 @@ const isAllowedChat = (ctx, studioChatId) => {
     if (chat.type === 'private') {
         return true;
     }
-    if (!studioChatId) {
+    const allowed = parseStudioChatIds(studioChatId);
+    if (allowed.length === 0) {
         return false;
     }
-    return String(chat.id) === String(studioChatId);
+    const current = String(chat.id);
+    return allowed.includes(current);
+};
+
+/**
+ * Опции reply с привязкой к топику форума (иначе ответ уходит в General).
+ * @param {object} ctx
+ * @returns {{ message_thread_id?: number }}
+ */
+const threadReplyExtra = (ctx) => {
+    const threadId = ctx.message?.message_thread_id ?? ctx.callbackQuery?.message?.message_thread_id;
+    if (threadId == null) {
+        return {};
+    }
+    return { message_thread_id: threadId };
 };
 
 /**
@@ -86,21 +119,47 @@ const createBot = ({
     });
 
     const appUrl = `${String(webAppBaseUrl).replace(/\/$/, '')}/app`;
-    const studioId = studioChatId ? String(studioChatId) : null;
+    const studioIdRaw = studioChatId != null ? String(studioChatId) : '';
+    const studioIds = parseStudioChatIds(studioIdRaw);
+
+    /**
+     * @param {object} ctx
+     * @param {string} text
+     * @param {object} [extra]
+     */
+    const replyHere = (ctx, text, extra = {}) =>
+        ctx.reply(text, { ...threadReplyExtra(ctx), ...extra });
 
     const denyIfNeeded = async (ctx) => {
-        if (isAllowedChat(ctx, studioId)) {
+        if (isAllowedChat(ctx, studioIdRaw)) {
             return false;
         }
         if (ctx.chat?.type === 'private') {
             return false;
         }
-        await ctx.reply('Команды расписания доступны только в чате студии.');
+        const configured = studioIds.length > 0 ? studioIds.join(', ') : '(не задан)';
+        console.warn(
+            'Bot command denied: chat.id=',
+            ctx.chat?.id,
+            'type=',
+            ctx.chat?.type,
+            'thread=',
+            ctx.message?.message_thread_id,
+            'STUDIO_CHAT_ID=',
+            configured,
+        );
+        await replyHere(
+            ctx,
+            studioIds.length === 0
+                ? 'STUDIO_CHAT_ID не задан на сервере. Админ: /chatid в этом чате → вписать id в api.env → restart.'
+                : `Этот чат не в списке студии.\nchat.id сейчас: ${ctx.chat.id}\nв env: ${configured}\nАдмин: /chatid и поправьте STUDIO_CHAT_ID.`,
+        );
         return true;
     };
 
     bot.start(async (ctx) => {
-        await ctx.reply(
+        await replyHere(
+            ctx,
             'Расписание репетиционной студии «Тюленева 25».',
             Markup.inlineKeyboard([
                 [Markup.button.webApp('Расписание студии', appUrl)],
@@ -123,7 +182,7 @@ const createBot = ({
             lines.push('/my — ваши брони');
             lines.push('/start — открыть мини-приложение');
         }
-        await ctx.reply(lines.join('\n'));
+        await replyHere(ctx, lines.join('\n'));
     });
 
     bot.command('today', async (ctx) => {
@@ -133,10 +192,10 @@ const createBot = ({
         try {
             const { today } = moscowTodayTomorrow();
             const hours = await loadHoursForDate(today);
-            await ctx.reply(formatDayBookings(today, hours, 'Сегодня'));
+            await replyHere(ctx, formatDayBookings(today, hours, 'Сегодня'));
         } catch (err) {
             console.error('Bot /today failed:', err?.message || err);
-            await ctx.reply('Не удалось загрузить расписание.');
+            await replyHere(ctx, 'Не удалось загрузить расписание.');
         }
     });
 
@@ -147,10 +206,10 @@ const createBot = ({
         try {
             const { tomorrow } = moscowTodayTomorrow();
             const hours = await loadHoursForDate(tomorrow);
-            await ctx.reply(formatDayBookings(tomorrow, hours, 'Завтра'));
+            await replyHere(ctx, formatDayBookings(tomorrow, hours, 'Завтра'));
         } catch (err) {
             console.error('Bot /tomorrow failed:', err?.message || err);
-            await ctx.reply('Не удалось загрузить расписание.');
+            await replyHere(ctx, 'Не удалось загрузить расписание.');
         }
     });
 
@@ -161,16 +220,16 @@ const createBot = ({
         try {
             const { today } = moscowTodayTomorrow();
             const hours = await loadHoursForDate(today);
-            await ctx.reply(formatFreeSlots(today, hours));
+            await replyHere(ctx, formatFreeSlots(today, hours));
         } catch (err) {
             console.error('Bot /free failed:', err?.message || err);
-            await ctx.reply('Не удалось загрузить расписание.');
+            await replyHere(ctx, 'Не удалось загрузить расписание.');
         }
     });
 
     bot.command('my', async (ctx) => {
         if (ctx.chat?.type !== 'private') {
-            await ctx.reply('Команда /my доступна только в личных сообщениях боту.');
+            await replyHere(ctx, 'Команда /my доступна только в личных сообщениях боту.');
             return;
         }
         const tgId = ctx.from?.id;
@@ -180,7 +239,8 @@ const createBot = ({
         try {
             const user = await User.findOne({ telegram_id: tgId });
             if (!user) {
-                await ctx.reply(
+                await replyHere(
+                    ctx,
                     'Вы ещё не зарегистрированы. Откройте мини-приложение или пройдите по инвайту.',
                 );
                 return;
@@ -191,10 +251,10 @@ const createBot = ({
                 date: { $gte: from },
                 'hours.userId': String(user._id),
             }).sort({ date: 1 }).limit(40);
-            await ctx.reply(formatMyBookings(docs, user._id));
+            await replyHere(ctx, formatMyBookings(docs, user._id));
         } catch (err) {
             console.error('Bot /my failed:', err?.message || err);
-            await ctx.reply('Не удалось загрузить ваши брони.');
+            await replyHere(ctx, 'Не удалось загрузить ваши брони.');
         }
     });
 
@@ -206,18 +266,26 @@ const createBot = ({
         try {
             const user = await User.findOne({ telegram_id: tgId });
             if (!user || !isAdminLike(user.role)) {
-                await ctx.reply('Команда только для администраторов.');
+                await replyHere(ctx, 'Команда только для администраторов.');
                 return;
             }
-            await ctx.reply(
-                `chat_id этого чата: ${ctx.chat.id}\n`
-                + 'Добавьте в api.env: STUDIO_CHAT_ID='
-                + `${ctx.chat.id}\n`
-                + 'и перезапустите tuleneva-api.',
-            );
+            const thread = ctx.message?.message_thread_id;
+            const match = isAllowedChat(ctx, studioIdRaw);
+            const lines = [
+                `chat.id = ${ctx.chat.id}`,
+                `type = ${ctx.chat.type}${ctx.chat.is_forum ? ' (форум/топики)' : ''}`,
+                thread != null ? `message_thread_id = ${thread} (топик; в STUDIO_CHAT_ID его НЕ пишите)` : 'топик: нет (General или обычный чат)',
+                `STUDIO_CHAT_ID на сервере: ${studioIds.length ? studioIds.join(', ') : '(не задан)'}`,
+                `совпадение: ${match ? 'да' : 'нет'}`,
+                '',
+                'В /etc/tuleneva/api.env одна строка (id группы один для всех топиков):',
+                `STUDIO_CHAT_ID=${ctx.chat.id}`,
+                'затем: sudo systemctl restart tuleneva-api',
+            ];
+            await replyHere(ctx, lines.join('\n'));
         } catch (err) {
             console.error('Bot /chatid failed:', err?.message || err);
-            await ctx.reply('Ошибка.');
+            await replyHere(ctx, 'Ошибка.');
         }
     });
 
@@ -328,4 +396,6 @@ module.exports = {
     stopBotSafely,
     loadHoursForDate,
     isAllowedChat,
+    parseStudioChatIds,
+    threadReplyExtra,
 };

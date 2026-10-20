@@ -48,7 +48,17 @@ const TELEGRAM_API_ROOT = (() => {
 console.log('Telegram API root:', TELEGRAM_API_ROOT);
 const TELEGRAM_NOTIFY_TIMEOUT_MS = Number(process.env.TELEGRAM_NOTIFY_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || null;
-const STUDIO_CHAT_ID = process.env.STUDIO_CHAT_ID || null;
+/** Id группы студии (для форума — id супергруппы, не thread). Можно несколько через запятую. */
+const STUDIO_CHAT_ID = (() => {
+    const raw = process.env.STUDIO_CHAT_ID;
+    if (raw == null || String(raw).trim() === '') {
+        return null;
+    }
+    return String(raw).trim().replace(/^['"]|['"]$/g, '');
+})();
+if (STUDIO_CHAT_ID) {
+    console.log('Studio chat id(s):', STUDIO_CHAT_ID);
+}
 /**
  * Куда Telegram шлёт апдейты.
  * При кастомном TELEGRAM_API_ROOT (прокси) никогда не ставим webhook на сам VPS —
