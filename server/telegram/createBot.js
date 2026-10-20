@@ -259,17 +259,20 @@ const registerBotCommands = async (bot) => {
  * @param {import('telegraf').Telegraf} options.bot
  * @param {string|null} options.webhookSecret - Если задан — webhook, иначе polling
  * @param {string} options.webAppBaseUrl
+ * @param {string|null} [options.webhookUrl] - Публичный URL для Telegram (например Worker …/hook)
  * @returns {Promise<'webhook'|'polling'>}
  */
 const startBotTransport = async ({
     bot,
     webhookSecret,
     webAppBaseUrl,
+    webhookUrl = null,
 }) => {
     await registerBotCommands(bot);
 
     if (webhookSecret) {
-        const hookUrl = `${String(webAppBaseUrl).replace(/\/$/, '')}/api/telegram/webhook`;
+        const hookUrl = webhookUrl
+            || `${String(webAppBaseUrl).replace(/\/$/, '')}/api/telegram/webhook`;
         try {
             await bot.telegram.setWebhook(hookUrl, {
                 secret_token: webhookSecret,

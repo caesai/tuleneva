@@ -1,21 +1,26 @@
 /**
- * Cloudflare Worker: прокси исходящих вызовов Bot API.
+ * Cloudflare Worker: исходящий Bot API + входящий webhook-реле.
  *
- * VPS в РФ часто не достучится до api.telegram.org (таймаут).
- * Worker принимает только путь с секретным префиксом и пересылает на Telegram.
- * Long polling (getUpdates) через Worker не используйте — держит запрос слишком долго.
+ * Исходящее (VPS → Telegram): Telegraf бьёт в
+ *   https://<worker>/<PREFIX>/bot<token>/<method>
  *
- * Настройка:
- * 1. Cloudflare Dashboard → Workers → Create → вставить этот скрипт.
- * 2. Придумать длинный PREFIX (например openssl rand -hex 24).
- * 3. В api.env на VPS:
- *    TELEGRAM_API_ROOT=https://<имя-worker>.workers.dev/<PREFIX>
- *    (Telegraf ходит на ${TELEGRAM_API_ROOT}/bot<token>/...)
+ * Входящее (Telegram → VPS): webhook на
+ *   https://<worker>/<PREFIX>/hook
+ * (на РФ-VPS у Telegram часто Connection timed out напрямую).
  *
- * Не логируйте тело запросов и токен.
+ * В Cloudflare подставьте свои PREFIX и WEBHOOK_SECRET, затем Deploy.
+ * В api.env:
+ *   TELEGRAM_API_ROOT=https://<worker>/<PREFIX>/
+ *   TELEGRAM_WEBHOOK_SECRET=<тот же WEBHOOK_SECRET>
+ *   TELEGRAM_WEBHOOK_URL=https://<worker>/<PREFIX>/hook
+ *
+ * Не коммитьте реальные секреты в git.
  */
 
 const PREFIX = 'CHANGE_ME_TO_LONG_RANDOM_SECRET';
+const ORIGIN_WEBHOOK = 'https://tuleneva25.ru/api/telegram/webhook';
+/** Тот же, что TELEGRAM_WEBHOOK_SECRET в /etc/tuleneva/api.env */
+const WEBHOOK_SECRET = 'CHANGE_ME_SAME_AS_VPS_TELEGRAM_WEBHOOK_SECRET';
 
 export default {
     /**
@@ -28,6 +33,22 @@ export default {
 
         if (parts[0] !== PREFIX) {
             return new Response('Not found', { status: 404 });
+        }
+
+        if (parts[1] === 'hook' && parts.length === 2) {
+            if (request.method !== 'POST') {
+                return new Response('Method not allowed', { status: 405 });
+            }
+            const init = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Telegram-Bot-Api-Secret-Token': WEBHOOK_SECRET,
+                },
+                body: request.body,
+            };
+            init.duplex = 'half';
+            return fetch(ORIGIN_WEBHOOK, init);
         }
 
         const telegramPath = parts.slice(1).join('/');
@@ -46,7 +67,6 @@ export default {
 
         if (request.method !== 'GET' && request.method !== 'HEAD') {
             init.body = request.body;
-            // duplex нужен для streaming body в Cloudflare Workers
             init.duplex = 'half';
         }
 
