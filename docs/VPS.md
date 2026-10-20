@@ -18,12 +18,26 @@ echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.
 sudo apt update
 sudo apt install -y mongodb-org
 
-# Node 20 (нужен для npm ci на релизе)
+# Node 20 — системно (apt), не через nvm.
+# CD запускает `npm ci` от пользователя deploy по неинтерактивному SSH;
+# nvm в ~/.nvm у вашего логина deploy не видит → будет "npm: command not found".
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
+node -v   # v20.x
+npm -v
 ```
 
 Подставьте кодовое имя Ubuntu (`jammy`, `noble` и т.д.) в URL репозитория MongoDB.
+
+После создания пользователя `deploy` (§2) проверьте, что Node виден именно ему:
+
+```bash
+sudo -u deploy bash -lc 'which npm && npm -v'
+# или с вашей машины:
+# ssh -i tuleneva-deploy deploy@IP 'which npm && npm -v'
+```
+
+Если `npm` не находится — Node не установлен системно; повторите блок `nodesource` / `apt install nodejs` выше.
 
 ### MongoDB: localhost, auth и пароль для приложения
 
