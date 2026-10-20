@@ -29,3 +29,7 @@ sushkazzlo@*/
 **/*@*.*.*/
 .env
 server/.env
+
+# CI/deploy SSH keys (never commit)
+tuleneva-deploy
+tuleneva-deploy.pub

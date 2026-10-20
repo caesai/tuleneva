@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+# Неинтерактивный SSH часто без nvm/профиля — ищем системный node/npm.
+export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+
 RELEASE_SHA="${1:?usage: remote-release.sh <git-sha> <archive.tar.gz>}"
 ARCHIVE="${2:?usage: remote-release.sh <git-sha> <archive.tar.gz>}"
 
@@ -60,10 +63,12 @@ rm -f "${ARCHIVE}"
 [[ -f "${RELEASE_DIR}/server/dist/index.cjs" ]] || fail "missing server/dist/index.cjs"
 [[ -f "${RELEASE_DIR}/server/package-lock.json" ]] || fail "missing server/package-lock.json"
 
-log "npm ci --omit=dev in server/"
+NPM_BIN="$(command -v npm || true)"
+[[ -n "${NPM_BIN}" ]] || fail "npm not found in PATH=${PATH} (install Node 20 system-wide for user deploy)"
+log "npm ci --omit=dev in server/ (${NPM_BIN})"
 (
   cd "${RELEASE_DIR}/server"
-  npm ci --omit=dev
+  "${NPM_BIN}" ci --omit=dev
 )
 
 # Группа tuleneva + setgid на каталоге релизов — www-data читает статику и бандл.
