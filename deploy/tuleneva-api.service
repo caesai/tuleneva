@@ -1,0 +1,23 @@
+# Шаблон systemd-юнита Tuleneva API + Telegram bot.
+# Установка (один раз на VPS):
+#   sudo cp deploy/tuleneva-api.service /etc/systemd/system/tuleneva-api.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now tuleneva-api
+#
+# Секреты: /etc/tuleneva/api.env (не в каталоге релиза).
+# Бинарь и cwd: через symlink /var/www/tuleneva/current.
+
+[Unit]
+Description=Tuleneva API + Telegram bot
+After=network.target mongod.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/tuleneva/current/server
+EnvironmentFile=/etc/tuleneva/api.env
+ExecStart=/usr/bin/node /var/www/tuleneva/current/server/dist/index.cjs
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

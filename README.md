@@ -62,7 +62,7 @@ PORT=3000
 # MAIL_FROM=noreply@tuleneva25.ru
 ```
 
-Деплой на новый VPS (Nginx, systemd, первый `super_admin`, бэкапы, восстановление дампа): [docs/VPS.md](docs/VPS.md).
+Деплой на новый VPS (Nginx, systemd, пользователь `deploy`, CD из Actions, первый `super_admin`, бэкапы): [docs/VPS.md](docs/VPS.md).
 
 ```bash
 npm start      # production
@@ -137,22 +137,24 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 
 ## Сборка и деплой
 
-**Сервер:**
+**Сервер (локально):**
 
 ```bash
 cd server && npm run build
 node dist/index.cjs
 ```
 
-**Клиент:**
+**Клиент (локально):**
 
 ```bash
 npm run build
 ```
 
-Статика из `dist/` раздаётся веб-сервером (Nginx и т.д.). Папка `dist/` в `.gitignore`.
+Статика из `dist/` раздаётся веб-сервером. Папка `dist/` в `.gitignore`.
 
-Полный чеклист нового сервера: [docs/VPS.md](docs/VPS.md). Бэкап Mongo: `server/scripts/backup-mongo.sh`.
+**Продакшен:** на push в `main` / `master` после зелёных тестов GitHub Actions выкладывает клиент и API на VPS (symlink `current`, systemd `tuleneva-api`). Секреты только в `/etc/tuleneva/api.env` на сервере и в GitHub Secrets (`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS`). Шаблоны и скрипт релиза — каталог `deploy/`.
+
+Полный чеклист нового сервера и CD: [docs/VPS.md](docs/VPS.md). Бэкап Mongo: `server/scripts/backup-mongo.sh`.
 
 Подробный handoff по auth: [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md).
 
@@ -176,6 +178,7 @@ tuleneva/
 ├── shared/
 │   ├── contracts/          # Zod-схемы API
 │   └── test/               # roleMatrix для server + client
+├── deploy/                 # remote-release.sh, systemd, nginx
 ├── docs/
 └── README.md
 ```
