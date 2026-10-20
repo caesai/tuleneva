@@ -52,9 +52,13 @@ MONGO_URI=mongodb://127.0.0.1:27017/test
 PORT=3000
 # Опционально: таймаут одного Telegram-сообщения (мс), по умолчанию 8000
 # TELEGRAM_NOTIFY_TIMEOUT_MS=8000
-# Опционально: прокси / local Bot API при блокировке api.telegram.org
-# TELEGRAM_API_ROOT=https://api.telegram.org
-# SMTP для подтверждения почты (без SMTP_HOST привязка почты отвечает 503)
+# Если api.telegram.org с VPS недоступен — Cloudflare Worker (см. docs/VPS.md):
+# TELEGRAM_API_ROOT=https://<worker>.workers.dev/<секретный-префикс>
+# Webhook вместо long polling (нужен на VPS без исходящего доступа к Telegram):
+# TELEGRAM_WEBHOOK_SECRET=длинная_случайная_строка
+# Чат студии для команд /today и оповещений о бронях (бот: /chatid):
+# STUDIO_CHAT_ID=-100...
+# SMTP для подтверждения почты и сброса пароля (без SMTP_HOST привязка отвечает 503)
 # SMTP_HOST=smtp.example.com
 # SMTP_PORT=587
 # SMTP_USER=...
@@ -106,6 +110,8 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 | POST | `/api/auth/providers/email/login` | Вход по почте и паролю (браузер, только подтверждённая почта) |
 | POST | `/api/auth/providers/email/link` | Привязка почты (JWT); письмо со ссылкой; `currentPassword` при смене |
 | POST | `/api/auth/providers/email/confirm` | Подтверждение почты по токену из письма |
+| POST | `/api/auth/providers/email/forgot` | Запрос сброса пароля (всегда 200; письмо только если почта подтверждена) |
+| POST | `/api/auth/providers/email/reset` | Новый пароль по токену из письма (`?passwordReset=`) |
 | POST | `/api/auth/invite/use` | Регистрация по инвайту (`provider`, `telegram?`, `web?`) |
 | POST | `/api/auth/invite/generate` | Админ: код и ссылки. `multiUse: true` — общая ссылка на 7 дней |
 | POST | `/api/auth/invite/revoke` | Админ: закрыть инвайт по `{ code }` |
@@ -119,16 +125,28 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 | PUT | `/api/users/:id/role` | Смена роли (admin+) |
 | PUT | `/api/users/:id/email-login` | Админ: почта и пароль (письмо с подтверждением) |
 | DELETE | `/api/users/:id` | Удаление (admin+) |
+| GET | `/api/health` | Liveness CD: 200 при живой Mongo, иначе 503 |
 | GET | `/api/timetable?date=DD/MM/YYYY` | Занятые даты месяца |
 | GET | `/api/hours?date=DD/MM/YYYY` | Слоты на день (PII только с JWT участника, `role !== guest`) |
-| POST | `/api/book` | Бронирование |
+| POST | `/api/book` | Бронирование (часы 12:00–23:00, без прошедших слотов) |
 | DELETE | `/api/cancel` | Отмена |
+| POST | `/api/telegram/webhook` | Обновления бота (если задан `TELEGRAM_WEBHOOK_SECRET`) |
 
 ### Deprecated (совместимость)
 
 - `POST /api/users/auth` → `POST /api/auth/providers/telegram/login`
 - `POST /api/users/register` → `POST /api/auth/providers/telegram/register`
 - `POST /api/invite/*` → `POST /api/auth/invite/*`
+
+## Telegram-бот
+
+На VPS в РФ исходящий доступ к `api.telegram.org` часто таймаутится. Тогда:
+
+1. Cloudflare Worker из [deploy/cloudflare-telegram-proxy.js](deploy/cloudflare-telegram-proxy.js) → `TELEGRAM_API_ROOT`
+2. `TELEGRAM_WEBHOOK_SECRET` — Telegram шлёт обновления на `POST /api/telegram/webhook`
+3. Команды в чате студии (`STUDIO_CHAT_ID`): `/today`, `/tomorrow`, `/free`, `/help`; в личке ещё `/my`, `/start`. Админ: `/chatid`
+
+Подробности: [docs/VPS.md](docs/VPS.md).
 
 ## WebSocket
 
@@ -166,6 +184,7 @@ tuleneva/
 │   ├── app.js              # createApp() — Express без listen/bot.launch
 │   ├── index.js            # bootstrap: Mongo, Telegraf, WebSocket
 │   ├── auth/               # authRoutes, providers, inviteService
+│   ├── telegram/           # createBot, команды расписания
 │   ├── models/
 │   └── test/               # unit, contracts, integration
 ├── src/

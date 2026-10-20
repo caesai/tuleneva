@@ -8,6 +8,7 @@ const MIN_PASSWORD_LENGTH = 8;
 const LOGIN_MAX_ATTEMPTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const EMAIL_CONFIRM_TTL_MS = 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
 /** @type {Map<string, { count: number, resetAt: number }>} */
 const loginAttempts = new Map();
@@ -400,6 +401,88 @@ const resetLoginAttemptsForTests = () => {
     loginAttempts.clear();
 };
 
+/**
+ * Запрашивает сброс пароля: всегда «успех» снаружи; письмо только при подтверждённой почте.
+ * @param {string} email
+ * @param {object} options
+ * @param {string} options.webAppBaseUrl
+ * @param {Function} options.sendMail
+ * @returns {Promise<{ sent: boolean }>}
+ */
+const requestPasswordReset = async (email, options = {}) => {
+    const { webAppBaseUrl, sendMail } = options;
+    const normalized = normalizeEmail(email);
+    if (!normalized) {
+        return { sent: false };
+    }
+
+    const user = await User.findOne({ emailLogin: normalized }).select(
+        '+passwordHash +passwordResetTokenHash +passwordResetExpires',
+    );
+    if (!user || !user.passwordHash) {
+        return { sent: false };
+    }
+    if (typeof sendMail !== 'function') {
+        return { sent: false };
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetTokenHash = hashConfirmToken(rawToken);
+    user.passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+    await user.save();
+
+    const base = String(webAppBaseUrl || '').replace(/\/$/, '');
+    const resetUrl = `${base}/app?passwordReset=${encodeURIComponent(rawToken)}`;
+
+    await sendMail({
+        to: normalized,
+        subject: 'Сброс пароля — Tuleneva',
+        text: `Перейдите по ссылке, чтобы задать новый пароль:\n\n${resetUrl}\n\nСсылка действует 1 час.`,
+        html: `<p>Перейдите по ссылке, чтобы задать новый пароль:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>Ссылка действует 1 час.</p>`,
+    });
+
+    return { sent: true };
+};
+
+/**
+ * Задаёт новый пароль по токену из письма сброса.
+ * @param {string} rawToken
+ * @param {string} newPassword
+ * @returns {Promise<import('mongoose').Document>}
+ */
+const resetPasswordWithToken = async (rawToken, newPassword) => {
+    const token = String(rawToken || '').trim();
+    if (!token) {
+        const err = new Error('Invalid or expired reset token');
+        err.status = 400;
+        throw err;
+    }
+    if (!newPassword || String(newPassword).length < MIN_PASSWORD_LENGTH) {
+        const err = new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+        err.status = 400;
+        throw err;
+    }
+
+    const tokenHash = hashConfirmToken(token);
+    const user = await User.findOne({
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpires: { $gt: new Date() },
+    }).select('+passwordHash +passwordResetTokenHash +passwordResetExpires');
+
+    if (!user) {
+        const err = new Error('Invalid or expired reset token');
+        err.status = 400;
+        throw err;
+    }
+
+    user.passwordHash = await hashPassword(newPassword);
+    user.passwordResetTokenHash = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+    clearLoginAttempts(user.emailLogin);
+    return user;
+};
+
 module.exports = {
     normalizeEmail,
     validateEmailCredentials,
@@ -408,6 +491,8 @@ module.exports = {
     linkEmailCredentials,
     confirmEmailToken,
     authenticateEmailPassword,
+    requestPasswordReset,
+    resetPasswordWithToken,
     findUserByEmailLogin,
     allowLoginAttempt,
     recordFailedLogin,
@@ -417,4 +502,5 @@ module.exports = {
     MIN_PASSWORD_LENGTH,
     BCRYPT_ROUNDS,
     EMAIL_CONFIRM_TTL_MS,
+    PASSWORD_RESET_TTL_MS,
 };

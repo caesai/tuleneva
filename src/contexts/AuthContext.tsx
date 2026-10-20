@@ -13,6 +13,8 @@ import {
     loginWithEmail,
     linkEmailCredentials,
     confirmEmail,
+    requestPasswordResetEmail,
+    resetPasswordWithToken as resetPasswordApi,
     parseAuthResponse,
 } from '@/api/auth.api.ts';
 import { buildTelegramAuthPayload } from '@/auth/telegramAuth.ts';
@@ -229,6 +231,32 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
         applySession({ ...data, authProvider: 'email' });
     };
 
+    /**
+     * Запрашивает письмо со ссылкой сброса пароля.
+     */
+    const requestPasswordReset = async (email: string) => {
+        const response = await requestPasswordResetEmail(email);
+        const data = await response.json().catch(() => ({})) as { message?: string };
+        if (!response.ok) {
+            throw new Error(data.message || 'Не удалось отправить письмо');
+        }
+    };
+
+    /**
+     * Задаёт новый пароль по токену и применяет сессию.
+     */
+    const resetPasswordWithToken = async (token: string, password: string) => {
+        const response = await resetPasswordApi(token, password);
+        const data = await parseAuthResponse(response);
+        if (!response.ok || !data.valid || !data.user) {
+            throw new Error(data.message || 'Не удалось сбросить пароль');
+        }
+        if (!data.token) {
+            throw new Error('Вход по почте доступен после одобрения');
+        }
+        applySession({ ...data, authProvider: 'email' });
+    };
+
     const capabilities = useMemo(
         () => buildAuthCapabilities(user, isAuthenticated),
         [user, isAuthenticated],
@@ -255,6 +283,8 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
                 loginWithEmailPassword,
                 linkEmailPassword,
                 confirmEmailToken,
+                requestPasswordReset,
+                resetPasswordWithToken,
             }}
         >
             {children}

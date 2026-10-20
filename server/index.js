@@ -9,7 +9,6 @@ if (!process.env.TELEGRAM_TOKEN) {
 
 const http = require('http');
 const { WebSocketServer } = require('ws');
-const { Telegraf, Markup } = require('telegraf');
 const mongoose = require('mongoose');
 
 const User = require('./models/User');
@@ -20,6 +19,11 @@ const {
     sendTelegramMessage,
     DEFAULT_TIMEOUT_MS,
 } = require('./notifications/telegramNotify');
+const {
+    createBot,
+    startBotTransport,
+    stopBotSafely,
+} = require('./telegram/createBot');
 
 const port = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -27,6 +31,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const WEB_APP_BASE_URL = process.env.WEB_APP_BASE_URL || 'https://tuleneva25.ru';
 const TELEGRAM_API_ROOT = process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org';
 const TELEGRAM_NOTIFY_TIMEOUT_MS = Number(process.env.TELEGRAM_NOTIFY_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || null;
+const STUDIO_CHAT_ID = process.env.STUDIO_CHAT_ID || null;
 const miniAppUrl = 'https://t.me/tuleneva25_bot';
 
 if (!BOT_TOKEN) {
@@ -55,40 +61,12 @@ mongoose.connect(MONGO_URI)
     })
     .catch((err) => console.error('MongoDB connection failed:', err.message));
 
-const bot = new Telegraf(BOT_TOKEN, {
-    telegram: {
-        apiRoot: TELEGRAM_API_ROOT,
-    },
+const bot = createBot({
+    botToken: BOT_TOKEN,
+    apiRoot: TELEGRAM_API_ROOT,
+    webAppBaseUrl: WEB_APP_BASE_URL,
+    studioChatId: STUDIO_CHAT_ID,
 });
-
-const BOT_START_MESSAGE = 'Мини аппка'.trim();
-bot.start((ctx) => ctx.reply(
-    BOT_START_MESSAGE,
-    Markup.inlineKeyboard([
-        [Markup.button.webApp('🕓 Расписание студии', miniAppUrl)],
-    ]),
-));
-
-/**
- * Запускает long polling бота. Ошибка Telegram API (таймаут, блок) не должна
- * валить HTTP/WebSocket — иначе healthcheck CD и весь сайт падают вместе с ботом.
- */
-bot.launch().catch((err) => {
-    console.error(
-        'Telegram bot.launch failed; API stays up. Check TELEGRAM_API_ROOT / network to Telegram:',
-        err && err.message ? err.message : err,
-    );
-});
-const stopBotSafely = (signal) => {
-    try {
-        bot.stop(signal);
-    } catch (err) {
-        // bot.launch не успел / упал — stop кидает "Bot is not running!"
-        console.warn('Telegram bot.stop skipped:', err && err.message ? err.message : err);
-    }
-};
-process.once('SIGINT', () => stopBotSafely('SIGINT'));
-process.once('SIGTERM', () => stopBotSafely('SIGTERM'));
 
 /**
  * Уведомляет админов через Telegram (параллельно, с таймаутом).
@@ -96,11 +74,37 @@ process.once('SIGTERM', () => stopBotSafely('SIGTERM'));
  * @param {object} [extra]
  * @returns {Promise<void>}
  */
-const notifyAdmins = createNotifyAdmins({
+const notifyAdminsBase = createNotifyAdmins({
     bot,
     User,
     timeoutMs: TELEGRAM_NOTIFY_TIMEOUT_MS,
 });
+
+/**
+ * Админы в личку + опционально чат студии.
+ * @param {string} message
+ * @param {object} [extra]
+ * @returns {Promise<void>}
+ */
+const notifyAdmins = async (message, extra) => {
+    await notifyAdminsBase(message, extra);
+    if (STUDIO_CHAT_ID) {
+        try {
+            await sendTelegramMessage(
+                bot,
+                STUDIO_CHAT_ID,
+                message,
+                extra,
+                TELEGRAM_NOTIFY_TIMEOUT_MS,
+            );
+        } catch (err) {
+            console.error(
+                'Failed to notify studio chat:',
+                err && err.message ? err.message : err,
+            );
+        }
+    }
+};
 
 /**
  * Отправляет сообщение пользователю с таймаутом из env.
@@ -132,6 +136,8 @@ const app = createApp({
     notifyAdmins,
     notifyUser,
     broadcastUpdate,
+    telegramBot: TELEGRAM_WEBHOOK_SECRET ? bot : null,
+    telegramWebhookSecret: TELEGRAM_WEBHOOK_SECRET,
 });
 
 const server = http.createServer(app);
@@ -167,6 +173,64 @@ const wsHeartbeat = setInterval(() => {
 }, 25000);
 wsHeartbeat.unref?.();
 
+let shuttingDown = false;
+
+/**
+ * Закрывает HTTP, WebSocket, Mongo и бота по сигналу systemd.
+ * @param {string} signal
+ */
+const gracefulShutdown = (signal) => {
+    if (shuttingDown) {
+        return;
+    }
+    shuttingDown = true;
+    console.log(`Shutting down on ${signal}...`);
+    clearInterval(wsHeartbeat);
+
+    const forceTimer = setTimeout(() => {
+        console.error('Graceful shutdown timed out, exiting');
+        process.exit(1);
+    }, 10000);
+    forceTimer.unref?.();
+
+    server.close(async () => {
+        try {
+            wss.clients.forEach((ws) => {
+                try {
+                    ws.close();
+                } catch {
+                    // ignore
+                }
+            });
+            wss.close();
+        } catch (err) {
+            console.warn('WebSocket close:', err?.message || err);
+        }
+
+        stopBotSafely(bot, signal);
+
+        try {
+            await mongoose.connection.close();
+            console.log('MongoDB connection closed');
+        } catch (err) {
+            console.error('MongoDB close failed:', err?.message || err);
+        }
+
+        clearTimeout(forceTimer);
+        process.exit(0);
+    });
+};
+
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 server.listen(port, () => {
     console.log(`Server with WebSocket support listening on port ${port}`);
+    startBotTransport({
+        bot,
+        webhookSecret: TELEGRAM_WEBHOOK_SECRET,
+        webAppBaseUrl: WEB_APP_BASE_URL,
+    }).catch((err) => {
+        console.error('Bot transport start failed:', err?.message || err);
+    });
 });

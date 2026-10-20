@@ -11,6 +11,7 @@ import { AdminRoute } from '@/components/AdminRoute/AdminRoute.tsx';
 import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
+import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import { APIValidateInvite } from '@/api/user.api.ts';
 import { getTelegramEnvironment } from '@/telegram/env.ts';
 import type { IInviteValidateResponse, TAuthProvider } from '@/types/auth.types.ts';
@@ -31,6 +32,8 @@ const IndexPage: React.FC = () => {
     const [inviteAllowedProviders, setInviteAllowedProviders] = useState<TAuthProvider[]>([]);
     const [webFirstName, setWebFirstName] = useState('');
     const [webLastName, setWebLastName] = useState('');
+    const [isLinkEmailOpen, setIsLinkEmailOpen] = useState(false);
+    const [linkEmailLoading, setLinkEmailLoading] = useState(false);
     const closeModal = () => setIsModalOpen(false);
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -45,6 +48,7 @@ const IndexPage: React.FC = () => {
         isAuthenticated,
         register,
         registerWithInvite,
+        linkEmailPassword,
     } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
@@ -130,6 +134,9 @@ const IndexPage: React.FC = () => {
             setInviteAllowedProviders([]);
             setWebFirstName('');
             setWebLastName('');
+            if (showWebInviteForm) {
+                setIsLinkEmailOpen(true);
+            }
         } catch (err) {
             console.error('Invite request access failed:', err);
             showToast('Не удалось отправить запрос. Ссылка может быть уже использована.', 'error');
@@ -219,6 +226,62 @@ const IndexPage: React.FC = () => {
                         }}
                     >
                         {inviteLoading ? 'Отправка...' : 'Запросить доступ'}
+                    </button>
+                </div>
+            </ModalPopup>
+
+            <ModalPopup
+                isOpen={isLinkEmailOpen}
+                onClose={() => setIsLinkEmailOpen(false)}
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '280px' }}>
+                    <h3 style={{ margin: 0 }}>Привяжите почту</h3>
+                    <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.4' }}>
+                        Без почты сессия в браузере действует одни сутки. После
+                        подтверждения письма сможете войти снова. Можно закрыть
+                        и привязать позже в расписании.
+                    </p>
+                    <EmailAuthForm
+                        submitLabel="Привязать почту"
+                        loading={linkEmailLoading}
+                        onSubmit={async (email, password) => {
+                            setLinkEmailLoading(true);
+                            try {
+                                const result = await linkEmailPassword(email, password);
+                                if (result.pendingConfirmation) {
+                                    showToast(
+                                        'Проверьте почту — перейдите по ссылке для подтверждения.',
+                                        'success',
+                                    );
+                                } else {
+                                    showToast('Почта привязана.', 'success');
+                                }
+                                setIsLinkEmailOpen(false);
+                            } catch (err) {
+                                showToast(
+                                    err instanceof Error
+                                        ? err.message
+                                        : 'Не удалось привязать почту. Если SMTP не настроен, попробуйте позже.',
+                                    'error',
+                                );
+                                throw err;
+                            } finally {
+                                setLinkEmailLoading(false);
+                            }
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setIsLinkEmailOpen(false)}
+                        style={{
+                            padding: '8px 16px',
+                            borderRadius: '8px',
+                            border: '1px solid #ccc',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Позже
                     </button>
                 </div>
             </ModalPopup>

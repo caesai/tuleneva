@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import css from '@/components/TimeSlots/TimeSlots.module.css';
 import type { IHour } from '@/types/timetable.types.ts';
 import { SafeAvatar } from '@/components/SafeAvatar/SafeAvatar.tsx';
+import { AVAILABLE_HOURS, isSlotInPast } from '../../../shared/studioHours.cjs';
 
 /**
  * Свойства компонента TimeSlots.
@@ -23,15 +24,9 @@ interface TimeSlotsProps {
     isAdmin: boolean;
     /** Флаг, указывающий, является ли выбранная дата прошедшей (блокирует взаимодействие) */
     isSelectedDayBeforeToday: boolean;
-    /** Флаг, указывающий, является ли выбранная дата сегодняшним днём */
-    isToday: boolean;
+    /** Выбранная дата DD/MM/YYYY (для проверки прошедших слотов по Москве) */
+    selectedDateDdMmYyyy: string;
 }
-
-/** Список доступных для бронирования часов (статическая конфигурация) */
-const AVAILABLE_HOURS = [
-    '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
-    '18:00', '19:00', '20:00', '21:00', '22:00', '23:00',
-];
 
 const getAvatarFallback = (username?: string): string => {
     return username?.trim().charAt(0).toUpperCase() || '?';
@@ -60,21 +55,16 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
         currentUserId,
         isAdmin,
         isSelectedDayBeforeToday,
-        isToday,
+        selectedDateDdMmYyyy,
     },
 ) => {
     /**
-     * Проверяет, прошло ли уже время слота (для сегодняшнего дня).
+     * Проверяет, прошло ли уже время слота по Москве.
      * @param slotHour - Время слота в формате "HH:00"
-     * @returns true, если текущее время больше или равно времени слота
+     * @returns true, если слот уже начался или прошёл
      */
-    const isSlotTimePassed = (slotHour: string): boolean => {
-        if (!isToday) return false;
-        const now = new Date();
-        const [hours] = slotHour.split(':').map(Number);
-        const currentHour = now.getHours();
-        return currentHour >= hours;
-    };
+    const isSlotTimePassed = (slotHour: string): boolean =>
+        isSlotInPast(selectedDateDdMmYyyy, slotHour);
 
     return (
         <div className={css.timeSlotContainer}>

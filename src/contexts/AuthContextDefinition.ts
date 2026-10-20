@@ -35,6 +35,10 @@ export interface IAuthContext {
     ) => Promise<{ pendingConfirmation: boolean }>;
     /** Подтверждение почты по токену из письма. */
     confirmEmailToken: (token: string) => Promise<void>;
+    /** Запрос письма со сбросом пароля. */
+    requestPasswordReset: (email: string) => Promise<void>;
+    /** Новый пароль по токену из письма. */
+    resetPasswordWithToken: (token: string, password: string) => Promise<void>;
 }
 
 export const initialAuthCapabilities = buildAuthCapabilities(null, false);
@@ -56,6 +60,8 @@ export const initialAuthState: IAuthContext = {
     loginWithEmailPassword: async () => {},
     linkEmailPassword: async () => ({ pendingConfirmation: false }),
     confirmEmailToken: async () => {},
+    requestPasswordReset: async () => {},
+    resetPasswordWithToken: async () => {},
 };
 
 export const AuthContext = createContext<IAuthContext>(initialAuthState);

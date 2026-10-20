@@ -81,6 +81,15 @@ const userSchema = new mongoose.Schema(
             type: Date,
             select: false,
         },
+        /** Сброс пароля по письму (отдельно от подтверждения почты). */
+        passwordResetTokenHash: {
+            type: String,
+            select: false,
+        },
+        passwordResetExpires: {
+            type: Date,
+            select: false,
+        },
     },
     {
         timestamps: true,

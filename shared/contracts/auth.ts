@@ -34,6 +34,23 @@ export const EmailConfirmRequestSchema = z.object({
     token: z.string().min(1),
 });
 
+/** Запрос письма со сбросом пароля. */
+export const EmailForgotRequestSchema = z.object({
+    email: z.string().email(),
+});
+
+/** Ответ forgot — без раскрытия, есть ли аккаунт. */
+export const EmailForgotResponseSchema = z.object({
+    valid: z.boolean(),
+    message: z.string().optional(),
+});
+
+/** Установка нового пароля по токену из письма. */
+export const EmailResetRequestSchema = z.object({
+    token: z.string().min(1),
+    password: z.string().min(8),
+});
+
 /** Ответ link: либо pendingConfirmation, либо обычная сессия. */
 export const EmailLinkResponseSchema = z.object({
     valid: z.boolean(),

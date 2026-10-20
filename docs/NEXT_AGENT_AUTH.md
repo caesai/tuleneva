@@ -1,92 +1,44 @@
-# Handoff: расширяемая авторизация — следующие шаги
+# Handoff: авторизация — актуальное состояние
 
-Документ для следующего агента. План из `.cursor/plans/auth_providers_roadmap_*.plan.md` **уже реализован в коде** (не редактировать plan-файл). Ниже — что сделано, что проверить на проде и что делать дальше.
+Документ для следующего агента. План провайдеров и web/email **уже в коде**. Ниже — что сделано, что проверить на проде и что осталось вне scope.
 
 ---
 
 ## Что уже сделано
 
 ### Клиент
-- [`src/contexts/AuthContext.tsx`](../src/contexts/AuthContext.tsx) — нейтральный контракт: `authStatus`, `authProvider`, `capabilities`, восстановление сессии по JWT (`GET /api/auth/session`).
-- [`src/api/auth.api.ts`](../src/api/auth.api.ts) — `loginWithTelegram`, `requestAccessWithTelegram`, `applyInviteWithProvider`, `getAuthSession`.
-- [`src/auth/telegramAuth.ts`](../src/auth/telegramAuth.ts) — сборка Telegram payload.
-- [`src/types/auth.types.ts`](../src/types/auth.types.ts) — типы и `buildAuthCapabilities`.
-- [`src/pages/TimeTablePage/TimeTablePage.tsx`](../src/pages/TimeTablePage/TimeTablePage.tsx) — UI по `capabilities`, не по сырым проверкам Telegram.
-- [`src/App.tsx`](../src/App.tsx) — инвайт из `tgWebAppStartParam` и `?invite=`.
-- [`src/pages/AdminPage/AdminPage.tsx`](../src/pages/AdminPage/AdminPage.tsx) — две ссылки: Telegram Mini App + web.
-- [`src/api/user.api.ts`](../src/api/user.api.ts) — старые методы помечены `@deprecated`, проксируют `auth.api`.
+- [`src/contexts/AuthContext.tsx`](../src/contexts/AuthContext.tsx) — `authStatus`, `authProvider`, `capabilities`, сессия JWT, email login/link/confirm/forgot/reset.
+- [`src/api/auth.api.ts`](../src/api/auth.api.ts) — нейтральные вызовы `/api/auth/*`.
+- [`src/App.tsx`](../src/App.tsx) — инвайт `?invite=` / `tgWebAppStartParam`; после **web**-инвайта модалка привязки почты (можно закрыть).
+- [`src/pages/TimeTablePage/TimeTablePage.tsx`](../src/pages/TimeTablePage/TimeTablePage.tsx) — «Войти по почте», «Забыли пароль?», сброс по `?passwordReset=`.
+- UI по `capabilities`, не по сырым проверкам Telegram.
 
 ### Сервер
-- [`server/models/User.js`](../server/models/User.js) — `telegram_id` optional (sparse unique), массив `identities[]`.
-- [`server/models/InviteCode.js`](../server/models/InviteCode.js) — `purpose`, `initialRole`, `allowedProviders`, `usedBy`, `usedAt`.
-- [`server/auth/`](../server/auth/) — `telegramProvider.js`, `identityService.js`, `tokenService.js`, `authRoutes.js`.
-- [`server/index.js`](../server/index.js) — `app.use('/api/auth', ...)`, миграция legacy identities при старте, legacy `/api/users/*` для совместимости.
-
-### Прочее (из предыдущих сессий)
-- Graceful Telegram SDK вне Mini App, `SafeAvatar`, code splitting (`vendor-ui`).
-- **Важно:** на проде могла остаться старая сборка с `vendor-mui` + `vendor-react` (ошибка `Cannot access 'ho' before initialization`). Нужен деплой свежего `dist/` с `vendor-ui-QsilPmE-.js`.
+- [`server/auth/`](../server/auth/) — telegram, web, email (link/confirm/login/forgot/reset), invite.
+- Web-инвайт: `POST /api/auth/invite/use` с `provider: 'web'` создаёт пользователя (не 501).
+- Email: bcrypt, подтверждение письмом, сброс пароля отдельными полями `passwordReset*`.
+- [`shared/studioHours.cjs`](../shared/studioHours.cjs) — сетка 12:00–23:00 и прошедшие слоты; `POST /api/book` отклоняет чужие часы и прошлое.
+- [`GET /api/health`](../server/app.js) — 200 только при живой Mongo; CD: `deploy/remote-release.sh`.
+- Telegram: webhook + `TELEGRAM_API_ROOT` (Cloudflare Worker), команды в [`server/telegram/createBot.js`](../server/telegram/createBot.js).
 
 ---
 
 ## Обязательно перед новой разработкой
 
-1. **Задеплоить** фронт (`npm run build` → `dist/`) и перезапустить Node-сервер.
-2. В `.env` сервера добавить при необходимости:
-   ```env
-   WEB_APP_BASE_URL=https://tuleneva25.ru
-   JWT_SECRET=...
-   TELEGRAM_TOKEN=...
-   ```
-3. **Проверить на проде:**
-   - `index.html` не грузит `telegram.org/js/telegram-web-app.js`.
-   - В HTML чанки: `vendor-ui-*.js`, не `vendor-mui` + `vendor-react` отдельно.
-   - `GET /api/auth/session` с Bearer token возвращает пользователя.
-   - Telegram Mini App: login, register, invite, бронирование.
-   - Браузер без Telegram: только просмотр расписания; бронирование скрыто (`capabilities`).
+1. Задеплоить фронт и API; в `api.env` при блокировке Telegram — Worker + `TELEGRAM_WEBHOOK_SECRET` (см. [VPS.md](VPS.md)).
+2. Smoke: `GET /api/health`, Telegram login, web invite + привязка почты, бронь.
 
 ---
 
-## Следующие шаги (приоритет)
+## Следующие шаги (не сделано в последнем проходе)
 
-### P0 — Стабилизация продакшена
-| # | Задача | Файлы / действия |
-|---|--------|------------------|
-| 1 | Деплой актуального `dist/` и рестарт API | CI / сервер `51.250.16.74` |
-| 2 | Убедиться, что MongoDB миграция identities отработала (лог при старте: `Migrated N legacy telegram identities`) | `server/index.js` |
-| 3 | Smoke-тест auth endpoints | `/api/auth/session`, `/api/auth/providers/telegram/login` |
-
-### P1 — Web-провайдер (первый не-Telegram вход)
-Сейчас `POST /api/auth/invite/use` с `provider: 'web'` возвращает **501 / not implemented**.
-
-1. Добавить `server/auth/webProvider.js` (или `emailProvider.js`):
-   - регистрация по инвайту: имя + опционально email, без `telegram_id`;
-   - создание `User` + `identity: { provider: 'web', providerUserId: email или uuid }`.
-2. Расширить `authRoutes.js` — ветка `provider === 'web'` в `invite/use`.
-3. Клиент:
-   - страница/модалка «Войти по ссылке-приглашению» для `?invite=` **вне Telegram**;
-   - в `AuthContext.registerWithInvite` — не требовать `isInTelegram`, передавать `provider: 'web'` + форма.
-4. Обновить [`src/App.tsx`](../src/App.tsx): для web-инвайта показывать форму, а не только Telegram flow.
-
-### P2 — Админка инвайтов
-| # | Задача |
-|---|--------|
-| 1 | В [`AdminPage`](../src/pages/AdminPage/AdminPage.tsx) — выбор `purpose`, `initialRole`, `allowedProviders` при генерации |
-| 2 | Отображать `webInviteLink` и `telegramInviteLink` (частично есть) |
-| 3 | Опционально: список использованных инвайтов (`usedBy`, `usedAt`) — нужен `GET /api/auth/invite/history` |
-
-### P3 — Дополнительные провайдеры
-- **Email + magic link** или **OAuth** (Google/Yandex): отдельные `identities`, endpoints `/api/auth/providers/email/*`.
-- Унифицировать `requestAccess` — сейчас только Telegram.
-
-### P4 — Уборка legacy
-- Удалить дублирующие маршруты в `server/index.js`: `/api/invite/*`, `/api/users/auth`, если клиент полностью на `/api/auth/*`.
-- Убрать `@deprecated` реэкспорты из `user.api.ts`, когда нет внешних потребителей.
-- Удалить неиспользуемые дубликаты `parseQueryToNestedJson` / `verifyTelegramInitData` в `index.js` (уже есть в `telegramProvider.js`).
-
-### P5 — UX и безопасность
-- [`TimeTablePage`](../src/pages/TimeTablePage/TimeTablePage.tsx) header `Avatar` — заменить MUI `Avatar` на `SafeAvatar`.
-- Rate limit на `/api/auth/providers/*` и `/api/invite/use`.
-- Refresh token или более длинная сессия (сейчас JWT `1d`).
+| Приоритет | Задача |
+|-----------|--------|
+| P2 | Список живых инвайтов / история (`GET /api/auth/invite/history`) |
+| P2 | Журнал смен ролей |
+| P3 | OAuth / phone-провайдер (enum есть, маршрутов нет) |
+| P4 | Убрать legacy `/api/invite/*`, `/api/users/auth` после проверки клиентов |
+| P5 | Rate limit на invite/use и telegram login; E2E Playwright |
 
 ---
 
@@ -94,15 +46,15 @@
 
 ```
 AuthContext
-  → auth.api.ts (нейтральные вызовы)
-  → /api/auth/session | /api/auth/providers/telegram/* | /api/auth/invite/*
-  → identityService + telegramProvider
-  → User (profile + role) + identities[]
+  → auth.api.ts
+  → /api/auth/session | providers/* | invite/*
+  → identityService + providers
+  → User + identities[]
 ```
 
-**Правило для UI:** не проверять `isInTelegram` в страницах — только `useAuth().capabilities` и `authStatus`.
+**UI:** только `useAuth().capabilities` и `authStatus`.
 
-**Правило для API:** не называть обычные fetch-функции с префиксом `use*` (см. переименование `useInviteWithProvider` → `applyInviteWithProvider`).
+**API:** fetch-функции без префикса `use*`.
 
 ---
 
@@ -110,41 +62,22 @@ AuthContext
 
 | Ограничение | Где |
 |-------------|-----|
-| В браузере нет входа без JWT (кроме будущего web-провайдера) | `AuthContext` |
-| `register` / `registerWithInvite` требуют Telegram | `AuthContext.tsx` |
-| Telegram CDN аватарки могут не грузиться без VPN | `SafeAvatar`, timeout 1.2s |
-| `notifyAdmins` / user notify — асинхронно, таймаут `TELEGRAM_NOTIFY_TIMEOUT_MS` (8s); при ETIMEDOUT на VPS задать `TELEGRAM_API_ROOT` | `server/notifications/telegramNotify.js`, `server/index.js` |
-| ESLint: `NetworkContext.tsx` — `react-refresh/only-export-components` | не связано с auth |
+| Web без почты: JWT 1 сутки, повторный инвайт = новый user | webProvider, tokenService |
+| Сброс пароля и привязка требуют SMTP | mailer.js |
+| Telegram CDN аватарки | SafeAvatar |
+| Notify с таймаутом; на VPS нужен `TELEGRAM_API_ROOT` | telegramNotify.js |
 
 ---
-
-## Полезные команды
-
-```bash
-npm run build          # клиент
-npm run lint           # есть старый warning в NetworkContext
-# сервер
-node server/index.js   # или текущий process manager
-```
 
 ## Ключевые endpoint'ы
 
 | Method | Path | Назначение |
 |--------|------|------------|
-| GET | `/api/auth/session` | Восстановление сессии (JWT) |
+| GET | `/api/auth/session` | Сессия |
 | POST | `/api/auth/providers/telegram/login` | Вход Telegram |
-| POST | `/api/auth/providers/telegram/register` | Запрос доступа |
-| POST | `/api/auth/invite/use` | Инвайт (`provider`, `telegram?`) |
-| POST | `/api/auth/invite/generate` | Админ: код + ссылки |
-| GET | `/api/auth/invite/validate/:code` | Проверка кода |
-
----
-
-## Рекомендуемый порядок для следующего агента
-
-1. P0 — деплой и проверка прода.
-2. P1 — web invite + форма в браузере (минимальный второй провайдер).
-3. P2 — улучшение AdminPage.
-4. P4 — cleanup legacy после стабилизации.
-
-Не начинать с OAuth/email, пока не работает стабильный web-invite flow end-to-end.
+| POST | `/api/auth/providers/email/login` | Вход по почте |
+| POST | `/api/auth/providers/email/forgot` | Сброс: письмо |
+| POST | `/api/auth/providers/email/reset` | Сброс: новый пароль |
+| POST | `/api/auth/invite/use` | Инвайт (`telegram` / `web`) |
+| GET | `/api/health` | Mongo liveness |
+| POST | `/api/telegram/webhook` | Бот (если секрет задан) |

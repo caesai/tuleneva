@@ -6,6 +6,7 @@ const cors = require('cors');
 const moment = require('moment');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const { Markup } = require('telegraf');
 
 const User = require('./models/User');
@@ -36,6 +37,7 @@ const {
 } = require('./auth/emailProvider');
 const { createSmtpSendMail } = require('./auth/mailer');
 const { safeNotify } = require('./notifications/telegramNotify');
+const { isHourAllowed, isSlotInPast } = require('../shared/studioHours.cjs');
 
 /**
  * @param {object} options
@@ -47,6 +49,8 @@ const { safeNotify } = require('./notifications/telegramNotify');
  * @param {Function} [options.notifyUser] - Отправка сообщения пользователю (с таймаутом)
  * @param {Function} [options.broadcastUpdate]
  * @param {Function|null} [options.sendMail] - Отправка писем; по умолчанию SMTP из env
+ * @param {import('telegraf').Telegraf|null} [options.telegramBot] - Бот для webhook
+ * @param {string|null} [options.telegramWebhookSecret] - X-Telegram-Bot-Api-Secret-Token
  */
 const createApp = ({
     jwtSecret,
@@ -57,6 +61,8 @@ const createApp = ({
     notifyUser = async () => {},
     broadcastUpdate = () => {},
     sendMail = undefined,
+    telegramBot = null,
+    telegramWebhookSecret = null,
 }) => {
     const mailSender = sendMail === undefined ? createSmtpSendMail() : sendMail;
 /**
@@ -219,7 +225,45 @@ const convertOldFormatToNew = (oldFormatObj) => {
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         allowedHeaders: ['Content-Type', 'Authorization'],
     }));
-    app.use(express.json());
+    app.use(express.json({ limit: '32kb' }));
+
+/**
+ * @route GET /api/health
+ * @description Liveness для CD: 200 только при живом соединении с MongoDB.
+ */
+app.get('/api/health', (req, res) => {
+    const mongoOk = mongoose.connection.readyState === 1;
+    if (!mongoOk) {
+        return res.status(503).json({ ok: false, mongo: 'disconnected' });
+    }
+    return res.status(200).json({ ok: true, mongo: 'connected' });
+});
+
+/**
+ * @route POST /api/telegram/webhook
+ * @description Приём обновлений Telegram (вместо long polling на VPS без доступа к api.telegram.org).
+ */
+app.post('/api/telegram/webhook', (req, res) => {
+    if (!telegramBot || !telegramWebhookSecret) {
+        return res.sendStatus(404);
+    }
+    const header = req.get('X-Telegram-Bot-Api-Secret-Token');
+    if (header !== telegramWebhookSecret) {
+        return res.sendStatus(401);
+    }
+    telegramBot.handleUpdate(req.body)
+        .then(() => {
+            if (!res.headersSent) {
+                res.sendStatus(200);
+            }
+        })
+        .catch((err) => {
+            console.error('Telegram webhook handleUpdate failed:', err?.message || err);
+            if (!res.headersSent) {
+                res.sendStatus(500);
+            }
+        });
+});
 
 /**
  * Middleware для аутентификации JWT токена.
@@ -573,10 +617,27 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
             return res.status(400).json({ error: 'Duplicate hours in booking request.' });
         }
 
-        const dateMoment = moment.utc(date, 'DD/MM/YYYY');
+        const dateMoment = moment.utc(date, 'DD/MM/YYYY', true);
         if (!dateMoment.isValid()) {
             return res.status(400).json({ error: 'Invalid date format. Please use DD/MM/YYYY.' });
         }
+
+        const invalidHours = uniqueHours.filter((hour) => !isHourAllowed(hour));
+        if (invalidHours.length > 0) {
+            return res.status(400).json({
+                error: 'Hours outside studio schedule (12:00–23:00).',
+                invalidHours,
+            });
+        }
+
+        const pastHours = uniqueHours.filter((hour) => isSlotInPast(date, hour));
+        if (pastHours.length > 0) {
+            return res.status(400).json({
+                error: 'Cannot book past time slots.',
+                pastHours,
+            });
+        }
+
         const bookingDate = dateMoment.startOf('day').toDate();
 
         // 2. Find the document for the day
