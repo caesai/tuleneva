@@ -32,30 +32,48 @@ const WEB_APP_BASE_URL = process.env.WEB_APP_BASE_URL || 'https://tuleneva25.ru'
 /**
  * Корень Bot API. Обязателен завершающий `/`: Telegraf делает
  * `new URL('./bot…/method', apiRoot)` — без слэша последний сегмент пути
- * (секретный PREFIX воркера) выкидывается.
+ * (секретный PREFIX воркера) выкидывается → Worker отвечает 404 Not found.
+ * trim + снятие кавычек: systemd/редакторы иногда оставляют \\r или ".
  */
 const TELEGRAM_API_ROOT = (() => {
-    const raw = process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org';
-    return raw.endsWith('/') ? raw : `${raw}/`;
+    let raw = String(process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org')
+        .trim()
+        .replace(/^['"]|['"]$/g, '')
+        .replace(/[\r\n]+/g, '');
+    if (!raw.endsWith('/')) {
+        raw = `${raw}/`;
+    }
+    return raw;
 })();
+console.log('Telegram API root:', TELEGRAM_API_ROOT);
 const TELEGRAM_NOTIFY_TIMEOUT_MS = Number(process.env.TELEGRAM_NOTIFY_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || null;
 const STUDIO_CHAT_ID = process.env.STUDIO_CHAT_ID || null;
 /**
- * Куда Telegram шлёт апдейты. Если api.telegram.org до VPS не достучится
- * (Connection timed out), указывайте URL Worker …/hook.
- * При TELEGRAM_API_ROOT на workers.dev и пустом TELEGRAM_WEBHOOK_URL — …/hook сам.
+ * Куда Telegram шлёт апдейты.
+ * При кастомном TELEGRAM_API_ROOT (прокси) никогда не ставим webhook на сам VPS —
+ * Telegram до Yandex часто получает Connection timed out.
  */
 const TELEGRAM_WEBHOOK_URL = (() => {
     if (process.env.TELEGRAM_WEBHOOK_URL) {
-        return String(process.env.TELEGRAM_WEBHOOK_URL).replace(/\/$/, '');
+        return String(process.env.TELEGRAM_WEBHOOK_URL).trim().replace(/\/$/, '');
     }
-    if (TELEGRAM_API_ROOT.includes('workers.dev')) {
-        return `${TELEGRAM_API_ROOT.replace(/\/$/, '')}/hook`;
+    const root = TELEGRAM_API_ROOT.replace(/\/$/, '');
+    const isDefaultTelegram = /^https:\/\/api\.telegram\.org\/?$/i.test(root);
+    if (!isDefaultTelegram) {
+        return `${root}/hook`;
     }
     return null;
 })();
 const miniAppUrl = 'https://t.me/tuleneva25_bot';
+
+if (TELEGRAM_WEBHOOK_SECRET) {
+    console.log(
+        'Telegram webhook URL:',
+        TELEGRAM_WEBHOOK_URL
+            || `${WEB_APP_BASE_URL.replace(/\/$/, '')}/api/telegram/webhook`,
+    );
+}
 
 if (!BOT_TOKEN) {
     console.error('ERROR: TELEGRAM_TOKEN is not defined in .env file or environment variables.');

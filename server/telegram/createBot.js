@@ -75,8 +75,14 @@ const createBot = ({
     webAppBaseUrl = 'https://tuleneva25.ru',
     studioChatId = null,
 }) => {
+    // apiRoot обязан заканчиваться на `/` (см. server/index.js) — иначе PREFIX воркера
+    // выпадает из URL и sendMessage получает 404 Not Found от Worker.
+    const normalizedRoot = apiRoot.endsWith('/') ? apiRoot : `${apiRoot}/`;
     const bot = new Telegraf(botToken, {
-        telegram: { apiRoot },
+        telegram: {
+            apiRoot: normalizedRoot,
+            apiMode: 'bot',
+        },
     });
 
     const appUrl = `${String(webAppBaseUrl).replace(/\/$/, '')}/app`;
@@ -271,16 +277,19 @@ const startBotTransport = async ({
     await registerBotCommands(bot);
 
     if (webhookSecret) {
-        const hookUrl = webhookUrl
+        const hookUrl = (webhookUrl && String(webhookUrl).trim())
             || `${String(webAppBaseUrl).replace(/\/$/, '')}/api/telegram/webhook`;
         try {
-            await bot.telegram.setWebhook(hookUrl, {
+            // drop_pending_updates: false — не теряем очередь; secret обязателен.
+            await bot.telegram.callApi('setWebhook', {
+                url: hookUrl,
                 secret_token: webhookSecret,
+                allowed_updates: ['message', 'callback_query'],
             });
             console.log(`Telegram webhook set: ${hookUrl}`);
         } catch (err) {
             console.error(
-                'Telegram setWebhook failed; API stays up. Check TELEGRAM_API_ROOT:',
+                'Telegram setWebhook failed; API stays up. Check TELEGRAM_API_ROOT / TELEGRAM_WEBHOOK_URL:',
                 err && err.message ? err.message : err,
             );
         }
