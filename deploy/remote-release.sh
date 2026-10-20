@@ -144,5 +144,8 @@ for old in "${OLD_RELEASES[@]}"; do
 done
 
 log "deploy ${RELEASE_SHA} complete"
-sudo systemctl is-active --quiet "${SERVICE_NAME}"
+# is-active не требует root; sudoers с точным списком команд ломается на флагах вроде --quiet
+if ! systemctl is-active --quiet "${SERVICE_NAME}"; then
+  fail "${SERVICE_NAME} is not active after deploy"
+fi
 exit 0
