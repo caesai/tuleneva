@@ -18,6 +18,13 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm test
+      - name: Upload client dist
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-dist
+          path: dist/
+          retention-days: 7
 
   server:
     runs-on: ubuntu-latest
@@ -32,3 +39,71 @@ jobs:
         run: npm ci
       - working-directory: server
         run: npm run test:all
+      - working-directory: server
+        run: npm run build
+      - name: Stage server release files
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          mkdir -p staging/server
+          cp -R server/dist staging/server/
+          cp server/package.json server/package-lock.json staging/server/
+      - name: Upload server release files
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-release
+          path: staging/server/
+          retention-days: 7
+
+  deploy:
+    needs: [client, server]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download client dist
+        uses: actions/download-artifact@v4
+        with:
+          name: client-dist
+          path: release/dist
+
+      - name: Download server release files
+        uses: actions/download-artifact@v4
+        with:
+          name: server-release
+          path: release/server
+
+      - name: Pack release archive
+        run: |
+          tar -czf release.tar.gz -C release dist server
+          ls -lh release.tar.gz
+
+      - name: Setup SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Upload release and run remote script
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          RELEASE_SHA="${GITHUB_SHA}"
+          SSH_OPTS=(-o IdentitiesOnly=yes -i ~/.ssh/id_deploy)
+          scp "${SSH_OPTS[@]}" \
+            release.tar.gz \
+            deploy/remote-release.sh \
+            "${VPS_USER}@${VPS_HOST}:/tmp/"
+          ssh "${SSH_OPTS[@]}" "${VPS_USER}@${VPS_HOST}" \
+            "chmod +x /tmp/remote-release.sh && /tmp/remote-release.sh '${RELEASE_SHA}' /tmp/release.tar.gz"
