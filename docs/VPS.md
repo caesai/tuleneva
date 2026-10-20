@@ -126,12 +126,12 @@ sudo chown -R deploy:deploy /home/deploy/.ssh
 Sudoers только для рестарта API:
 
 ```bash
-echo 'deploy ALL=(root) NOPASSWD: /bin/systemctl restart tuleneva-api, /bin/systemctl is-active tuleneva-api' \
+echo 'deploy ALL=(root) NOPASSWD: /bin/systemctl restart tuleneva-api' \
   | sudo tee /etc/sudoers.d/tuleneva-deploy
 sudo chmod 440 /etc/sudoers.d/tuleneva-deploy
 ```
 
-Пути сервиса: `systemctl` обычно в `/bin/systemctl` или `/usr/bin/systemctl` — проверьте `which systemctl` и подставьте точный путь в sudoers.
+Пути сервиса: `systemctl` обычно в `/bin/systemctl` или `/usr/bin/systemctl` — проверьте `which systemctl` и подставьте точный путь в sudoers. `is-active` в скрипте деплоя идёт без sudo.
 
 ## 3. Переменные окружения сервера
 
