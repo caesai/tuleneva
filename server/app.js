@@ -260,18 +260,15 @@ app.post('/api/telegram/webhook', (req, res) => {
         req.body?.update_id,
         req.body?.message?.text || req.body?.message?.entities?.[0]?.type || '',
     );
-    telegramBot.handleUpdate(req.body)
-        .then(() => {
-            if (!res.headersSent) {
-                res.sendStatus(200);
-            }
-        })
-        .catch((err) => {
-            console.error('Telegram webhook handleUpdate failed:', err?.message || err);
-            if (!res.headersSent) {
-                res.sendStatus(500);
-            }
-        });
+    // Сразу 200, чтобы Telegram не ретраил; ответ пользователю уходит через Worker отдельно.
+    res.sendStatus(200);
+    telegramBot.handleUpdate(req.body).catch((err) => {
+        console.error(
+            'Telegram webhook handleUpdate failed:',
+            err?.message || err,
+            err?.on ? `on ${err.on.method || '?'}` : '',
+        );
+    });
 });
 
 /**
