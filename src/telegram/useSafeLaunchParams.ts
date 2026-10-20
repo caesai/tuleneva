@@ -27,6 +27,26 @@ export function useSafeLaunchParams(): SafeLaunchParams {
     return useMemo(getSafeLaunchParams, []);
 }
 
+/**
+ * Код инвайта из Telegram startapp (`t.me/bot?startapp=...`).
+ * SDK кладёт его в launch params; клиент Telegram — ещё и в hash `tgWebAppStartParam`.
+ * @param launchParams - Параметры запуска Mini App
+ * @returns Код или null, если ссылка без startapp
+ */
+export function readTelegramStartParam(launchParams: object): string | null {
+    const params = launchParams as {
+        tgWebAppStartParam?: string;
+        startParam?: string;
+    };
+    const fromSdk = params.tgWebAppStartParam || params.startParam;
+    if (fromSdk) return fromSdk;
+
+    if (typeof window === 'undefined') return null;
+    const search = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    return search.get('tgWebAppStartParam') || hash.get('tgWebAppStartParam') || null;
+}
+
 export function useSafeRawInitData(): string | undefined {
     return useMemo(() => {
         try {

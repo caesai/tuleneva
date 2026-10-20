@@ -1,5 +1,5 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
-import React, { useState, useEffect, Suspense, type JSX } from 'react';
+import React, { useState, useEffect, useRef, Suspense, type JSX } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
@@ -14,7 +14,7 @@ import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
-import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
+import { readTelegramStartParam, useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { getTelegramEnvironment } from '@/telegram/env.ts';
 import {
     LazyBookModalPopup,
@@ -142,10 +142,49 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         linkEmailPassword,
         loginWithEmailPassword,
         confirmEmailToken,
+        registerWithInvite,
     } = useAuth();
     const { isAdmin, isGuest, canManageBookings, canViewUserDetails } = capabilities;
-    const { isTelegram } = useSafeLaunchParams();
+    const { launchParams, isTelegram } = useSafeLaunchParams();
     const isInTelegram = isTelegram && getTelegramEnvironment();
+    const inviteApplyStarted = useRef(false);
+
+    /**
+     * Mini App открывается на /app, а не на /. startapp из общей ссылки
+     * нужно применить здесь, иначе человек не попадает в базу и остаётся без роли user.
+     */
+    useEffect(() => {
+        if (!isInTelegram || authLoading || inviteApplyStarted.current) {
+            return;
+        }
+        const code = readTelegramStartParam(launchParams);
+        if (!code) {
+            return;
+        }
+        if (isAuthenticated && user && user.role !== 'guest') {
+            return;
+        }
+        inviteApplyStarted.current = true;
+        void registerWithInvite(code)
+            .then(() => {
+                showToast('Доступ по ссылке открыт. Можно бронировать.', 'success');
+            })
+            .catch(() => {
+                inviteApplyStarted.current = false;
+                showToast(
+                    'Не удалось применить ссылку-приглашение. Попросите новую у администратора.',
+                    'error',
+                );
+            });
+    }, [
+        authLoading,
+        isAuthenticated,
+        isInTelegram,
+        launchParams,
+        registerWithInvite,
+        showToast,
+        user,
+    ]);
     const [searchParams, setSearchParams] = useSearchParams();
     const [emailLinkLoading, setEmailLinkLoading] = useState(false);
     const [isEmailLoginOpen, setIsEmailLoginOpen] = useState(false);
