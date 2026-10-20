@@ -59,6 +59,21 @@ describe('booking integration', () => {
         expect(String(slotsAt1400[0].userId)).toBe(String(winner.body.hours.find((h) => h.hour === '14:00').userId));
     });
 
+    it('books without a band name', async () => {
+        const user = await seedUser({ role: 'user', username: 'solo' });
+        const res = await request(app)
+            .post('/api/book')
+            .set(authHeader(user))
+            .send({
+                date: '17/06/2030',
+                hours: ['11:00'],
+                rehearsalType: 'rehearsal',
+            });
+        expect(res.status).toBe(201);
+        const docs = await Rehearsal.find({});
+        expect(docs[0].hours[0].band_name).toBe('');
+    });
+
     it('rejects duplicate hours in a single request', async () => {
         const user = await seedUser({ role: 'user' });
         const res = await request(app)
