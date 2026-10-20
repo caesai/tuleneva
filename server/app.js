@@ -595,9 +595,9 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
             hour,
             userId,
             username,
-            band_name,
+            band_name: typeof band_name === 'string' ? band_name.trim() : '',
             userPhotoUrl,
-            rehearsalType,
+            rehearsalType: rehearsalType || 'rehearsal',
         }));
 
         /**
