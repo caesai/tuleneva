@@ -177,6 +177,14 @@ const createAuthRouter = ({
                         role: inviteCode.initialRole || 'guest',
                     });
                     isNewUser = true;
+                } else if (
+                    inviteCode.initialRole === 'user'
+                    && user.role === 'guest'
+                ) {
+                    // Общая ссылка должна сразу давать бронирование, даже если человек уже гость.
+                    user.role = 'user';
+                    await user.save();
+                    isNewUser = true;
                 }
             } else if (provider === 'web') {
                 // Всегда новый UUID-identity: заявленный email не даёт вход в чужой аккаунт.
