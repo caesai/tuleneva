@@ -270,7 +270,9 @@ sudo mkdir -p /var/backups/tuleneva /etc/tuleneva
 - Мини-приложение: вход Telegram, запрос доступа, бронь.
 - Браузер: `/app` → «Войти по почте» → модалка с тем же аккаунтом (после подтверждения ссылки из письма).
 - SMTP задан: привязка почты в мини-приложении или админке шлёт письмо со ссылкой `/app?emailConfirm=...`.
-- Если уведомления бота молчат — задайте `TELEGRAM_API_ROOT` на хост, который видит Telegram Bot API.
+- Если уведомления бота молчат или в `journalctl -u tuleneva-api` есть `ETIMEDOUT` / `FetchError` к `api.telegram.org` — с этой машины Telegram недоступен. Задайте в `/etc/tuleneva/api.env` прокси или local Bot API:
+  `TELEGRAM_API_ROOT=https://ваш-прокси` (без суффикса `/bot`), затем `sudo systemctl restart tuleneva-api`.
+  Проверка: `curl -sI --max-time 10 https://api.telegram.org` (таймаут = нужен прокси).
 - `systemctl status tuleneva-api` — один процесс; второй инстанс не поднят.
 
 ## 11. Обновление (CD)

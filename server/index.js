@@ -68,7 +68,19 @@ bot.start((ctx) => ctx.reply(
         [Markup.button.webApp('🕓 Расписание студии', miniAppUrl)],
     ]),
 ));
-bot.launch();
+
+/**
+ * Запускает long polling бота. Ошибка Telegram API (таймаут, блок) не должна
+ * валить HTTP/WebSocket — иначе healthcheck CD и весь сайт падают вместе с ботом.
+ */
+bot.launch().catch((err) => {
+    console.error(
+        'Telegram bot.launch failed; API stays up. Check TELEGRAM_API_ROOT / network to Telegram:',
+        err && err.message ? err.message : err,
+    );
+});
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
 /**
  * Уведомляет админов через Telegram (параллельно, с таймаутом).
