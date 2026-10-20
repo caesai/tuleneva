@@ -128,6 +128,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}): UseWebSocketRet
 
             ws.onclose = (event) => {
                 console.log('WebSocket disconnected', event.code, event.reason);
+                // Сокет уже заменён новым connect() — его onclose не должен гасить текущее соединение.
+                if (wsRef.current !== ws) {
+                    return;
+                }
                 setIsConnected(false);
                 wsRef.current = null;
 

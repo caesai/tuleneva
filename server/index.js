@@ -135,7 +135,12 @@ const app = createApp({
 });
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    // Safari/WebKit за Nginx рвёт сокет с «network connection was lost», если включено сжатие кадров.
+    perMessageDeflate: false,
+});
 
 wss.on('connection', (ws) => {
     console.log('WebSocket client connected');
@@ -151,6 +156,16 @@ wss.on('connection', (ws) => {
         clients.delete(ws);
     });
 });
+
+// Иначе Nginx закрывает молчащее соединение по proxy_read_timeout (по умолчанию 60 с).
+const wsHeartbeat = setInterval(() => {
+    clients.forEach((ws) => {
+        if (ws.readyState === 1) {
+            ws.ping();
+        }
+    });
+}, 25000);
+wsHeartbeat.unref?.();
 
 server.listen(port, () => {
     console.log(`Server with WebSocket support listening on port ${port}`);
