@@ -330,7 +330,7 @@ export const AdminPage: React.FC = () => {
     return (
         <div className={css.adminPage}>
             <div className={css.header}>
-                <button className={css.backButton} onClick={() => navigate('/')}>
+                <button className={css.backButton} onClick={() => navigate('/app')}>
                     Назад
                 </button>
                 <h2 style={{ fontSize: '16px' }}>Управление пользователями</h2>
