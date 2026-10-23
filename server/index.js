@@ -48,7 +48,10 @@ const TELEGRAM_API_ROOT = (() => {
 console.log('Telegram API root:', TELEGRAM_API_ROOT);
 const TELEGRAM_NOTIFY_TIMEOUT_MS = Number(process.env.TELEGRAM_NOTIFY_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || null;
-/** Id группы студии (для форума — id супергруппы, не thread). Можно несколько через запятую. */
+/**
+ * Id группы студии (для форума — id супергруппы, не thread). Можно несколько через запятую.
+ * Только допуск команд бота. Уведомления о бронях и отменах сюда не шлём — они идут админам в личку.
+ */
 const STUDIO_CHAT_ID = (() => {
     const raw = process.env.STUDIO_CHAT_ID;
     if (raw == null || String(raw).trim() === '') {
@@ -119,42 +122,17 @@ const bot = createBot({
 });
 
 /**
- * Уведомляет админов через Telegram (параллельно, с таймаутом).
+ * Уведомляет админов в личный чат (параллельно, с таймаутом).
+ * Общий чат студии эти сообщения не получает: там бот отвечает только на команды.
  * @param {string} message
  * @param {object} [extra]
  * @returns {Promise<void>}
  */
-const notifyAdminsBase = createNotifyAdmins({
+const notifyAdmins = createNotifyAdmins({
     bot,
     User,
     timeoutMs: TELEGRAM_NOTIFY_TIMEOUT_MS,
 });
-
-/**
- * Админы в личку + опционально чат студии.
- * @param {string} message
- * @param {object} [extra]
- * @returns {Promise<void>}
- */
-const notifyAdmins = async (message, extra) => {
-    await notifyAdminsBase(message, extra);
-    if (STUDIO_CHAT_ID) {
-        try {
-            await sendTelegramMessage(
-                bot,
-                STUDIO_CHAT_ID,
-                message,
-                extra,
-                TELEGRAM_NOTIFY_TIMEOUT_MS,
-            );
-        } catch (err) {
-            console.error(
-                'Failed to notify studio chat:',
-                err && err.message ? err.message : err,
-            );
-        }
-    }
-};
 
 /**
  * Отправляет сообщение пользователю с таймаутом из env.

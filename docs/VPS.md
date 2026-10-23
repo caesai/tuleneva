@@ -289,7 +289,7 @@ curl -I --max-time 10 https://api.telegram.org; echo "exit:$?"
    ```
 5. `sudo systemctl restart tuleneva-api`. В логе: `Telegram webhook set: https://tuleneva25.ru/api/telegram/webhook`.
 6. Добавьте бота в чат студии, напишите `/chatid` (нужен admin в БД), пропишите `STUDIO_CHAT_ID=...`, снова restart.
-7. Проверьте `/today` в чате и бронь в мини-приложении (уведомление админу и в чат).
+7. Проверьте `/today` в чате. Бронь в мини-приложении приходит админам в личку и не появляется в чате студии.
 
 Без `TELEGRAM_WEBHOOK_SECRET` процесс пытается long polling — на VPS с блокировкой Telegram это бесполезно, API при этом остаётся живым.
 
