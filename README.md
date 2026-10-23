@@ -58,7 +58,7 @@ PORT=3000
 # TELEGRAM_WEBHOOK_SECRET=длинная_случайная_строка
 # Если Telegram не достучится до VPS (getWebhookInfo: Connection timed out):
 # TELEGRAM_WEBHOOK_URL=https://<worker>.workers.dev/<префикс>/hook
-# Чат студии для команд /today и оповещений о бронях (бот: /chatid):
+# Чат студии: бот отвечает только на команды (/today и др.). Брони и отмены — админам в личку.
 # STUDIO_CHAT_ID=-100...
 # SMTP для подтверждения почты и сброса пароля (без SMTP_HOST привязка отвечает 503)
 # SMTP_HOST=smtp.example.com
@@ -146,7 +146,7 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 
 1. Cloudflare Worker из [deploy/cloudflare-telegram-proxy.js](deploy/cloudflare-telegram-proxy.js) → `TELEGRAM_API_ROOT`
 2. `TELEGRAM_WEBHOOK_SECRET` — Telegram шлёт обновления на `POST /api/telegram/webhook`
-3. Команды в чате студии (`STUDIO_CHAT_ID`): `/today`, `/tomorrow`, `/free`, `/help`; в личке ещё `/my`, `/start`. Админ: `/chatid`
+3. Команды в чате студии (`STUDIO_CHAT_ID`): `/today`, `/tomorrow`, `/free`, `/help`; в личке ещё `/my`, `/start`. Админ: `/chatid`. О брони и отмене бот пишет только админам в личный чат, в общий чат эти сообщения не дублирует.
 
 Подробности: [docs/VPS.md](docs/VPS.md).
 

@@ -9,37 +9,99 @@ const {
 } = require('../../shared/studioHours.cjs');
 
 /**
- * Нормализует слот к { hour, username, band_name }.
+ * Число часа из строки «HH:00».
+ * @param {string} hour
+ * @returns {number}
+ */
+const getHourNumber = (hour) => parseInt(String(hour).split(':')[0], 10);
+
+/**
+ * Конец слота: следующий час. «23:00» → «00:00», как на карточке.
+ * @param {string} hour
+ * @returns {string}
+ */
+const calculateEndTime = (hour) => {
+    const nextHour = (getHourNumber(hour) + 1) % 24;
+    return `${String(nextHour).padStart(2, '0')}:00`;
+};
+
+/**
+ * Подпись слота: имя и коллектив в скобках, если он задан.
  * @param {object} slot
- * @returns {{ hour: string, label: string }}
+ * @returns {string}
  */
 const slotLabel = (slot) => {
     const name = (slot.username || '').trim() || 'Без имени';
     const band = (slot.band_name || '').trim();
-    const label = band ? `${name} (${band})` : name;
-    return { hour: slot.hour, label };
+    return band ? `${name} (${band})` : name;
 };
 
 /**
- * Текст занятости на день.
+ * Один и тот же человек и коллектив на соседних часах — критерий склейки карточки.
+ * @param {object} previous
+ * @param {object} current
+ * @returns {boolean}
+ */
+const isSameConsecutiveBooking = (previous, current) => {
+    const consecutive = getHourNumber(current.hour) === getHourNumber(previous.hour) + 1;
+    const sameUser = String(current.userId ?? '') === String(previous.userId ?? '');
+    const sameBand = String(current.band_name ?? '') === String(previous.band_name ?? '');
+    return consecutive && sameUser && sameBand;
+};
+
+/**
+ * Склеивает последовательные слоты одного пользователя и коллектива.
+ * Как mergeConsecutiveSlots в карточках расписания: «14:00»+«15:00»+«16:00» → «14:00 - 17:00».
+ * @param {Array<object>} hours
+ * @returns {Array<{ range: string, label: string }>}
+ */
+const groupBookedHours = (hours) => {
+    const sorted = [...(hours || [])]
+        .filter((slot) => slot && slot.hour)
+        .sort((a, b) => getHourNumber(a.hour) - getHourNumber(b.hour));
+
+    if (sorted.length === 0) {
+        return [];
+    }
+
+    const groups = [];
+    let current = [sorted[0]];
+
+    for (let i = 1; i < sorted.length; i += 1) {
+        if (isSameConsecutiveBooking(sorted[i - 1], sorted[i])) {
+            current.push(sorted[i]);
+        } else {
+            groups.push(current);
+            current = [sorted[i]];
+        }
+    }
+    groups.push(current);
+
+    return groups.map((group) => {
+        const first = group[0];
+        const last = group[group.length - 1];
+        return {
+            range: `${first.hour} - ${calculateEndTime(last.hour)}`,
+            label: slotLabel(first),
+        };
+    });
+};
+
+/**
+ * Текст занятости на день. Соседние часы одной брони — одной строкой, как на карточке.
  * @param {string} dateDdMmYyyy
  * @param {Array<object>} hours - Слоты из Rehearsal.hours
  * @param {string} [title] - Заголовок («Сегодня», «Завтра»)
  * @returns {string}
  */
 const formatDayBookings = (dateDdMmYyyy, hours, title = 'Расписание') => {
-    const booked = [...(hours || [])]
-        .filter((h) => h && h.hour)
-        .sort((a, b) => String(a.hour).localeCompare(String(b.hour)));
+    const groups = groupBookedHours(hours);
 
-    if (booked.length === 0) {
+    if (groups.length === 0) {
         return `${title} (${dateDdMmYyyy})\nСвободно весь день (12:00–23:00).`;
     }
 
-    const lines = booked.map((slot) => {
-        const { hour, label } = slotLabel(slot);
-        return `${hour} — ${label}`;
-    });
+    const lines = groups.map((group) => `${group.range} — ${group.label}`);
     return `${title} (${dateDdMmYyyy})\n${lines.join('\n')}`;
 };
 
@@ -115,4 +177,5 @@ module.exports = {
     formatMyBookings,
     moscowTodayTomorrow,
     slotLabel,
+    groupBookedHours,
 };
