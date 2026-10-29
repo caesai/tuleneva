@@ -176,7 +176,7 @@ npm run build
 
 Полный чеклист нового сервера и CD: [docs/VPS.md](docs/VPS.md). Бэкап Mongo: `server/scripts/backup-mongo.sh`.
 
-Подробный handoff по auth: [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md). Чеклист углубления архитектуры: [docs/NEXT_AGENT_ARCHITECTURE.md](docs/NEXT_AGENT_ARCHITECTURE.md).
+Открытые задачи: [docs/NEXT.md](docs/NEXT.md). Чеклист VPS: [docs/VPS.md](docs/VPS.md).
 
 ## Структура проекта
 
@@ -200,6 +200,7 @@ tuleneva/
 │   └── utils/              # rolePermissions
 ├── shared/
 │   ├── contracts/          # Zod-схемы API
+│   ├── roleLattice.cjs     # решётка ролей (server + client)
 │   └── test/               # roleMatrix для server + client
 ├── deploy/                 # remote-release.sh, systemd, nginx
 ├── docs/

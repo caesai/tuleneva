@@ -45,11 +45,11 @@ src/contexts/AuthContext.tsx
 
 ### Роли
 
-Логика прав дублируется осознанно:
+Источник правил: [`shared/roleLattice.cjs`](shared/roleLattice.cjs).
 
-- Сервер: `server/auth/roleHelpers.js` (источник истины для API)
-- Клиент: `src/utils/rolePermissions.ts`
-- Тесты: `shared/test/roleMatrix.ts` — **при изменении матрицы обновить все три места**
+- Сервер: `server/auth/roleHelpers.js` — тонкий адаптер (`canDeleteUser` по `_id`)
+- Клиент: `src/utils/rolePermissions.ts` — тонкий адаптер с типами `TRole`
+- Тесты: `shared/test/roleMatrix.ts` — гоняет оба адаптера; при смене правил править `roleLattice.cjs`
 
 ### WebSocket
 
@@ -59,7 +59,7 @@ src/contexts/AuthContext.tsx
 
 ### Актуальные эндпоинты auth
 
-См. таблицу в [README.md](README.md) и [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md).
+См. таблицу в [README.md](README.md). Открытые задачи: [docs/NEXT.md](docs/NEXT.md).
 
 Legacy (`/api/users/auth`, `/api/invite/*`) — только для совместимости; новый код — `/api/auth/*`.
 
@@ -186,6 +186,6 @@ cd server && npm run test:all
 ## 8. Ссылки
 
 - [README.md](README.md) — установка, API, тесты
-- [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md) — детальный handoff по авторизации
-- [docs/NEXT_AGENT_ARCHITECTURE.md](docs/NEXT_AGENT_ARCHITECTURE.md) — чеклист углубления архитектуры
+- [docs/NEXT.md](docs/NEXT.md) — открытые задачи
+- [docs/VPS.md](docs/VPS.md) — деплой и CD
 - `server/test/helpers/testApp.js` — пример поднятия app в тестах

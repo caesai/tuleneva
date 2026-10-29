@@ -148,6 +148,38 @@ const normalizeHoursData = (hoursData) => {
 };
 
 /**
+ * Загружает и нормализует слоты дня (UTC-окно как у GET /api/hours).
+ * Общий day-read для HTTP и бота; PII режет вызывающий код.
+ * @param {string} date - DD/MM/YYYY
+ * @returns {Promise<{ valid: boolean, hours: Array<object> }>}
+ */
+const loadNormalizedDayHours = async (date) => {
+    const dateMoment = moment.utc(date, 'DD/MM/YYYY');
+    if (!date || !dateMoment.isValid()) {
+        return { valid: false, hours: [] };
+    }
+
+    const startOfDay = dateMoment.startOf('day').toDate();
+    const endOfDay = dateMoment.endOf('day').toDate();
+
+    const rehearsalRecord = await Rehearsal.findOne({
+        date: {
+            $gte: startOfDay,
+            $lte: endOfDay,
+        },
+    });
+
+    if (!rehearsalRecord) {
+        return { valid: true, hours: [] };
+    }
+
+    return {
+        valid: true,
+        hours: normalizeHoursData(rehearsalRecord.hours),
+    };
+};
+
+/**
  * Создаёт модуль бронирования с инъекцией notify / broadcast.
  * @param {object} deps
  * @param {Function} [deps.broadcastUpdate] - Публикация WebSocket-событий
@@ -480,28 +512,13 @@ const createBooking = ({
             return { status: 400, body: { message: 'Date query parameter is required.' } };
         }
 
-        const dateMoment = moment.utc(date, 'DD/MM/YYYY');
-        if (!dateMoment.isValid()) {
+        const day = await loadNormalizedDayHours(date);
+        if (!day.valid) {
             return { status: 400, body: { message: 'Invalid date format. Expected DD/MM/YYYY.' } };
         }
 
-        const startOfDay = dateMoment.startOf('day').toDate();
-        const endOfDay = dateMoment.endOf('day').toDate();
-
-        const rehearsalRecord = await Rehearsal.findOne({
-            date: {
-                $gte: startOfDay,
-                $lte: endOfDay,
-            },
-        });
-
-        if (!rehearsalRecord) {
-            return { status: 200, body: { hours: [] } };
-        }
-
-        const normalizedHours = normalizeHoursData(rehearsalRecord.hours);
         const canViewDetails = canViewBookingUserDetails(dbUser);
-        const hours = sanitizeHoursForViewer(normalizedHours, canViewDetails);
+        const hours = sanitizeHoursForViewer(day.hours, canViewDetails);
 
         return { status: 200, body: { hours } };
     };
@@ -548,5 +565,6 @@ const createBooking = ({
 module.exports = {
     createBooking,
     normalizeHoursData,
+    loadNormalizedDayHours,
     formatHoursRange,
 };
