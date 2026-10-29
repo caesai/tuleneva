@@ -4,7 +4,6 @@ import { APIGetTimeTable, APIGetHours } from '@/api/timetable.api.ts';
 import moment, { type Moment } from '@/lib/moment';
 import type { IHour } from '@/types/timetable.types.ts';
 import { useWebSocket, type WebSocketMessage } from './useWebSocket';
-import { useAuth } from '@/hooks/useAuth.ts';
 
 const MAX_RETRIES = 2;
 const INITIAL_RETRY_DELAY = 1000;
@@ -42,8 +41,6 @@ export const useTimeTableData = (
     const [loading, setLoading] = useState<boolean>(true);
     const [hoursLoading, setHoursLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-    const { capabilities } = useAuth();
-    const { canViewUserDetails } = capabilities;
     const [retryCount, setRetryCount] = useState<number>(0);
     const retryCountRef = useRef(retryCount);
     retryCountRef.current = retryCount;
@@ -56,21 +53,16 @@ export const useTimeTableData = (
     // Ref для хранения текущей выбранной даты (для сравнения в WebSocket callback)
     const selectedDateRef = useRef<string | null>(null);
     const selectedDateMomentRef = useRef<Moment | null>(selectedDate);
-    const canViewUserDetailsRef = useRef(canViewUserDetails);
     const fetchBookedHoursRef = useRef<(targetDate: Moment) => Promise<void>>(async () => {});
 
     useEffect(() => {
         selectedDateMomentRef.current = selectedDate;
     }, [selectedDate]);
 
-    useEffect(() => {
-        canViewUserDetailsRef.current = canViewUserDetails;
-    }, [canViewUserDetails]);
-
     /**
      * Callback для обработки WebSocket сообщений.
-     * Обновляет bookedHours если дата совпадает с текущей выбранной.
-     * Обновляет highlightedDates при изменении бронирований.
+     * Слоты дня всегда подтягивает GET /api/hours (PII режет сервер по роли).
+     * Push даёт только занятость дня для подсветки календаря.
      */
     const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
         const { type, data } = message;
@@ -83,14 +75,10 @@ export const useTimeTableData = (
             }
             const currentSelectedDate = selectedDateRef.current;
             
-            // WS отдаёт только публичные поля; участники подтягивают полный ответ через API
-            if (currentSelectedDate === wsDate) {
-                console.log('WebSocket: Updating booked hours for current date', wsDate);
-                if (canViewUserDetailsRef.current && selectedDateMomentRef.current) {
-                    void fetchBookedHoursRef.current(selectedDateMomentRef.current);
-                } else {
-                    setBookedHours(hours);
-                }
+            // Не пишем data.hours в bookedHours: имена только из GET /api/hours
+            if (currentSelectedDate === wsDate && selectedDateMomentRef.current) {
+                console.log('WebSocket: Refetching booked hours for current date', wsDate);
+                void fetchBookedHoursRef.current(selectedDateMomentRef.current);
             }
             
             // Обновляем highlightedDates
