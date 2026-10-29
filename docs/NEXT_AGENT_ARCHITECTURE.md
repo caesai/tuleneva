@@ -32,13 +32,16 @@
 
 ---
 
-### 3. [ ] One slot-visibility decision
+### 3. [x] One slot-visibility decision
+
+**Сделано.** Имена в слотах только из `GET /api/hours` (`getDayHours` + `hourPrivacy`). Push остаётся публичной занятостью дня; [`useTimeTableData`](../src/hooks/useTimeTableData.ts) на `booking_*` всегда делает refetch и не пишет `data.hours` в `bookedHours`. Тесты: `hoursPrivacy` integration + `useTimeTableData.test.tsx`.
 
 | | |
 |---|---|
-| **Файлы** | [`server/auth/hourPrivacy.js`](../server/auth/hourPrivacy.js), WS payload в booking, [`src/hooks/useTimeTableData.ts`](../src/hooks/useTimeTableData.ts) |
-| **Проблема** | «Что видит зритель» расходится: HTTP sanitizes by role, push всегда public, клиент refetch при `canViewUserDetails` |
-| **Вне scope** | Пока оставляем `hourPrivacy` и клиентский refetch как есть |
+| **Файлы** | `src/hooks/useTimeTableData.ts`, `server/booking/createBooking.js` |
+| **Правило** | Push = календарь; PII = только HTTP по роли зрителя |
+| **Проверка** | `cd server && npm run test:all` и `npm test` — зелёные |
+| **Вне scope (осталось)** | Два `useWebSocket` на страницах, bot day-read |
 
 ---
 
@@ -78,11 +81,11 @@
 
 1 → (частично закрывает publish/visibility внутри booking) → 2 → 3 → 4–6 по необходимости.
 
-## Проверка после пунктов 1–2
+## Проверка после пунктов 1–3
 
 ```bash
 cd server && npm run test:all
 npm test   # из корня
 ```
 
-Smoke: `POST /api/book`, `DELETE /api/cancel`, `GET /api/hours`, `GET /api/timetable`, live `/ws` после деплоя.
+Smoke: бронь в двух вкладках — календарь обновляется по WS, имена на выбранном дне после refetch; гость/аноним без PII в `GET /api/hours`.

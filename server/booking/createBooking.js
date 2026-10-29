@@ -299,6 +299,7 @@ const createBooking = ({
 🕓 ${formatHoursRange(uniqueHours)}
         `;
 
+        // Push: только занятость дня (без PII). Имена/группа — у getDayHours по роли зрителя.
         broadcastUpdate('booking_update', {
             date,
             hours: sanitizeHoursForViewer(normalizeHoursData(updatedRehearsal.hours), false),
@@ -451,6 +452,7 @@ const createBooking = ({
             return { status: 404, body: { error: 'Booking not found or already canceled.' } };
         }
 
+        // Push: только занятость дня (без PII). Имена/группа — у getDayHours по роли зрителя.
         broadcastUpdate('booking_cancel', {
             date,
             hours: sanitizeHoursForViewer(normalizeHoursData(updatedRehearsal.hours), false),
