@@ -187,6 +187,7 @@ tuleneva/
 │   ├── index.js            # bootstrap: Mongo, Telegraf, WebSocket
 │   ├── auth/               # authRoutes, providers, inviteService
 │   ├── booking/            # createBooking — book/cancel/day/month
+│   ├── realtime/           # createBroadcast — publish /ws
 │   ├── telegram/           # createBot, команды расписания
 │   ├── models/
 │   └── test/               # unit, contracts, integration

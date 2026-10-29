@@ -1,6 +1,7 @@
-import { describe, it, beforeAll, afterAll, beforeEach, expect } from 'vitest';
+import { describe, it, beforeAll, afterAll, beforeEach, expect, vi } from 'vitest';
 import request from 'supertest';
 import Rehearsal from '../../models/Rehearsal.js';
+import { createBroadcast } from '../../realtime/createBroadcast.js';
 import {
     connectTestDb,
     disconnectTestDb,
@@ -114,5 +115,44 @@ describe('booking integration', () => {
             });
         expect(res.status).toBe(400);
         expect(res.body.pastHours).toEqual(['14:00']);
+    });
+
+    it('publishes booking_update with public hours through createBroadcast', async () => {
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const { publish, addClient } = createBroadcast();
+        const client = { send: vi.fn(), readyState: 1 };
+        addClient(client);
+
+        const bookApp = createTestApp({ broadcastUpdate: publish });
+        const user = await seedUser({
+            role: 'user',
+            username: 'ws_booker',
+            first_name: 'Ws',
+        });
+
+        const res = await request(bookApp)
+            .post('/api/book')
+            .set(authHeader(user))
+            .send({
+                date: '18/06/2030',
+                hours: ['15:00'],
+                band_name: 'Secret Band',
+                rehearsalType: 'rehearsal',
+            });
+
+        expect(res.status).toBe(201);
+        expect(client.send).toHaveBeenCalledTimes(1);
+
+        const message = JSON.parse(client.send.mock.calls[0][0]);
+        expect(message.type).toBe('booking_update');
+        expect(message.data.date).toBe('18/06/2030');
+        expect(message.data.hours).toEqual([
+            { hour: '15:00', rehearsalType: 'rehearsal' },
+        ]);
+        expect(message.data.hours[0].username).toBeUndefined();
+        expect(message.data.hours[0].band_name).toBeUndefined();
+        expect(typeof message.timestamp).toBe('number');
+
+        logSpy.mockRestore();
     });
 });

@@ -19,13 +19,16 @@
 
 ---
 
-### 2. [ ] Realtime seam
+### 2. [x] Realtime seam
+
+**Сделано.** Registry, envelope и `/ws` вынесены в [`server/realtime/createBroadcast.js`](../server/realtime/createBroadcast.js). Bootstrap передаёт `publish` в `createApp` как `broadcastUpdate`; `attach(server)` / `stop()` — в [`server/index.js`](../server/index.js). Тесты: unit на фейковых клиентах + integration book → `booking_update` без PII.
 
 | | |
 |---|---|
-| **Файлы** | [`server/index.js`](../server/index.js), inject `broadcastUpdate` в `createApp`, [`src/hooks/useWebSocket.ts`](../src/hooks/useWebSocket.ts) |
-| **Проблема** | Registry сокетов и envelope только в bootstrap; тесты подставляют no-op — нет test surface для production publish |
-| **Вне scope** | Пока оставляем `broadcastUpdate` как injected function |
+| **Файлы** | `server/realtime/createBroadcast.js`, `server/index.js` |
+| **Interface** | `createBroadcast()` → `publish`, `addClient`, `attach` → `stop` |
+| **Проверка** | `cd server && npm run test:all` и `npm test` — зелёные |
+| **Вне scope (осталось)** | Клиентский `useWebSocket` / два соединения / refetch — пункт 3 |
 
 ---
 
@@ -75,11 +78,11 @@
 
 1 → (частично закрывает publish/visibility внутри booking) → 2 → 3 → 4–6 по необходимости.
 
-## Проверка после пункта 1
+## Проверка после пунктов 1–2
 
 ```bash
 cd server && npm run test:all
 npm test   # из корня
 ```
 
-Smoke: `POST /api/book`, `DELETE /api/cancel`, `GET /api/hours`, `GET /api/timetable`.
+Smoke: `POST /api/book`, `DELETE /api/cancel`, `GET /api/hours`, `GET /api/timetable`, live `/ws` после деплоя.

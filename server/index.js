@@ -8,7 +8,6 @@ if (!process.env.TELEGRAM_TOKEN) {
 }
 
 const http = require('http');
-const { WebSocketServer } = require('ws');
 const mongoose = require('mongoose');
 
 const User = require('./models/User');
@@ -24,6 +23,7 @@ const {
     startBotTransport,
     stopBotSafely,
 } = require('./telegram/createBot');
+const { createBroadcast } = require('./realtime/createBroadcast');
 
 const port = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -144,17 +144,7 @@ const notifyAdmins = createNotifyAdmins({
 const notifyUser = (chatId, text, extra) =>
     sendTelegramMessage(bot, chatId, text, extra, TELEGRAM_NOTIFY_TIMEOUT_MS);
 
-const clients = new Set();
-
-const broadcastUpdate = (type, data) => {
-    const message = JSON.stringify({ type, data, timestamp: Date.now() });
-    clients.forEach((client) => {
-        if (client.readyState === 1) {
-            client.send(message);
-        }
-    });
-    console.log(`Broadcast sent: ${type} to ${clients.size} clients`);
-};
+const { publish, attach } = createBroadcast();
 
 const app = createApp({
     jwtSecret: JWT_SECRET,
@@ -163,43 +153,13 @@ const app = createApp({
     webAppBaseUrl: WEB_APP_BASE_URL,
     notifyAdmins,
     notifyUser,
-    broadcastUpdate,
+    broadcastUpdate: publish,
     telegramBot: TELEGRAM_WEBHOOK_SECRET ? bot : null,
     telegramWebhookSecret: TELEGRAM_WEBHOOK_SECRET,
 });
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({
-    server,
-    path: '/ws',
-    // Safari/WebKit за Nginx рвёт сокет с «network connection was lost», если включено сжатие кадров.
-    perMessageDeflate: false,
-});
-
-wss.on('connection', (ws) => {
-    console.log('WebSocket client connected');
-    clients.add(ws);
-
-    ws.on('close', () => {
-        console.log('WebSocket client disconnected');
-        clients.delete(ws);
-    });
-
-    ws.on('error', (err) => {
-        console.error('WebSocket error:', err);
-        clients.delete(ws);
-    });
-});
-
-// Иначе Nginx закрывает молчащее соединение по proxy_read_timeout (по умолчанию 60 с).
-const wsHeartbeat = setInterval(() => {
-    clients.forEach((ws) => {
-        if (ws.readyState === 1) {
-            ws.ping();
-        }
-    });
-}, 25000);
-wsHeartbeat.unref?.();
+const stopRealtime = attach(server);
 
 let shuttingDown = false;
 
@@ -213,7 +173,6 @@ const gracefulShutdown = (signal) => {
     }
     shuttingDown = true;
     console.log(`Shutting down on ${signal}...`);
-    clearInterval(wsHeartbeat);
 
     const forceTimer = setTimeout(() => {
         console.error('Graceful shutdown timed out, exiting');
@@ -222,18 +181,7 @@ const gracefulShutdown = (signal) => {
     forceTimer.unref?.();
 
     server.close(async () => {
-        try {
-            wss.clients.forEach((ws) => {
-                try {
-                    ws.close();
-                } catch {
-                    // ignore
-                }
-            });
-            wss.close();
-        } catch (err) {
-            console.warn('WebSocket close:', err?.message || err);
-        }
+        stopRealtime();
 
         stopBotSafely(bot, signal);
 
