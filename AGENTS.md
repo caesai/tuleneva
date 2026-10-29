@@ -187,4 +187,5 @@ cd server && npm run test:all
 
 - [README.md](README.md) — установка, API, тесты
 - [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md) — детальный handoff по авторизации
+- [docs/NEXT_AGENT_ARCHITECTURE.md](docs/NEXT_AGENT_ARCHITECTURE.md) — чеклист углубления архитектуры
 - `server/test/helpers/testApp.js` — пример поднятия app в тестах
