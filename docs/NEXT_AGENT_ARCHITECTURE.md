@@ -47,11 +47,13 @@
 
 ### 4. [ ] Narrow the session module
 
+**Частично.** Вход по инвайту собран в [`src/auth/inviteEntry.ts`](../src/auth/inviteEntry.ts) + [`src/auth/useInviteEntry.ts`](../src/auth/useInviteEntry.ts) (`useLandingInvite` / `useTelegramStartInvite`). Правила пропуска лендинг vs Mini App разные и задокументированы. Чекбокс открыт: формы почты и узкий interface `AuthContext` ещё не сжимались.
+
 | | |
 |---|---|
-| **Файлы** | [`src/contexts/AuthContext.tsx`](../src/contexts/AuthContext.tsx), [`src/App.tsx`](../src/App.tsx), TimeTable / Admin invite flows |
-| **Проблема** | Invite и sign-in размазаны по страницам; interface контекста почти равен списку fetch |
-| **Вне scope** | Не трогать auth pages в этом чеклисте, пока не выбран этот пункт |
+| **Сделано** | Invite entry на `/` и `/app` |
+| **Открыто** | Email login / link / reset UI; список методов в `AuthContextDefinition` |
+| **Вне scope сейчас** | Генерация ссылок в AdminPage |
 
 См. также [NEXT_AGENT_AUTH.md](NEXT_AGENT_AUTH.md).
 

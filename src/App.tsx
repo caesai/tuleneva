@@ -1,5 +1,5 @@
-import React, { useEffect, useState, Suspense, useCallback, lazy } from 'react';
-import { BrowserRouter, Route, Routes, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { swipeBehavior } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
 import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
@@ -12,9 +12,8 @@ import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
-import { APIValidateInvite } from '@/api/user.api.ts';
 import { getTelegramEnvironment } from '@/telegram/env.ts';
-import type { IInviteValidateResponse, TAuthProvider } from '@/types/auth.types.ts';
+import { useLandingInvite } from '@/auth/useInviteEntry.ts';
 
 const TimeTablePage = lazy(() =>
     import('@/pages/TimeTablePage/TimeTablePage.tsx').then((m) => ({ default: m.TimeTablePage })),
@@ -26,21 +25,12 @@ const AdminPage = lazy(() =>
 
 const IndexPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-    const [inviteCode, setInviteCode] = useState<string | null>(null);
-    const [inviteLoading, setInviteLoading] = useState(false);
-    const [inviteAllowedProviders, setInviteAllowedProviders] = useState<TAuthProvider[]>([]);
-    const [webFirstName, setWebFirstName] = useState('');
-    const [webLastName, setWebLastName] = useState('');
     const [isLinkEmailOpen, setIsLinkEmailOpen] = useState(false);
     const [linkEmailLoading, setLinkEmailLoading] = useState(false);
     const closeModal = () => setIsModalOpen(false);
 
-    const [searchParams, setSearchParams] = useSearchParams();
     const { isTelegram } = useSafeLaunchParams();
     const isInTelegram = isTelegram && getTelegramEnvironment();
-    const showWebInviteForm =
-        !isInTelegram && inviteAllowedProviders.includes('web');
 
     const {
         user,
@@ -52,54 +42,29 @@ const IndexPage: React.FC = () => {
     } = useAuth();
     const { toasts, showToast, removeToast } = useToast();
 
-    const clearInviteParams = useCallback(() => {
-        searchParams.delete('tgWebAppStartParam');
-        searchParams.delete('invite');
-        setSearchParams(searchParams, { replace: true });
-    }, [searchParams, setSearchParams]);
-
-    // Инвайт: Telegram startapp или web ?invite=
-    useEffect(() => {
-        const code = searchParams.get('tgWebAppStartParam') || searchParams.get('invite');
-        if (code && !isLoading) {
-            if (isAuthenticated && user?.isRegistered) {
-                clearInviteParams();
-                return;
-            }
-
-            setInviteCode(code);
-            APIValidateInvite(code).then(async (res) => {
-                const data = await res.json() as IInviteValidateResponse;
-                if (data.valid) {
-                    setInviteAllowedProviders(data.allowedProviders ?? ['telegram']);
-                    setIsInviteModalOpen(true);
-                } else {
-                    showToast('Ссылка-приглашение недействительна или уже использована.', 'error');
-                    clearInviteParams();
-                }
-            }).catch(() => {
-                showToast('Не удалось проверить ссылку-приглашение.', 'error');
-            });
-        }
-    }, [isLoading, isAuthenticated, user, searchParams, clearInviteParams, showToast]);
-
-    // Эффект для управления модальным окном в зависимости от роли
-    // useEffect(() => {
-    //     if (!isLoading) {
-    //         // Если пользователь гость или не авторизован - показываем предупреждение
-    //         if (!isAuthenticated || (user && user.role === 'guest')) {
-    //             setIsModalOpen(true);
-    //         } else {
-    //             setIsModalOpen(false);
-    //         }
-    //     }
-    // }, [isLoading, isAuthenticated, user]);
+    const {
+        isInviteModalOpen,
+        setIsInviteModalOpen,
+        inviteLoading,
+        webFirstName,
+        setWebFirstName,
+        webLastName,
+        setWebLastName,
+        showWebInviteForm,
+        handleInviteRequestAccess,
+    } = useLandingInvite({
+        isLoading,
+        isAuthenticated,
+        user,
+        isInTelegram: Boolean(isInTelegram),
+        registerWithInvite,
+        showToast,
+        onWebInviteSuccess: () => setIsLinkEmailOpen(true),
+    });
 
     const handleConfirm = () => {
         closeModal();
     };
-
-    // const isUnregistered = user && !user.isRegistered && !user._id;
 
     const handleRequestAccess = async () => {
         try {
@@ -110,52 +75,6 @@ const IndexPage: React.FC = () => {
             showToast('Не удалось отправить запрос.', 'error');
         }
     };
-
-    const handleInviteRequestAccess = useCallback(async () => {
-        if (!inviteCode) return;
-        if (showWebInviteForm && !webFirstName.trim()) {
-            showToast('Укажите имя для регистрации.', 'error');
-            return;
-        }
-        setInviteLoading(true);
-        try {
-            if (showWebInviteForm) {
-                await registerWithInvite(inviteCode, {
-                    firstName: webFirstName.trim(),
-                    lastName: webLastName.trim() || undefined,
-                });
-            } else {
-                await registerWithInvite(inviteCode);
-            }
-            showToast('Запрос на доступ отправлен администратору.', 'success');
-            setIsInviteModalOpen(false);
-            clearInviteParams();
-            setInviteCode(null);
-            setInviteAllowedProviders([]);
-            setWebFirstName('');
-            setWebLastName('');
-            if (showWebInviteForm) {
-                setIsLinkEmailOpen(true);
-            }
-        } catch (err) {
-            console.error('Invite request access failed:', err);
-            showToast('Не удалось отправить запрос. Ссылка может быть уже использована.', 'error');
-        } finally {
-            setInviteLoading(false);
-        }
-    }, [
-        inviteCode,
-        registerWithInvite,
-        showToast,
-        clearInviteParams,
-        showWebInviteForm,
-        webFirstName,
-        webLastName,
-    ]);
-
-    // if (isLoading) {
-    //     return <Loader />;
-    // }
 
     return (
         <>
