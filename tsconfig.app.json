@@ -27,7 +27,13 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "shared/studioHours.cjs", "shared/studioHours.d.cts"],
+  "include": [
+    "src",
+    "shared/studioHours.cjs",
+    "shared/studioHours.d.cts",
+    "shared/roleLattice.cjs",
+    "shared/roleLattice.d.cts"
+  ],
   "exclude": [
     "src/**/*.test.ts",
     "src/**/*.test.tsx",

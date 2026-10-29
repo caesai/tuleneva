@@ -1,45 +1,61 @@
+/**
+ * @file Адаптер решётки ролей для клиента (AdminPage).
+ * Источник правил: shared/roleLattice.cjs.
+ */
 import type { TRole } from '@/types/user.types.ts';
+import {
+    isAdminLike as isAdminLikeShared,
+    isSuperAdmin as isSuperAdminShared,
+    canAssignRole as canAssignRoleShared,
+    canDeleteByRole,
+    getAssignableRoles as getAssignableRolesShared,
+} from '../../shared/roleLattice.cjs';
 
-const ADMIN_LIKE: TRole[] = ['admin', 'super_admin'];
+/**
+ * Админ или супер-админ.
+ * @param role - Роль пользователя
+ * @returns true для admin / super_admin
+ */
+export const isAdminLike = (role?: TRole): boolean => isAdminLikeShared(role);
 
-export const isAdminLike = (role?: TRole): boolean =>
-    !!role && ADMIN_LIKE.includes(role);
+/**
+ * Только супер-админ.
+ * @param role - Роль пользователя
+ * @returns true для super_admin
+ */
+export const isSuperAdmin = (role?: TRole): boolean => isSuperAdminShared(role);
 
-export const isSuperAdmin = (role?: TRole): boolean => role === 'super_admin';
-
+/**
+ * Может ли actor назначить newRole цели с текущей targetRole.
+ * @param actorRole - Роль инициатора
+ * @param targetRole - Текущая роль цели
+ * @param newRole - Новая роль
+ * @returns Разрешено ли назначение
+ */
 export const canAssignRole = (
     actorRole: TRole,
     targetRole: TRole,
     newRole: TRole,
-): boolean => {
-    if (!isAdminLike(actorRole)) return false;
+): boolean => canAssignRoleShared(actorRole, targetRole, newRole);
 
-    if (actorRole === 'super_admin') {
-        return true;
-    }
+/**
+ * Роли, доступные actor для назначения цели.
+ * @param actorRole - Роль инициатора
+ * @param targetRole - Текущая роль цели
+ * @returns Список допустимых новых ролей
+ */
+export const getAssignableRoles = (actorRole: TRole, targetRole: TRole): TRole[] =>
+    getAssignableRolesShared(actorRole, targetRole) as TRole[];
 
-    if (actorRole === 'admin') {
-        if (!['guest', 'user'].includes(newRole)) return false;
-        if (['admin', 'super_admin'].includes(targetRole)) return false;
-        return true;
-    }
-
-    return false;
-};
-
-export const getAssignableRoles = (actorRole: TRole, targetRole: TRole): TRole[] => {
-    const all: TRole[] = ['guest', 'user', 'admin', 'super_admin'];
-    return all.filter((role) => canAssignRole(actorRole, targetRole, role));
-};
-
+/**
+ * Может ли actor удалить пользователя с targetRole.
+ * @param actorRole - Роль инициатора
+ * @param targetRole - Роль цели
+ * @param isSelf - Удаление себя
+ * @returns Разрешено ли удаление
+ */
 export const canDeleteUser = (
     actorRole: TRole,
     targetRole: TRole,
     isSelf: boolean,
-): boolean => {
-    if (!isAdminLike(actorRole) || isSelf) return false;
-    if (actorRole === 'admin' && ['admin', 'super_admin'].includes(targetRole)) {
-        return false;
-    }
-    return true;
-};
+): boolean => canDeleteByRole(actorRole, targetRole, isSelf);

@@ -11,9 +11,9 @@ alwaysApply: true
 
 - **Клиент** `src/` — React, TS, API в `src/api/`, auth в `AuthContext` + `auth.api.ts`
 - **Сервер** `server/` — Express через `createApp()` в `app.js`, auth в `server/auth/`
-- **Общее** `shared/contracts/`, `shared/test/roleMatrix.ts`
+- **Общее** `shared/contracts/`, `shared/roleLattice.cjs`, `shared/test/roleMatrix.ts`
 - UI: только `useAuth().capabilities`, не сырые проверки Telegram
-- Роли: `roleHelpers.js` (server) + `rolePermissions.ts` (client) + `roleMatrix` (тесты) — синхронно
+- Роли: источник `shared/roleLattice.cjs`; адаптеры `roleHelpers.js` / `rolePermissions.ts`; `roleMatrix` гоняет оба
 
 ## JSDoc (обязательно)
 

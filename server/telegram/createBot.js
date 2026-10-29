@@ -7,6 +7,7 @@ const moment = require('moment');
 const User = require('../models/User');
 const Rehearsal = require('../models/Rehearsal');
 const { isAdminLike } = require('../auth/roleHelpers');
+const { loadNormalizedDayHours } = require('../booking/createBooking');
 const {
     formatDayBookings,
     formatFreeSlots,
@@ -15,21 +16,14 @@ const {
 } = require('./scheduleMessages');
 
 /**
- * Загружает слоты на календарный день DD/MM/YYYY (UTC start/end как в /api/hours).
- * @param {string} dateDdMmYyyy
+ * Слоты дня для команд бота (полный payload после нормализации).
+ * PII не режется: formatDayBookings показывает имена.
+ * @param {string} dateDdMmYyyy - DD/MM/YYYY
  * @returns {Promise<Array<object>>}
  */
 const loadHoursForDate = async (dateDdMmYyyy) => {
-    const dateMoment = moment.utc(dateDdMmYyyy, 'DD/MM/YYYY');
-    if (!dateMoment.isValid()) {
-        return [];
-    }
-    const startOfDay = dateMoment.startOf('day').toDate();
-    const endOfDay = dateMoment.clone().endOf('day').toDate();
-    const doc = await Rehearsal.findOne({
-        date: { $gte: startOfDay, $lte: endOfDay },
-    });
-    return doc && Array.isArray(doc.hours) ? doc.hours : [];
+    const day = await loadNormalizedDayHours(dateDdMmYyyy);
+    return day.valid ? day.hours : [];
 };
 
 /**
