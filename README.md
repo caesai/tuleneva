@@ -176,7 +176,7 @@ npm run build
 
 Полный чеклист нового сервера и CD: [docs/VPS.md](docs/VPS.md). Бэкап Mongo: `server/scripts/backup-mongo.sh`.
 
-Подробный handoff по auth: [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md).
+Подробный handoff по auth: [docs/NEXT_AGENT_AUTH.md](docs/NEXT_AGENT_AUTH.md). Чеклист углубления архитектуры: [docs/NEXT_AGENT_ARCHITECTURE.md](docs/NEXT_AGENT_ARCHITECTURE.md).
 
 ## Структура проекта
 
@@ -186,6 +186,7 @@ tuleneva/
 │   ├── app.js              # createApp() — Express без listen/bot.launch
 │   ├── index.js            # bootstrap: Mongo, Telegraf, WebSocket
 │   ├── auth/               # authRoutes, providers, inviteService
+│   ├── booking/            # createBooking — book/cancel/day/month
 │   ├── telegram/           # createBot, команды расписания
 │   ├── models/
 │   └── test/               # unit, contracts, integration

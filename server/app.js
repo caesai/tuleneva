@@ -3,14 +3,12 @@
  */
 const express = require('express');
 const cors = require('cors');
-const moment = require('moment');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { Markup } = require('telegraf');
 
 const User = require('./models/User');
-const Rehearsal = require('./models/Rehearsal');
 const InviteCode = require('./models/InviteCode');
 const { INVITE_CODE_TTL_SECONDS } = require('./models/InviteCode');
 const { createAuthRouter } = require('./auth/authRoutes');
@@ -26,10 +24,6 @@ const {
 const { isAdminLike, canAssignRole, canDeleteUser } = require('./auth/roleHelpers');
 const { requireAdmin } = require('./auth/requireAdmin');
 const { createOptionalAuth } = require('./auth/optionalAuth');
-const {
-    canViewBookingUserDetails,
-    sanitizeHoursForViewer,
-} = require('./auth/hourPrivacy');
 const { findValidInvite, consumeInvite } = require('./auth/inviteService');
 const {
     linkEmailCredentials,
@@ -37,7 +31,7 @@ const {
 } = require('./auth/emailProvider');
 const { createSmtpSendMail } = require('./auth/mailer');
 const { safeNotify } = require('./notifications/telegramNotify');
-const { isHourAllowed, isSlotInPast } = require('../shared/studioHours.cjs');
+const { createBooking } = require('./booking/createBooking');
 
 /**
  * @param {object} options
@@ -65,159 +59,7 @@ const createApp = ({
     telegramWebhookSecret = null,
 }) => {
     const mailSender = sendMail === undefined ? createSmtpSendMail() : sendMail;
-/**
- * Проверяет, является ли строка временем в формате HH:MM
- * @param {string} str - Строка для проверки
- * @returns {boolean}
- */
-const isTimeKey = (str) => /^\d{1,2}:\d{2}$/.test(str);
-
-/**
- * Вычисляет конечное время (начальный час + 1)
- * Например: "23:00" -> "00:00", "12:00" -> "13:00"
- * @param {string} hour - Час в формате "HH:00"
- * @returns {string}
- */
-const calculateEndTime = (hour) => {
-    const hourNum = parseInt(hour.split(':')[0], 10);
-    const nextHour = (hourNum + 1) % 24;
-    return `${nextHour.toString().padStart(2, '0')}:00`;
-};
-
-/**
- * Извлекает числовое значение часа из строки "HH:00"
- * @param {string} hour - Час в формате "HH:00"
- * @returns {number}
- */
-const getHourNumber = (hour) => {
-    return parseInt(hour.split(':')[0], 10);
-};
-
-/**
- * Объединяет последовательные часы в диапазоны
- * Например: ["14:00", "15:00", "16:00", "19:00"] -> "14:00 - 17:00, 19:00 - 20:00"
- * @param {string[]} hours - Массив часов
- * @returns {string}
- */
-const formatHoursRange = (hours) => {
-    if (!hours || hours.length === 0) return '';
-
-    const sortedHours = [...hours].sort((a, b) => getHourNumber(a) - getHourNumber(b));
-    const ranges = [];
-
-    let rangeStart = sortedHours[0];
-    let rangeEnd = sortedHours[0];
-
-    for (let i = 1; i < sortedHours.length; i++) {
-        const current = sortedHours[i];
-        const prevHourNum = getHourNumber(rangeEnd);
-        const currentHourNum = getHourNumber(current);
-
-        if (currentHourNum === prevHourNum + 1) {
-            // Последовательный слот - расширяем диапазон
-            rangeEnd = current;
-        } else {
-            // Не последовательный - сохраняем текущий диапазон и начинаем новый
-            ranges.push(`${rangeStart} - ${calculateEndTime(rangeEnd)}`);
-            rangeStart = current;
-            rangeEnd = current;
-        }
-    }
-
-    // Добавляем последний диапазон
-    ranges.push(`${rangeStart} - ${calculateEndTime(rangeEnd)}`);
-
-    return ranges.join(', ');
-};
-
-/**
- * Преобразует старый формат бронирований (объект с ключами-часами) в новый формат (массив bookedHourSchema).
- * Старый формат: { "12:00": { status, owner, userId, bandName, avatar, ... }, ... }
- * Новый формат: [{ hour, userId, username, band_name, userPhotoUrl }, ...]
- * 
- * @param {Object|Array} hoursData - Данные из БД (может быть старый формат или новый)
- * @returns {Array} Массив в новом формате bookedHourSchema
- */
-const normalizeHoursData = (hoursData) => {
-    // Если данных нет, возвращаем пустой массив
-    if (!hoursData) {
-        return [];
-    }
-
-    // Если это уже массив
-    if (Array.isArray(hoursData)) {
-        // Пустой массив - возвращаем как есть
-        if (hoursData.length === 0) {
-            return [];
-        }
-
-        // Проверяем первый элемент
-        const firstItem = hoursData[0];
-
-        // Если первый элемент — это объект и у него есть поле hour, значит новый формат
-        if (firstItem && typeof firstItem === 'object' && firstItem.hour) {
-            return hoursData;
-        }
-
-        // Проверяем, является ли это массивом со старым форматом внутри
-        // (hours: [{ "12:00": {...}, "13:00": {...} }])
-        if (firstItem && typeof firstItem === 'object') {
-            // Конвертируем в plain object (на случай Mongoose document)
-            const plainObj = firstItem.toObject ? firstItem.toObject() : firstItem;
-            const keys = Object.keys(plainObj);
-
-            // Если хотя бы один ключ выглядит как время (HH:MM), это старый формат
-            if (keys.some(isTimeKey)) {
-                return convertOldFormatToNew(plainObj);
-            }
-        }
-
-        // Иначе возвращаем как есть (возможно пустой или неизвестный формат)
-        return hoursData;
-    }
-
-    // Старый формат: объект, где ключи — это часы
-    if (typeof hoursData === 'object') {
-        const plainObj = hoursData.toObject ? hoursData.toObject() : hoursData;
-        return convertOldFormatToNew(plainObj);
-    }
-
-    return [];
-};
-
-/**
- * Конвертирует объект старого формата в массив нового формата
- * @param {Object} oldFormatObj - Объект старого формата { "12:00": {...}, ... }
- * @returns {Array} Массив нового формата
- */
-const convertOldFormatToNew = (oldFormatObj) => {
-    const normalizedHours = [];
-
-    for (const [hour, slotData] of Object.entries(oldFormatObj)) {
-        // Пропускаем не-временные ключи (например, _id, __v и т.д.)
-        if (!isTimeKey(hour)) {
-            continue;
-        }
-
-        // Пропускаем незабронированные слоты
-        if (!slotData || slotData.status !== 'BOOKED') {
-            continue;
-        }
-
-        normalizedHours.push({
-            hour: hour,
-            userId: slotData.userId ? String(slotData.userId) : null,
-            username: slotData.owner || '',
-            band_name: slotData.bandName || '',
-            userPhotoUrl: slotData.avatar || null
-        });
-    }
-
-    // Сортируем по времени
-    normalizedHours.sort((a, b) => a.hour.localeCompare(b.hour));
-
-    return normalizedHours;
-};
+    const booking = createBooking({ broadcastUpdate, notifyAdmins, notifyUser });
 
     const app = express();
     app.use(cors({
@@ -589,11 +431,9 @@ app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, re
 
 // app.post('/api/users/new', ...); // Keeping this open or protected? Likely for dev seeding, let's protect it or remove it in prod. Leaving as is for now but marking as risky.
 
-// Booking Rehearsal - Protected
-
 /**
  * @route POST /api/book
- * @description Создает бронирование репетиции.
+ * @description Создает бронирование репетиции (логика в createBooking).
  * @access Protected (User/Admin)
  * @param {string} req.body.date - Дата бронирования (DD/MM/YYYY).
  * @param {Array<string>} req.body.hours - Массив часов для бронирования.
@@ -603,152 +443,26 @@ app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, re
 app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
     try {
         const { date, hours, band_name, rehearsalType } = req.body;
-        // Получаем username и userId из верифицированных данных БД
-        const username = req.dbUser.username || req.dbUser.first_name;
-        const userId = req.dbUser._id;
-        const userPhotoUrl = req.dbUser.photo_url;
-
-        // Check role from DB
-        if (req.dbUser.role === 'guest') {
-            return res.status(403).json({ error: 'Guests cannot book rehearsals.' });
-        }
-
-        // 1. Input Validation
-        if (!date || !hours || !Array.isArray(hours) || hours.length === 0) {
-            return res.status(400).json({ error: 'Missing or invalid booking data.' });
-        }
-
-        const uniqueHours = [...new Set(hours)];
-        if (uniqueHours.length !== hours.length) {
-            return res.status(400).json({ error: 'Duplicate hours in booking request.' });
-        }
-
-        const dateMoment = moment.utc(date, 'DD/MM/YYYY', true);
-        if (!dateMoment.isValid()) {
-            return res.status(400).json({ error: 'Invalid date format. Please use DD/MM/YYYY.' });
-        }
-
-        const invalidHours = uniqueHours.filter((hour) => !isHourAllowed(hour));
-        if (invalidHours.length > 0) {
-            return res.status(400).json({
-                error: 'Hours outside studio schedule (12:00–23:00).',
-                invalidHours,
-            });
-        }
-
-        const pastHours = uniqueHours.filter((hour) => isSlotInPast(date, hour));
-        if (pastHours.length > 0) {
-            return res.status(400).json({
-                error: 'Cannot book past time slots.',
-                pastHours,
-            });
-        }
-
-        const bookingDate = dateMoment.startOf('day').toDate();
-
-        // 2. Find the document for the day
-        let rehearsalDoc = await Rehearsal.findOne({ date: bookingDate });
-
-        // 2.1. Если документ существует, но hours не массив — исправляем
-        if (rehearsalDoc && !Array.isArray(rehearsalDoc.hours)) {
-            await Rehearsal.updateOne(
-                { _id: rehearsalDoc._id },
-                { $set: { hours: [] } }
-            );
-            rehearsalDoc = await Rehearsal.findOne({ date: bookingDate });
-        }
-
-        const newBookings = uniqueHours.map((hour) => ({
-            hour,
-            userId,
-            username,
-            band_name: typeof band_name === 'string' ? band_name.trim() : '',
-            userPhotoUrl,
-            rehearsalType: rehearsalType || 'rehearsal',
-        }));
-
-        /**
-         * Условный $push: только если ни один из часов ещё не занят.
-         * Без upsert — $nin + upsert в Mongo не создаёт документ надёжно.
-         * @returns {Promise<object|null>}
-         */
-        const tryPushHours = () => Rehearsal.findOneAndUpdate(
-            {
-                date: bookingDate,
-                'hours.hour': { $nin: uniqueHours },
-            },
-            { $push: { hours: { $each: newBookings } } },
-            { new: true },
-        );
-
-        /**
-         * Собирает список уже занятых часов для ответа 409.
-         * @returns {Promise<string[]>}
-         */
-        const loadConflictingHours = async () => {
-            const current = await Rehearsal.findOne({ date: bookingDate });
-            if (!current || !Array.isArray(current.hours)) {
-                return uniqueHours;
-            }
-            const booked = new Set(current.hours.map((slot) => slot.hour));
-            return uniqueHours.filter((hour) => booked.has(hour));
-        };
-
-        let updatedRehearsal = await tryPushHours();
-
-        if (!updatedRehearsal && !rehearsalDoc) {
-            // Документа дня ещё нет — создаём. Гонку двух create ловим по E11000.
-            try {
-                updatedRehearsal = await Rehearsal.create({
-                    date: bookingDate,
-                    hours: newBookings,
-                });
-            } catch (createErr) {
-                if (createErr?.code !== 11000) {
-                    throw createErr;
-                }
-                updatedRehearsal = await tryPushHours();
-            }
-        }
-
-        if (!updatedRehearsal) {
-            const conflictingHours = await loadConflictingHours();
-            return res.status(409).json({
-                error: 'Some hours are already booked.',
-                conflictingHours,
-            });
-        }
-
-        console.log('username: ', username, date, uniqueHours.join(','));
-        const BOOK_MESSAGE = `
-**РЕПЕТИЦИЯ**
-
-👨‍💻 @${username}
-
-📅 ${date.replaceAll('/', '.')} 
-🕓 ${formatHoursRange(uniqueHours)}
-        `;
-
-        // WebSocket: только публичные поля (PII — через GET /api/hours с токеном)
-        broadcastUpdate('booking_update', {
+        const result = await booking.book({
+            dbUser: req.dbUser,
             date,
-            hours: sanitizeHoursForViewer(normalizeHoursData(updatedRehearsal.hours), false),
+            hours,
+            band_name,
+            rehearsalType,
         });
-
-        res.status(201).json(updatedRehearsal);
-        safeNotify(notifyAdmins(BOOK_MESSAGE));
-        return;
+        res.status(result.status).json(result.body);
+        if (result.afterResponse) {
+            safeNotify(result.afterResponse);
+        }
     } catch (err) {
         console.error('An error occurred during booking:', err);
         res.status(500).json({ error: 'An internal server error occurred.' });
     }
 });
 
-// Cancel Booking - Protected
-
 /**
  * @route DELETE /api/cancel
- * @description Отменяет бронирование репетиции.
+ * @description Отменяет бронирование репетиции (логика в createBooking).
  * @access Protected (User can cancel own, Admin can cancel any)
  * @param {string} req.body.date - Дата бронирования (DD/MM/YYYY).
  * @param {Array<string>} req.body.hours - Массив часов для отмены.
@@ -757,153 +471,20 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
 app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) => {
     try {
         const { date, hours } = req.body;
-        // Получаем username и userId из верифицированных данных БД
-        const username = req.dbUser.username || req.dbUser.first_name;
-        const userId = req.dbUser._id;
-        const isAdmin = isAdminLike(req.dbUser.role);
-
-        // 1. Input Validation
-        if (!date || !hours || !Array.isArray(hours) || hours.length === 0) {
-            return res.status(400).json({ error: 'Missing or invalid cancellation data.' });
-        }
-
-        const dateMoment = moment.utc(date, 'DD/MM/YYYY');
-        if (!dateMoment.isValid()) {
-            return res.status(400).json({ error: 'Invalid date format. Expected DD/MM/YYYY.' });
-        }
-
-        const startOfDay = dateMoment.startOf('day').toDate();
-        const endOfDay = dateMoment.endOf('day').toDate();
-
-        let rehearsalDoc = await Rehearsal.findOne({
-            date: {
-                $gte: startOfDay,
-                $lte: endOfDay,
-            }
-        });
-
-        if (!rehearsalDoc) {
-            return res.status(404).json({ error: 'No bookings found for this day.' });
-        }
-
-        // Если hours не массив — исправляем
-        if (!Array.isArray(rehearsalDoc.hours)) {
-            await Rehearsal.updateOne(
-                { _id: rehearsalDoc._id },
-                { $set: { hours: [] } }
-            );
-            return res.status(404).json({ error: 'No bookings found for this day.' });
-        }
-
-        // 2. Filter out hours the user is not authorized to cancel.
-        const hoursToCancel = hours.filter(hour => {
-            const booking = rehearsalDoc.hours.find(h => h.hour === hour);
-            // Strict check: if admin, can cancel any. If user, must match userId.
-            return booking && (isAdmin || String(booking.userId) === String(userId));
-        });
-
-        if (hoursToCancel.length === 0) {
-            console.log(`Cancel failed for user ${userId}. Requested: ${hours.join(',')}. Found docs matching user:`,
-                rehearsalDoc.hours.filter(h => hours.includes(h.hour)).map(h => ({ h: h.hour, u: h.userId }))
-            );
-            return res.status(403).json({ error: 'You are not authorized to cancel any of the selected bookings or they do not exist.' });
-        }
-
-        const updatedRehearsal = await Rehearsal.findOneAndUpdate(
-            { _id: rehearsalDoc._id },
-            {
-                $pull: {
-                    hours: {
-                        hour: { $in: hoursToCancel },
-                        ...(isAdmin ? {} : { userId: userId })
-                    }
-                }
-            },
-            { new: true }
-        );
-        const CANCEL_MESSAGE_ADMIN = `
-**ОТМЕНА**
-
-👨‍💻 @${username}
-
-📅 ${date.replaceAll('/', '.')} 
-🕓 ${formatHoursRange(hoursToCancel)}
-        `
-        const CANCEL_MESSAGE_USER = `
-**ОТМЕНА**
-    
-📅 ${date.replaceAll('/', '.')}
-🕓 ${formatHoursRange(hoursToCancel)}
-
-Репетиция была отменена администратором
-        `
-
-        /**
-         * Фоновые Telegram-уведомления после ответа клиенту.
-         * @returns {Promise<void>}
-         */
-        const sendCancelNotifications = async () => {
-            if (isAdmin) {
-                const affectedUserIds = [...new Set(rehearsalDoc.hours
-                    .filter((h) => hoursToCancel.includes(h.hour))
-                    .map((h) => h.userId))];
-
-                await Promise.allSettled(
-                    affectedUserIds.map(async (affectedUserId) => {
-                        try {
-                            const affectedUser = await User.findById(affectedUserId);
-                            if (affectedUser?.telegram_id) {
-                                await notifyUser(affectedUser.telegram_id, CANCEL_MESSAGE_USER);
-                            }
-                        } catch (e) {
-                            console.error(
-                                `Failed to notify user ${affectedUserId} about cancellation:`,
-                                e?.code || e?.message || e,
-                            );
-                        }
-                    }),
-                );
-            } else {
-                await notifyAdmins(CANCEL_MESSAGE_ADMIN);
-            }
-        };
-
-        if (updatedRehearsal && updatedRehearsal.hours.length === 0) {
-            await Rehearsal.deleteOne({ _id: updatedRehearsal._id });
-
-            broadcastUpdate('booking_cancel', {
-                date,
-                hours: [],
-            });
-
-            res.status(200).json({ message: 'All bookings for this day canceled, document deleted.' });
-            safeNotify(sendCancelNotifications());
-            return;
-        }
-
-        if (!updatedRehearsal) {
-            return res.status(404).json({ error: 'Booking not found or already canceled.' });
-        }
-
-        // WebSocket: только публичные поля
-        broadcastUpdate('booking_cancel', {
+        const result = await booking.cancel({
+            dbUser: req.dbUser,
             date,
-            hours: sanitizeHoursForViewer(normalizeHoursData(updatedRehearsal.hours), false),
+            hours,
         });
-
-        res.status(200).json({
-            message: 'Bookings canceled successfully.',
-            rehearsal: updatedRehearsal,
-        });
-        safeNotify(sendCancelNotifications());
+        res.status(result.status).json(result.body);
+        if (result.afterResponse) {
+            safeNotify(result.afterResponse);
+        }
     } catch (err) {
         console.error('An error occurred during cancellation:', err);
         res.status(500).json({ error: 'An internal server error occurred.' });
     }
 });
-
-// Read-only endpoints - can remain public for viewing timetable? Or protect them too?
-// Usually viewing timetable is public. Keeping public for now or adding auth if required by privacy.
 
 /**
  * @route GET /api/timetable
@@ -914,34 +495,12 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
  * @returns {Object} JSON с массивом дат (строки DD/MM/YYYY).
  */
 app.get('/api/timetable', async (req, res) => {
-    // ... (existing implementation)
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
 
     try {
-        const { date } = req.query;
-        if (!date) {
-            return res.status(400).json({ error: 'Missing or invalid booking date.' });
-        }
-        const dateMoment = moment(date, 'DD/MM/YYYY');
-        if (!dateMoment.isValid()) {
-            return res.status(400).json({ error: 'Invalid date format. Please use DD/MM/YYYY.' });
-        }
-
-        const dateFrom = dateMoment.startOf('month').toDate();
-        const dateTo = dateMoment.endOf('month').toDate();
-
-        const searchResults = await Rehearsal.find({
-            date: {
-                $gte: dateFrom,
-                $lte: dateTo,
-            },
-            hours: { $ne: [] }
-        });
-
-        const datesToHighlight = searchResults.map(doc => moment(doc.date).format('DD/MM/YYYY'));
-
-        res.status(200).json({ result: datesToHighlight });
+        const result = await booking.getMonthDates({ date: req.query.date });
+        res.status(result.status).json(result.body);
     } catch (err) {
         console.error('An error occurred while fetching booked hours:', err);
         res.status(500).json({ error: 'An internal server error occurred.' });
@@ -956,42 +515,15 @@ app.get('/api/timetable', async (req, res) => {
  * @returns {Object} JSON с массивом слотов; PII только для авторизованных участников.
  */
 app.get('/api/hours', optionalAuthenticate, async (req, res) => {
-    // ... (existing implementation)
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
 
     try {
-        const { date } = req.query;
-        if (!date) {
-            return res.status(400).json({ message: 'Date query parameter is required.' });
-        }
-
-        const dateMoment = moment.utc(date, 'DD/MM/YYYY');
-        if (!dateMoment.isValid()) {
-            return res.status(400).json({ message: 'Invalid date format. Expected DD/MM/YYYY.' });
-        }
-
-        const startOfDay = dateMoment.startOf('day').toDate();
-        const endOfDay = dateMoment.endOf('day').toDate();
-
-        const rehearsalRecord = await Rehearsal.findOne({
-            date: {
-                $gte: startOfDay,
-                $lte: endOfDay
-            }
+        const result = await booking.getDayHours({
+            date: req.query.date,
+            dbUser: req.dbUser,
         });
-
-        if (!rehearsalRecord) {
-            return res.status(200).json({ hours: [] });
-        }
-
-        // Нормализуем данные из БД (поддержка старого и нового формата)
-        const normalizedHours = normalizeHoursData(rehearsalRecord.hours);
-        const canViewDetails = canViewBookingUserDetails(req.dbUser);
-        const hours = sanitizeHoursForViewer(normalizedHours, canViewDetails);
-
-        return res.status(200).json({ hours });
-
+        return res.status(result.status).json(result.body);
     } catch (error) {
         console.error('Error fetching hours:', error);
         return res.status(500).json({ message: 'Server error' });
