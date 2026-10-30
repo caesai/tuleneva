@@ -251,6 +251,15 @@ sudo mkdir -p /var/backups/tuleneva /etc/tuleneva
 # 15 3 * * * set -a; . /etc/tuleneva/backup.env; set +a; /usr/local/bin/backup-mongo.sh >> /var/log/tuleneva-backup.log 2>&1
 ```
 
+Запасная копия на своей машине — скачать последний каталог дампа (подставьте IP и путь из `BACKUP_DIR`):
+
+```bash
+# На VPS: ls -1dt /var/backups/tuleneva/*/ | head -1
+scp -r deploy@IP:/var/backups/tuleneva/YYYYMMDDTHHMMSSZ ./tuleneva-mongo-backup
+```
+
+Второй Mongo и запись с локального приложения в отдельную базу не нужны: правки идут в живую Mongo через `npm run dev` (прокси на VPS) после входа по почте.
+
 ## 9. Восстановление пользователей после потери диска
 
 1. Попросите у хостера снимок диска или `/var/lib/mongodb` / готовый `mongodump`.
