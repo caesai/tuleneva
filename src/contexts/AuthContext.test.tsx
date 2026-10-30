@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { AuthProvider } from './AuthContext.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
+import { useEmailAuth } from '@/auth/useEmailAuth.ts';
 
 vi.mock('@/telegram/env.ts', () => ({
     getTelegramEnvironment: () => false,
@@ -36,7 +37,8 @@ function Probe() {
 }
 
 function EmailLoginProbe() {
-    const { loginWithEmailPassword, isAuthenticated } = useAuth();
+    const { isAuthenticated } = useAuth();
+    const { loginWithEmailPassword } = useEmailAuth();
     return (
         <div>
             <span data-testid="authed">{String(isAuthenticated)}</span>

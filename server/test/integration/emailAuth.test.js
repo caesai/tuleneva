@@ -237,7 +237,7 @@ describe('email auth integration', () => {
         expect(book.status).toBe(403);
     });
 
-    it('legacy invite reuse fails after consumeInvite', async () => {
+    it('telegram invite reuse fails after consumeInvite', async () => {
         const admin = await seedUser({ role: 'admin' });
         const initData = buildInitData(
             { id: 900001, first_name: 'Legacy', username: 'leg' },
@@ -252,13 +252,21 @@ describe('email auth integration', () => {
         });
 
         const first = await request(app)
-            .post('/api/invite/use')
-            .send({ code: 'legacy-once', user: initData });
+            .post('/api/auth/invite/use')
+            .send({
+                code: 'legacy-once',
+                provider: 'telegram',
+                telegram: { user: initData },
+            });
         expect(first.status).toBe(201);
 
         const second = await request(app)
-            .post('/api/invite/use')
-            .send({ code: 'legacy-once', user: initData });
+            .post('/api/auth/invite/use')
+            .send({
+                code: 'legacy-once',
+                provider: 'telegram',
+                telegram: { user: initData },
+            });
         expect(second.status).toBe(400);
 
         const users = await User.find({ telegram_id: 900001 });

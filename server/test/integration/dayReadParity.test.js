@@ -9,9 +9,10 @@ import {
     authHeader,
 } from '../helpers/testApp.js';
 import { loadHoursForDate } from '../../telegram/createBot.js';
+import { formatDayBookings } from '../../telegram/scheduleMessages.js';
 
 /**
- * HTTP /api/hours режет PII; бот loadHoursForDate отдаёт полный слот.
+ * HTTP /api/hours режет PII. Ответ бота в чат — только интервалы, без имени.
  */
 describe('day-read parity HTTP vs bot', () => {
     let app;
@@ -31,7 +32,7 @@ describe('day-read parity HTTP vs bot', () => {
         await clearTestDb();
     });
 
-    it('anonymous GET /api/hours strips username; bot load keeps it', async () => {
+    it('anonymous GET /api/hours and bot day text omit the booker', async () => {
         const user = await seedUser({
             role: 'user',
             username: 'parity_user',
@@ -60,7 +61,11 @@ describe('day-read parity HTTP vs bot', () => {
         const botHours = await loadHoursForDate(date);
         expect(botHours).toHaveLength(1);
         expect(botHours[0].hour).toBe('16:00');
-        expect(botHours[0].username).toBe('parity_user');
-        expect(botHours[0].band_name).toBe('Parity Band');
+
+        const botText = formatDayBookings(date, botHours, 'Сегодня');
+        expect(botText).toContain('16:00 - 17:00 — занято');
+        expect(botText).not.toContain('parity_user');
+        expect(botText).not.toContain('Parity');
+        expect(botText).not.toContain('Parity Band');
     });
 });

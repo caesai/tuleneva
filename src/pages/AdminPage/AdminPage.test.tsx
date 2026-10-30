@@ -62,6 +62,14 @@ vi.mock('@/api/user.api.ts', () => ({
         }),
     })),
     APIRevokeInvite: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ revoked: true }) }),
+    APIGetInviteHistory: vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ live: [], history: [] }),
+    }),
+    APIGetUserRoleLog: vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ entries: [] }),
+    }),
     APISetUserEmailLogin: vi.fn(),
 }));
 

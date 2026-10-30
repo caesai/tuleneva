@@ -12,14 +12,16 @@ describe('scheduleMessages', () => {
         expect(text).toContain('Свободно');
     });
 
-    it('formatDayBookings lists a single slot as a card range', () => {
+    it('formatDayBookings lists a slot as occupied without the booker', () => {
         const text = formatDayBookings('15/06/2030', [
             { hour: '14:00', userId: 'u1', username: 'alice', band_name: 'Band' },
         ], 'Сегодня');
-        expect(text).toContain('14:00 - 15:00 — alice (Band)');
+        expect(text).toContain('14:00 - 15:00 — занято');
+        expect(text).not.toContain('alice');
+        expect(text).not.toContain('Band');
     });
 
-    it('formatDayBookings groups consecutive hours of the same booking', () => {
+    it('formatDayBookings merges consecutive hours and hides who booked', () => {
         const text = formatDayBookings('15/06/2030', [
             { hour: '16:00', userId: 'u1', username: 'alice', band_name: 'Band' },
             { hour: '14:00', userId: 'u1', username: 'alice', band_name: 'Band' },
@@ -29,11 +31,11 @@ describe('scheduleMessages', () => {
             { hour: '20:00', userId: 'u2', username: 'bob', band_name: 'Band' },
         ], 'Завтра');
 
-        expect(text).toContain('14:00 - 17:00 — alice (Band)');
-        expect(text).toContain('18:00 - 19:00 — alice (Other)');
-        expect(text).toContain('19:00 - 21:00 — bob (Band)');
-        expect(text).not.toContain('15:00 —');
-        expect(text).not.toContain('16:00 —');
+        expect(text).toContain('14:00 - 17:00 — занято');
+        expect(text).toContain('18:00 - 21:00 — занято');
+        expect(text).not.toContain('alice');
+        expect(text).not.toContain('bob');
+        expect(text).not.toContain('Other');
     });
 
     it('formatFreeSlots excludes booked hours', () => {

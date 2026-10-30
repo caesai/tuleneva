@@ -56,6 +56,20 @@ vi.mock('@/contexts/NetworkContext.tsx', () => ({
     NetworkProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock('@/contexts/WebSocketContext.tsx', () => ({
+    WebSocketProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('@/auth/useEmailAuth.ts', () => ({
+    useEmailAuth: () => ({
+        linkEmailPassword: vi.fn(),
+        loginWithEmailPassword: vi.fn(),
+        confirmEmailToken: vi.fn(),
+        requestPasswordReset: vi.fn(),
+        resetPasswordWithToken: vi.fn(),
+    }),
+}));
+
 vi.mock('@/pages/TimeTablePage/TimeTablePage.tsx', () => ({
     TimeTablePage: () => <div>TimeTable</div>,
 }));

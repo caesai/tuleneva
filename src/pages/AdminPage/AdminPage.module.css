@@ -101,6 +101,31 @@
     cursor: not-allowed;
 }
 
+.inviteHistory {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+    font-size: 12px;
+}
+
+.inviteHistoryTitle {
+    margin: 0 0 6px;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--tg-theme-hint-color, #666);
+}
+
+.inviteHistoryList {
+    margin: 0 0 10px;
+    padding-left: 18px;
+    line-height: 1.45;
+}
+
+.inviteHistoryList:last-child {
+    margin-bottom: 0;
+}
+
 .inviteModal {
     display: flex;
     flex-direction: column;

@@ -105,3 +105,25 @@ export const InviteGenerateResponseSchema = z.object({
     multiUse: z.boolean().optional(),
     expiresAt: z.coerce.date(),
 });
+
+/** Запись инвайта в списке живых / истории. */
+export const InviteHistoryItemSchema = z.object({
+    code: z.string(),
+    purpose: z.string().optional(),
+    initialRole: z.string().optional(),
+    allowedProviders: z.array(z.string()).optional(),
+    multiUse: z.boolean(),
+    useCount: z.number(),
+    createdBy: z.string().nullable(),
+    usedBy: z.string().nullable(),
+    createdAt: z.coerce.date().optional(),
+    expiresAt: z.coerce.date(),
+    usedAt: z.coerce.date().nullable(),
+    revokedAt: z.coerce.date().nullable(),
+});
+
+/** Ответ GET /api/auth/invite/history. */
+export const InviteHistoryResponseSchema = z.object({
+    live: z.array(InviteHistoryItemSchema),
+    history: z.array(InviteHistoryItemSchema),
+});

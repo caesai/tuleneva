@@ -126,9 +126,6 @@ export const useTimeTableData = (
     // WebSocket для real-time обновлений
     const { isConnected: isWebSocketConnected } = useWebSocket({
         onMessage: handleWebSocketMessage,
-        autoReconnect: true,
-        reconnectInterval: 3000,
-        maxReconnectAttempts: 10
     });
 
     // Обновляем ref при изменении даты

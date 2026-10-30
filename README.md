@@ -82,6 +82,8 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 
+Кнопка «Войти по почте» и форма привязки по умолчанию скрыты. Для работы над почтой: `VITE_EMAIL_AUTH_UI=true npm run dev`.
+
 Для Telegram SDK локально приложение эмулирует среду Mini App в браузере.
 
 **SEO / Open Graph:** `index.html` собирается автоматически из `index.template.html` и `src/config/siteMeta.ts` при `npm run dev` и `npm run build`. Метатеги для шеринга и индексации править только в `siteMeta.ts`.
@@ -93,6 +95,10 @@ npm run dev
 npm test
 npm run test:watch
 npm run test:coverage
+
+# Playwright smoke (расписание + вход по почте; поднимает Vite на :5173)
+npx playwright install chromium
+npm run test:e2e
 
 # Сервер (unit + contracts + integration)
 cd server && npm run test:all
@@ -109,14 +115,15 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 | GET | `/api/auth/session` | Сессия по JWT |
 | POST | `/api/auth/providers/telegram/login` | Вход Telegram |
 | POST | `/api/auth/providers/telegram/register` | Запрос доступа |
-| POST | `/api/auth/providers/email/login` | Вход по почте и паролю (браузер, только подтверждённая почта) |
+| POST | `/api/auth/providers/email/login` | Вход по почте (API есть; кнопка и привязка скрыты, пока не задан `VITE_EMAIL_AUTH_UI=true`) |
 | POST | `/api/auth/providers/email/link` | Привязка почты (JWT); письмо со ссылкой; `currentPassword` при смене |
 | POST | `/api/auth/providers/email/confirm` | Подтверждение почты по токену из письма |
 | POST | `/api/auth/providers/email/forgot` | Запрос сброса пароля (всегда 200; письмо только если почта подтверждена) |
 | POST | `/api/auth/providers/email/reset` | Новый пароль по токену из письма (`?passwordReset=`) |
-| POST | `/api/auth/invite/use` | Регистрация по инвайту (`provider`, `telegram?`, `web?`) |
+| POST | `/api/auth/invite/use` | Регистрация по инвайту (`provider`, `telegram?`, `web?`); rate limit по IP |
 | POST | `/api/auth/invite/generate` | Админ: код и ссылки. `multiUse: true` — общая ссылка на 7 дней |
 | POST | `/api/auth/invite/revoke` | Админ: закрыть инвайт по `{ code }` |
+| GET | `/api/auth/invite/history` | Админ: живые инвайты и история (пока TTL не стёр) |
 | GET | `/api/auth/invite/validate/:code` | Проверка кода |
 
 ### Пользователи и расписание
@@ -125,6 +132,7 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 |--------|------|------------|
 | GET | `/api/users` | Список пользователей (JWT) |
 | PUT | `/api/users/:id/role` | Смена роли (admin+) |
+| GET | `/api/users/:id/role-log` | Журнал смен ролей (admin+) |
 | PUT | `/api/users/:id/email-login` | Админ: почта и пароль (письмо с подтверждением) |
 | DELETE | `/api/users/:id` | Удаление (admin+) |
 | GET | `/api/health` | Liveness CD: 200 при живой Mongo, иначе 503 |
@@ -136,9 +144,8 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 
 ### Deprecated (совместимость)
 
-- `POST /api/users/auth` → `POST /api/auth/providers/telegram/login`
 - `POST /api/users/register` → `POST /api/auth/providers/telegram/register`
-- `POST /api/invite/*` → `POST /api/auth/invite/*`
+- `GET /api/users/info` → `GET /api/auth/session`
 
 ## Telegram-бот
 
@@ -146,7 +153,7 @@ Integration-тесты используют in-memory MongoDB; внешний Mo
 
 1. Cloudflare Worker из [deploy/cloudflare-telegram-proxy.js](deploy/cloudflare-telegram-proxy.js) → `TELEGRAM_API_ROOT`
 2. `TELEGRAM_WEBHOOK_SECRET` — Telegram шлёт обновления на `POST /api/telegram/webhook`
-3. Команды в чате студии (`STUDIO_CHAT_ID`): `/today`, `/tomorrow`, `/free`, `/help`; в личке ещё `/my`, `/start`. Админ: `/chatid`. О брони и отмене бот пишет только админам в личный чат, в общий чат эти сообщения не дублирует.
+3. Команды в чате студии (`STUDIO_CHAT_ID`): `/today`, `/tomorrow`, `/free`, `/help`. В общем чате слоты без имени того, кто забронировал. В личке ещё `/my` (только свои брони) и `/start`. Админ: `/chatid`. О брони и отмене бот пишет только админам в личный чат, в общий чат эти сообщения не дублирует.
 
 Подробности: [docs/VPS.md](docs/VPS.md).
 

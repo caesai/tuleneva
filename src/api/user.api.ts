@@ -33,6 +33,17 @@ export const APIUpdateUserRole = async (userId: string, role: string) => {
     });
 };
 
+/**
+ * Журнал смен ролей для пользователя.
+ * @param userId - Mongo _id целевого пользователя
+ */
+export const APIGetUserRoleLog = async (userId: string) => {
+    return await fetch(`${DEV_URL + USERS_LIST_URL}/${userId}/role-log`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+    });
+};
+
 export const APIDeleteUser = async (userId: string) => {
     return await fetch(`${DEV_URL + USERS_LIST_URL}/${userId}`, {
         method: 'DELETE',
@@ -97,5 +108,15 @@ export const APIValidateInvite = async (code: string) => {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-store, no-cache',
         },
+    });
+};
+
+/**
+ * Живые инвайты и история (used/revoked), пока TTL не стёр документы.
+ */
+export const APIGetInviteHistory = async () => {
+    return await fetch(DEV_URL + '/auth/invite/history', {
+        method: 'GET',
+        headers: getAuthHeaders(),
     });
 };

@@ -16,8 +16,8 @@ const {
 } = require('./scheduleMessages');
 
 /**
- * Слоты дня для команд бота (полный payload после нормализации).
- * PII не режется: formatDayBookings показывает имена.
+ * Слоты дня для команд бота.
+ * В общий чат formatDayBookings отдаёт только интервалы, без имени и коллектива.
  * @param {string} dateDdMmYyyy - DD/MM/YYYY
  * @returns {Promise<Array<object>>}
  */
@@ -167,8 +167,8 @@ const createBot = ({
         }
         const lines = [
             'Команды:',
-            '/today — кто сегодня',
-            '/tomorrow — кто завтра',
+            '/today — занятость сегодня',
+            '/tomorrow — занятость завтра',
             '/free — свободные слоты сегодня',
             '/help — эта справка',
         ];

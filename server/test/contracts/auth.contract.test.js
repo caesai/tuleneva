@@ -5,6 +5,7 @@ import {
     AuthSessionResponseSchema,
     InviteValidateResponseSchema,
     InviteGenerateResponseSchema,
+    InviteHistoryResponseSchema,
 } from '../../../shared/contracts/auth.ts';
 import {
     connectTestDb,
@@ -66,6 +67,33 @@ describe('auth API contracts', () => {
 
         expect(res.status).toBe(201);
         expect(() => InviteGenerateResponseSchema.parse(res.body)).not.toThrow();
+    });
+
+    it('GET /api/auth/invite/history matches InviteHistoryResponseSchema', async () => {
+        const admin = await seedUser({ role: 'admin' });
+        await InviteCode.create({
+            code: 'hist-live',
+            createdBy: admin._id,
+            expiresAt: new Date(Date.now() + 3600000),
+            allowedProviders: ['web'],
+        });
+        await InviteCode.create({
+            code: 'hist-used',
+            createdBy: admin._id,
+            expiresAt: new Date(Date.now() + 3600000),
+            allowedProviders: ['web'],
+            usedAt: new Date(),
+            usedBy: admin._id,
+        });
+
+        const res = await request(app)
+            .get('/api/auth/invite/history')
+            .set(authHeader(admin));
+
+        expect(res.status).toBe(200);
+        expect(() => InviteHistoryResponseSchema.parse(res.body)).not.toThrow();
+        expect(res.body.live.some((i) => i.code === 'hist-live')).toBe(true);
+        expect(res.body.history.some((i) => i.code === 'hist-used')).toBe(true);
     });
 
     it('POST /api/auth/invite/use response matches AuthSessionResponseSchema', async () => {

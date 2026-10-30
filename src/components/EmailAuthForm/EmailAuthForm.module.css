@@ -42,3 +42,20 @@
     font-size: 13px;
     color: #c0392b;
 }
+
+.secondary {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #007aff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+.secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
