@@ -27,7 +27,10 @@ import {
 } from '@/pages/TimeTablePage/lazyMuiChunks.ts';
 import type { TRehearsalType } from '@/types/timetable.types';
 import { APP_PAGE_META } from '@/config/siteMeta.ts';
-import { EMAIL_AUTH_UI_ENABLED } from '@/config/emailAuthUi.ts';
+import {
+    EMAIL_AUTH_UI_ENABLED,
+    shouldShowEmailLinkForm,
+} from '@/config/emailAuthUi.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 
 
@@ -178,11 +181,14 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const [passwordResetToken, setPasswordResetToken] = useState<string | null>(null);
     const [passwordResetLoading, setPasswordResetLoading] = useState(false);
     /**
-     * Вход и привязка почты только в dev. В проде пользователи заходят через Telegram.
-     * Повторное предложение привязать почту (с паузой после закрытия) — отдельно, позже.
+     * Привязка своей почты: админ — всегда; остальные — при VITE_EMAIL_AUTH_UI.
+     * Кнопка входа в браузере только при флаге. Массовое предложение почты своим — позже.
      */
-    const showEmailLinkForm =
-        EMAIL_AUTH_UI_ENABLED && isAuthenticated && !!user && !isGuest;
+    const showEmailLinkForm = shouldShowEmailLinkForm({
+        isAuthenticated: isAuthenticated && !!user,
+        isGuest,
+        isAdmin,
+    });
     const showEmailLoginButton =
         EMAIL_AUTH_UI_ENABLED &&
         !isInTelegram &&
@@ -206,9 +212,10 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
 
     /**
      * Открывает модалку сброса пароля по ссылке из письма (?passwordReset=token).
+     * Без флага UI: ссылка в письме ведёт на прод, форма «забыли пароль» остаётся за флагом.
      */
     useEffect(() => {
-        if (!EMAIL_AUTH_UI_ENABLED || !passwordResetParam || authLoading) {
+        if (!passwordResetParam || authLoading) {
             return;
         }
         setPasswordResetToken(passwordResetParam);
