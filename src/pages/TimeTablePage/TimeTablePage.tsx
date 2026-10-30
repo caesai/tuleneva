@@ -17,6 +17,7 @@ import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { getTelegramEnvironment } from '@/telegram/env.ts';
 import { useTelegramStartInvite } from '@/auth/useInviteEntry.ts';
+import { useEmailAuth } from '@/auth/useEmailAuth.ts';
 import {
     LazyBookModalPopup,
     LazyTimeTableCalendarBlock,
@@ -26,6 +27,7 @@ import {
 } from '@/pages/TimeTablePage/lazyMuiChunks.ts';
 import type { TRehearsalType } from '@/types/timetable.types';
 import { APP_PAGE_META } from '@/config/siteMeta.ts';
+import { EMAIL_AUTH_UI_ENABLED } from '@/config/emailAuthUi.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 
 
@@ -140,13 +142,15 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         capabilities,
         isAuthenticated,
         isLoading: authLoading,
+        registerWithInvite,
+    } = useAuth();
+    const {
         linkEmailPassword,
         loginWithEmailPassword,
         confirmEmailToken,
         requestPasswordReset,
         resetPasswordWithToken,
-        registerWithInvite,
-    } = useAuth();
+    } = useEmailAuth();
     const { isAdmin, isGuest, canManageBookings, canViewUserDetails } = capabilities;
     const { launchParams, isTelegram } = useSafeLaunchParams();
     const isInTelegram = isTelegram && getTelegramEnvironment();
@@ -170,20 +174,17 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const [emailLoginLoading, setEmailLoginLoading] = useState(false);
     const [forgotMode, setForgotMode] = useState(false);
     const [forgotLoading, setForgotLoading] = useState(false);
-    const [forgotEmail, setForgotEmail] = useState('');
     const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false);
     const [passwordResetToken, setPasswordResetToken] = useState<string | null>(null);
     const [passwordResetLoading, setPasswordResetLoading] = useState(false);
-    const [newPassword, setNewPassword] = useState('');
-    const [newPasswordRepeat, setNewPasswordRepeat] = useState('');
     /**
-     * Привязка почты в шапке расписания — по желанию; вход в браузере включён.
-     * После web-инвайта модалка привязки показывается на IndexPage.
+     * Вход и привязка почты только в dev. В проде пользователи заходят через Telegram.
+     * Повторное предложение привязать почту (с паузой после закрытия) — отдельно, позже.
      */
-    const EMAIL_LINK_BLOCK_ENABLED = false;
     const showEmailLinkForm =
-        EMAIL_LINK_BLOCK_ENABLED && isAuthenticated && !!user && !isGuest;
+        EMAIL_AUTH_UI_ENABLED && isAuthenticated && !!user && !isGuest;
     const showEmailLoginButton =
+        EMAIL_AUTH_UI_ENABLED &&
         !isInTelegram &&
         !authLoading &&
         !isAuthenticated;
@@ -207,7 +208,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
      * Открывает модалку сброса пароля по ссылке из письма (?passwordReset=token).
      */
     useEffect(() => {
-        if (!passwordResetParam || authLoading) {
+        if (!EMAIL_AUTH_UI_ENABLED || !passwordResetParam || authLoading) {
             return;
         }
         setPasswordResetToken(passwordResetParam);
@@ -436,7 +437,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                 onClose={() => {
                     setIsEmailLoginOpen(false);
                     setForgotMode(false);
-                    setForgotEmail('');
                 }}
             >
                 <div className={css.emailLoginModal}>
@@ -449,19 +449,20 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                             : 'Тот же аккаунт, что в Telegram-приложении, после привязки почты.'}
                     </p>
                     {forgotMode ? (
-                        <form
-                            className={css.emailLoginModal}
-                            onSubmit={async (e) => {
-                                e.preventDefault();
+                        <EmailAuthForm
+                            mode="forgot"
+                            loading={forgotLoading}
+                            onBack={() => setForgotMode(false)}
+                            onSubmit={async ({ email }) => {
+                                if (!email) return;
                                 setForgotLoading(true);
                                 try {
-                                    await requestPasswordReset(forgotEmail.trim());
+                                    await requestPasswordReset(email);
                                     showToast(
                                         'Если почта зарегистрирована, письмо уже отправлено.',
                                         'success',
                                     );
                                     setForgotMode(false);
-                                    setForgotEmail('');
                                 } catch (err) {
                                     showToast(
                                         err instanceof Error
@@ -469,74 +470,37 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                             : 'Не удалось отправить письмо.',
                                         'error',
                                     );
+                                    throw err;
                                 } finally {
                                     setForgotLoading(false);
                                 }
                             }}
-                        >
-                            <input
-                                type="email"
-                                placeholder="Почта"
-                                value={forgotEmail}
-                                onChange={(ev) => setForgotEmail(ev.target.value)}
-                                disabled={forgotLoading}
-                                aria-label="Почта"
-                                style={{
-                                    padding: '8px 12px',
-                                    borderRadius: 8,
-                                    border: '1px solid #ccc',
-                                    fontSize: 14,
-                                }}
-                            />
-                            <button
-                                type="submit"
-                                className={css.emailLoginOpenButton}
-                                disabled={forgotLoading || !forgotEmail.trim()}
-                            >
-                                {forgotLoading ? 'Отправка...' : 'Отправить ссылку'}
-                            </button>
-                            <button
-                                type="button"
-                                className={css.emailLoginOpenButton}
-                                onClick={() => setForgotMode(false)}
-                                disabled={forgotLoading}
-                            >
-                                Назад ко входу
-                            </button>
-                        </form>
+                        />
                     ) : (
-                        <>
-                            <EmailAuthForm
-                                submitLabel="Войти"
-                                loading={emailLoginLoading}
-                                onSubmit={async (email, password) => {
-                                    setEmailLoginLoading(true);
-                                    try {
-                                        await loginWithEmailPassword(email, password);
-                                        showToast('Вход выполнен.', 'success');
-                                        setIsEmailLoginOpen(false);
-                                    } catch (err) {
-                                        showToast(
-                                            err instanceof Error
-                                                ? err.message
-                                                : 'Не удалось войти.',
-                                            'error',
-                                        );
-                                        throw err;
-                                    } finally {
-                                        setEmailLoginLoading(false);
-                                    }
-                                }}
-                            />
-                            <button
-                                type="button"
-                                className={css.emailLoginOpenButton}
-                                onClick={() => setForgotMode(true)}
-                                style={{ marginTop: 8 }}
-                            >
-                                Забыли пароль?
-                            </button>
-                        </>
+                        <EmailAuthForm
+                            mode="login"
+                            loading={emailLoginLoading}
+                            onForgotClick={() => setForgotMode(true)}
+                            onSubmit={async ({ email, password }) => {
+                                if (!email || !password) return;
+                                setEmailLoginLoading(true);
+                                try {
+                                    await loginWithEmailPassword(email, password);
+                                    showToast('Вход выполнен.', 'success');
+                                    setIsEmailLoginOpen(false);
+                                } catch (err) {
+                                    showToast(
+                                        err instanceof Error
+                                            ? err.message
+                                            : 'Не удалось войти.',
+                                        'error',
+                                    );
+                                    throw err;
+                                } finally {
+                                    setEmailLoginLoading(false);
+                                }
+                            }}
+                        />
                     )}
                 </div>
             </ModalPopup>
@@ -546,8 +510,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                 onClose={() => {
                     setIsPasswordResetOpen(false);
                     setPasswordResetToken(null);
-                    setNewPassword('');
-                    setNewPasswordRepeat('');
                 }}
             >
                 <div className={css.emailLoginModal}>
@@ -555,28 +517,17 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                     <p className={css.emailLoginHint}>
                         Задайте пароль не короче 8 символов.
                     </p>
-                    <form
-                        onSubmit={async (e) => {
-                            e.preventDefault();
-                            if (!passwordResetToken) {
-                                return;
-                            }
-                            if (newPassword.length < 8) {
-                                showToast('Пароль не короче 8 символов.', 'error');
-                                return;
-                            }
-                            if (newPassword !== newPasswordRepeat) {
-                                showToast('Пароли не совпадают.', 'error');
-                                return;
-                            }
+                    <EmailAuthForm
+                        mode="reset"
+                        loading={passwordResetLoading}
+                        onSubmit={async ({ password }) => {
+                            if (!passwordResetToken || !password) return;
                             setPasswordResetLoading(true);
                             try {
-                                await resetPasswordWithToken(passwordResetToken, newPassword);
+                                await resetPasswordWithToken(passwordResetToken, password);
                                 showToast('Пароль обновлён, вход выполнен.', 'success');
                                 setIsPasswordResetOpen(false);
                                 setPasswordResetToken(null);
-                                setNewPassword('');
-                                setNewPasswordRepeat('');
                             } catch (err) {
                                 showToast(
                                     err instanceof Error
@@ -584,48 +535,12 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                         : 'Не удалось сбросить пароль.',
                                     'error',
                                 );
+                                throw err;
                             } finally {
                                 setPasswordResetLoading(false);
                             }
                         }}
-                        style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-                    >
-                        <input
-                            type="password"
-                            placeholder="Новый пароль"
-                            value={newPassword}
-                            onChange={(ev) => setNewPassword(ev.target.value)}
-                            disabled={passwordResetLoading}
-                            aria-label="Новый пароль"
-                            style={{
-                                padding: '8px 12px',
-                                borderRadius: 8,
-                                border: '1px solid #ccc',
-                                fontSize: 14,
-                            }}
-                        />
-                        <input
-                            type="password"
-                            placeholder="Повторите пароль"
-                            value={newPasswordRepeat}
-                            onChange={(ev) => setNewPasswordRepeat(ev.target.value)}
-                            disabled={passwordResetLoading}
-                            aria-label="Повторите пароль"
-                            style={{
-                                padding: '8px 12px',
-                                borderRadius: 8,
-                                border: '1px solid #ccc',
-                                fontSize: 14,
-                            }}
-                        />
-                        <button
-                            type="submit"
-                            className={css.emailLoginOpenButton}
-                            disabled={passwordResetLoading}
-                        >
-                            {passwordResetLoading ? 'Сохранение...' : 'Сохранить пароль'}
-                        </button>
-                    </form>
+                    />
                 </div>
             </ModalPopup>
 
@@ -649,12 +564,14 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                             : 'Вход в браузере — привяжите почту (ссылка в письме)'}
                     </p>
                     <EmailAuthForm
+                        mode="link"
                         compact
                         submitLabel={user?.emailLogin ? 'Сохранить' : 'Привязать'}
                         defaultEmail={user?.emailLogin || ''}
                         loading={emailLinkLoading}
                         requireCurrentPassword={!!user?.emailLogin}
-                        onSubmit={async (email, password, currentPassword) => {
+                        onSubmit={async ({ email, password, currentPassword }) => {
+                            if (!email || !password) return;
                             setEmailLinkLoading(true);
                             try {
                                 const result = await linkEmailPassword(

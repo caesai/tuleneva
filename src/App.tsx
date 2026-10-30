@@ -9,11 +9,14 @@ import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallba
 import { LandingScreen } from '@/components/LandingScreen/LandingScreen.tsx';
 import { AdminRoute } from '@/components/AdminRoute/AdminRoute.tsx';
 import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
+import { WebSocketProvider } from '@/contexts/WebSocketContext.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import { getTelegramEnvironment } from '@/telegram/env.ts';
 import { useLandingInvite } from '@/auth/useInviteEntry.ts';
+import { useEmailAuth } from '@/auth/useEmailAuth.ts';
+import { EMAIL_AUTH_UI_ENABLED } from '@/config/emailAuthUi.ts';
 
 const TimeTablePage = lazy(() =>
     import('@/pages/TimeTablePage/TimeTablePage.tsx').then((m) => ({ default: m.TimeTablePage })),
@@ -38,8 +41,8 @@ const IndexPage: React.FC = () => {
         isAuthenticated,
         register,
         registerWithInvite,
-        linkEmailPassword,
     } = useAuth();
+    const { linkEmailPassword } = useEmailAuth();
     const { toasts, showToast, removeToast } = useToast();
 
     const {
@@ -59,7 +62,11 @@ const IndexPage: React.FC = () => {
         isInTelegram: Boolean(isInTelegram),
         registerWithInvite,
         showToast,
-        onWebInviteSuccess: () => setIsLinkEmailOpen(true),
+        onWebInviteSuccess: () => {
+            if (EMAIL_AUTH_UI_ENABLED) {
+                setIsLinkEmailOpen(true);
+            }
+        },
     });
 
     const handleConfirm = () => {
@@ -150,7 +157,7 @@ const IndexPage: React.FC = () => {
             </ModalPopup>
 
             <ModalPopup
-                isOpen={isLinkEmailOpen}
+                isOpen={EMAIL_AUTH_UI_ENABLED && isLinkEmailOpen}
                 onClose={() => setIsLinkEmailOpen(false)}
             >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '280px' }}>
@@ -161,9 +168,11 @@ const IndexPage: React.FC = () => {
                         и привязать позже в расписании.
                     </p>
                     <EmailAuthForm
+                        mode="link"
                         submitLabel="Привязать почту"
                         loading={linkEmailLoading}
-                        onSubmit={async (email, password) => {
+                        onSubmit={async ({ email, password }) => {
+                            if (!email || !password) return;
                             setLinkEmailLoading(true);
                             try {
                                 const result = await linkEmailPassword(email, password);
@@ -228,22 +237,24 @@ const App: React.FC = () => {
     return (
         <AppRoot appearance="light" platform={platform}>
             <NetworkProvider>
-                <BrowserRouter>
-                    <Suspense fallback={<SuspenseLoaderFallback fullScreen />}>
-                        <Routes>
-                            <Route path="/" element={<IndexPage />} />
-                            <Route path="/app" element={<TimeTablePage />} />
-                            <Route
-                                path="/admin"
-                                element={
-                                    <AdminRoute>
-                                        <AdminPage />
-                                    </AdminRoute>
-                                }
-                            />
-                        </Routes>
-                    </Suspense>
-                </BrowserRouter>
+                <WebSocketProvider>
+                    <BrowserRouter>
+                        <Suspense fallback={<SuspenseLoaderFallback fullScreen />}>
+                            <Routes>
+                                <Route path="/" element={<IndexPage />} />
+                                <Route path="/app" element={<TimeTablePage />} />
+                                <Route
+                                    path="/admin"
+                                    element={
+                                        <AdminRoute>
+                                            <AdminPage />
+                                        </AdminRoute>
+                                    }
+                                />
+                            </Routes>
+                        </Suspense>
+                    </BrowserRouter>
+                </WebSocketProvider>
             </NetworkProvider>
         </AppRoot>
     );

@@ -1,7 +1,9 @@
-// src/hooks/useWebSocket.ts
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { getWebSocketUrl } from '@/api/base.api';
+/**
+ * @file Подписка на общий WebSocket из {@link WebSocketProvider}.
+ */
+import { useEffect, useRef, useState, useContext } from 'react';
 import type { IHour } from '@/types/timetable.types';
+import { WebSocketContext } from '@/contexts/WebSocketContextDefinition.ts';
 
 /**
  * Типы событий WebSocket
@@ -35,12 +37,6 @@ export type WebSocketCallback = (message: WebSocketMessage) => void;
 interface UseWebSocketOptions {
     /** Callback, вызываемый при получении сообщения */
     onMessage?: WebSocketCallback;
-    /** Автоматическое переподключение при потере связи */
-    autoReconnect?: boolean;
-    /** Интервал переподключения в мс */
-    reconnectInterval?: number;
-    /** Максимальное количество попыток переподключения */
-    maxReconnectAttempts?: number;
 }
 
 /**
@@ -56,129 +52,38 @@ interface UseWebSocketReturn {
 }
 
 /**
- * Хук для управления WebSocket соединением.
- * Обеспечивает автоматическое переподключение и обработку сообщений.
+ * Подписка на общее WebSocket-соединение приложения.
  *
- * @param options - Параметры подключения
- * @returns {UseWebSocketReturn} Объект с состоянием соединения и методами управления
+ * @param options - Параметры подписки
+ * @returns Состояние соединения и методы
  */
 export const useWebSocket = (options: UseWebSocketOptions = {}): UseWebSocketReturn => {
-    const {
-        onMessage,
-        autoReconnect = true,
-        reconnectInterval = 3000,
-        maxReconnectAttempts = 10
-    } = options;
-
-    const [isConnected, setIsConnected] = useState(false);
+    const { onMessage } = options;
+    const ctx = useContext(WebSocketContext);
     const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
-    
-    const wsRef = useRef<WebSocket | null>(null);
-    const reconnectAttemptsRef = useRef(0);
-    const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const onMessageRef = useRef(onMessage);
 
-    // Обновляем ref при изменении callback
     useEffect(() => {
         onMessageRef.current = onMessage;
     }, [onMessage]);
 
-    /**
-     * Очищает таймаут переподключения
-     */
-    const clearReconnectTimeout = useCallback(() => {
-        if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
-        }
-    }, []);
-
-    /**
-     * Создает и настраивает WebSocket соединение
-     */
-    const connect = useCallback(() => {
-        // Закрываем существующее соединение
-        if (wsRef.current) {
-            wsRef.current.close();
-        }
-
-        try {
-            const url = getWebSocketUrl();
-            const ws = new WebSocket(url);
-            wsRef.current = ws;
-
-            ws.onopen = () => {
-                console.log('WebSocket connected');
-                setIsConnected(true);
-                reconnectAttemptsRef.current = 0;
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const message: WebSocketMessage = JSON.parse(event.data);
-                    setLastMessage(message);
-                    
-                    if (onMessageRef.current) {
-                        onMessageRef.current(message);
-                    }
-                } catch (err) {
-                    console.error('Failed to parse WebSocket message:', err);
-                }
-            };
-
-            ws.onclose = (event) => {
-                console.log('WebSocket disconnected', event.code, event.reason);
-                // Сокет уже заменён новым connect() — его onclose не должен гасить текущее соединение.
-                if (wsRef.current !== ws) {
-                    return;
-                }
-                setIsConnected(false);
-                wsRef.current = null;
-
-                // Автоматическое переподключение
-                if (autoReconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
-                    clearReconnectTimeout();
-                    reconnectTimeoutRef.current = setTimeout(() => {
-                        reconnectAttemptsRef.current++;
-                        console.log(`WebSocket reconnecting... Attempt ${reconnectAttemptsRef.current}`);
-                        connect();
-                    }, reconnectInterval);
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-        } catch (err) {
-            console.error('Failed to create WebSocket connection:', err);
-        }
-    }, [autoReconnect, reconnectInterval, maxReconnectAttempts, clearReconnectTimeout]);
-
-    /**
-     * Принудительное переподключение
-     */
-    const reconnect = useCallback(() => {
-        reconnectAttemptsRef.current = 0;
-        clearReconnectTimeout();
-        connect();
-    }, [connect, clearReconnectTimeout]);
-
-    // Подключение при монтировании, отключение при размонтировании
     useEffect(() => {
-        connect();
+        if (!ctx) {
+            return;
+        }
+        return ctx.subscribe((message) => {
+            setLastMessage(message);
+            onMessageRef.current?.(message);
+        });
+    }, [ctx]);
 
-        return () => {
-            clearReconnectTimeout();
-            if (wsRef.current) {
-                wsRef.current.close();
-                wsRef.current = null;
-            }
-        };
-    }, [connect, clearReconnectTimeout]);
+    if (!ctx) {
+        throw new Error('useWebSocket must be used within a WebSocketProvider');
+    }
 
     return {
-        isConnected,
-        lastMessage,
-        reconnect
+        isConnected: ctx.isConnected,
+        lastMessage: lastMessage ?? ctx.lastMessage,
+        reconnect: ctx.reconnect,
     };
 };

@@ -15,7 +15,12 @@ const {
 } = require('./identityService');
 const { signAuthToken, buildAuthResponse } = require('./tokenService');
 const { isAdminLike } = require('./roleHelpers');
-const { findValidInvite, consumeInvite, revokeInvite } = require('./inviteService');
+const {
+    findValidInvite,
+    consumeInvite,
+    revokeInvite,
+    listInviteHistory,
+} = require('./inviteService');
 const { parseWebProfile, createWebUser } = require('./webProvider');
 const {
     linkEmailCredentials,
@@ -26,6 +31,7 @@ const {
     mapDuplicateEmailError,
 } = require('./emailProvider');
 const { safeNotify } = require('../notifications/telegramNotify');
+const { createRateLimiter } = require('./rateLimit');
 
 /**
  * Статус HTTP для ошибок email-провайдера.
@@ -72,6 +78,17 @@ const createAuthRouter = ({
 }) => {
     const router = express.Router();
 
+    const telegramLoginLimit = createRateLimiter({
+        windowMs: 60_000,
+        max: 40,
+        message: 'Too many login attempts',
+    });
+    const inviteUseLimit = createRateLimiter({
+        windowMs: 60_000,
+        max: 40,
+        message: 'Too many invite attempts',
+    });
+
     const noCache = (res) => {
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
         res.set('Pragma', 'no-cache');
@@ -91,7 +108,7 @@ const createAuthRouter = ({
         }
     });
 
-    router.post('/providers/telegram/login', async (req, res) => {
+    router.post('/providers/telegram/login', telegramLoginLimit, async (req, res) => {
         noCache(res);
         const { user: userData } = req.body;
 
@@ -143,7 +160,7 @@ const createAuthRouter = ({
         }
     });
 
-    router.post('/invite/use', async (req, res) => {
+    router.post('/invite/use', inviteUseLimit, async (req, res) => {
         noCache(res);
         const { code, provider = 'telegram', telegram, web } = req.body;
 
@@ -277,6 +294,24 @@ const createAuthRouter = ({
         } catch (err) {
             console.error('Error generating invite code:', err);
             res.status(500).json({ message: 'Failed to generate invite code.' });
+        }
+    });
+
+    /**
+     * @route GET /api/auth/invite/history
+     * @description Живые инвайты и история (used/revoked), пока документы не стёрты TTL.
+     * @access Admin
+     */
+    router.get('/invite/history', authenticateToken, verifyUserExists, async (req, res) => {
+        if (!isAdminLike(req.dbUser.role)) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+        try {
+            const result = await listInviteHistory();
+            res.status(200).json(result);
+        } catch (err) {
+            console.error('Error listing invite history:', err);
+            res.status(500).json({ message: 'Failed to list invite history.' });
         }
     });
 

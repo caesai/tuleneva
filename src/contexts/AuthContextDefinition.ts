@@ -9,7 +9,7 @@ import type {
 import { buildAuthCapabilities } from '@/types/auth.types.ts';
 
 /**
- * Интерфейс контекста аутентификации.
+ * Интерфейс сессионного контекста аутентификации (без почтовых операций).
  */
 export interface IAuthContext {
     isAuthenticated: boolean;
@@ -22,23 +22,6 @@ export interface IAuthContext {
     logout: () => void;
     register: () => Promise<void>;
     registerWithInvite: (code: string, webProfile?: IWebInviteProfile) => Promise<void>;
-    /** Вход по почте и паролю (браузер). */
-    loginWithEmailPassword: (email: string, password: string) => Promise<void>;
-    /**
-     * Привязка почты к текущей сессии.
-     * @returns pendingConfirmation — нужно подтвердить ссылку из письма
-     */
-    linkEmailPassword: (
-        email: string,
-        password: string,
-        currentPassword?: string,
-    ) => Promise<{ pendingConfirmation: boolean }>;
-    /** Подтверждение почты по токену из письма. */
-    confirmEmailToken: (token: string) => Promise<void>;
-    /** Запрос письма со сбросом пароля. */
-    requestPasswordReset: (email: string) => Promise<void>;
-    /** Новый пароль по токену из письма. */
-    resetPasswordWithToken: (token: string, password: string) => Promise<void>;
 }
 
 export const initialAuthCapabilities = buildAuthCapabilities(null, false);
@@ -57,11 +40,6 @@ export const initialAuthState: IAuthContext = {
     logout: () => {},
     register: async () => {},
     registerWithInvite: async () => {},
-    loginWithEmailPassword: async () => {},
-    linkEmailPassword: async () => ({ pendingConfirmation: false }),
-    confirmEmailToken: async () => {},
-    requestPasswordReset: async () => {},
-    resetPasswordWithToken: async () => {},
 };
 
 export const AuthContext = createContext<IAuthContext>(initialAuthState);

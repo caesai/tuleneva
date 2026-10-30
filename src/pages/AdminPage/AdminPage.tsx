@@ -5,6 +5,8 @@ import {
     APIDeleteUser,
     APIGenerateInvite,
     APIRevokeInvite,
+    APIGetInviteHistory,
+    APIGetUserRoleLog,
     APISetUserEmailLogin,
 } from '@/api/user.api.ts';
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
@@ -22,6 +24,7 @@ import {
     isAdminLike,
 } from '@/utils/rolePermissions.ts';
 import { useWebSocket, type WebSocketMessage } from '@/hooks/useWebSocket.ts';
+import { EMAIL_AUTH_UI_ENABLED } from '@/config/emailAuthUi.ts';
 
 const ROLE_LABELS: Record<TRole, string> = {
     guest: 'Гость',
@@ -29,6 +32,25 @@ const ROLE_LABELS: Record<TRole, string> = {
     admin: 'Администратор',
     super_admin: 'Супер администратор',
 };
+
+/** Краткая запись инвайта из GET /api/auth/invite/history. */
+interface IInviteHistoryItem {
+    code: string;
+    multiUse: boolean;
+    useCount: number;
+    expiresAt: string;
+    usedAt: string | null;
+    revokedAt: string | null;
+    allowedProviders?: string[];
+}
+
+/** Запись журнала смен ролей. */
+interface IRoleLogEntry {
+    id: string;
+    fromRole: TRole;
+    toRole: TRole;
+    createdAt: string;
+}
 
 /**
  * @description Страница администратора для управления пользователями: смена роли,
@@ -60,6 +82,11 @@ export const AdminPage: React.FC = () => {
     const [revokeLoading, setRevokeLoading] = useState(false);
     const [emailLoginUserId, setEmailLoginUserId] = useState<string | null>(null);
     const [emailLoginLoading, setEmailLoginLoading] = useState(false);
+    const [inviteLive, setInviteLive] = useState<IInviteHistoryItem[]>([]);
+    const [inviteHistory, setInviteHistory] = useState<IInviteHistoryItem[]>([]);
+    const [roleLogUserId, setRoleLogUserId] = useState<string | null>(null);
+    const [roleLogEntries, setRoleLogEntries] = useState<IRoleLogEntry[]>([]);
+    const [roleLogLoading, setRoleLogLoading] = useState(false);
     const { user } = useAuth();
     const navigate = useNavigate();
     const userId = user?._id;
@@ -101,12 +128,34 @@ export const AdminPage: React.FC = () => {
         }
     }, []);
 
+    /**
+     * Загружает живые инвайты и историю.
+     * @returns {Promise<void>}
+     */
+    const fetchInviteHistory = useCallback(async () => {
+        try {
+            const response = await APIGetInviteHistory();
+            if (!response.ok) {
+                return;
+            }
+            const data = (await response.json()) as {
+                live?: IInviteHistoryItem[];
+                history?: IInviteHistoryItem[];
+            };
+            setInviteLive(data.live ?? []);
+            setInviteHistory(data.history ?? []);
+        } catch (err) {
+            console.error(err);
+        }
+    }, []);
+
     useEffect(() => {
         if (!userRole || !isAdminLike(userRole)) {
             return;
         }
         fetchUsers();
-    }, [userId, userRole, fetchUsers]);
+        void fetchInviteHistory();
+    }, [userId, userRole, fetchUsers, fetchInviteHistory]);
 
     /**
      * При регистрации/инвайте/смене роли без Telegram-уведомлений
@@ -127,7 +176,6 @@ export const AdminPage: React.FC = () => {
 
     useWebSocket({
         onMessage: handleUsersSocketMessage,
-        autoReconnect: true,
     });
 
     const handleRoleChange = async (userId: string, newRole: TRole, targetRole: TRole) => {
@@ -140,6 +188,9 @@ export const AdminPage: React.FC = () => {
             const response = await APIUpdateUserRole(userId || '', newRole);
             if (response.ok) {
                 setUsers(prev => prev.map(u => u._id === userId ? { ...u, role: newRole } : u));
+                if (roleLogUserId === userId) {
+                    void loadRoleLog(userId);
+                }
             } else {
                 const data = await response.json().catch(() => ({}));
                 alert(data.message || 'Failed to update role');
@@ -148,6 +199,42 @@ export const AdminPage: React.FC = () => {
             console.error(err);
             alert('An error occurred');
         }
+    };
+
+    /**
+     * Загружает журнал смен ролей для пользователя.
+     * @param targetId - Mongo _id
+     */
+    const loadRoleLog = async (targetId: string) => {
+        setRoleLogLoading(true);
+        try {
+            const response = await APIGetUserRoleLog(targetId);
+            if (response.ok) {
+                const data = (await response.json()) as { entries?: IRoleLogEntry[] };
+                setRoleLogEntries(data.entries ?? []);
+            } else {
+                setRoleLogEntries([]);
+            }
+        } catch (err) {
+            console.error(err);
+            setRoleLogEntries([]);
+        } finally {
+            setRoleLogLoading(false);
+        }
+    };
+
+    /**
+     * Открывает или закрывает журнал ролей у строки пользователя.
+     * @param targetId - Mongo _id
+     */
+    const toggleRoleLog = (targetId: string) => {
+        if (roleLogUserId === targetId) {
+            setRoleLogUserId(null);
+            setRoleLogEntries([]);
+            return;
+        }
+        setRoleLogUserId(targetId);
+        void loadRoleLog(targetId);
     };
 
     /**
@@ -268,6 +355,7 @@ export const AdminPage: React.FC = () => {
                 );
                 setIsInviteOptionsOpen(false);
                 setIsInviteModalOpen(true);
+                void fetchInviteHistory();
             } else {
                 alert('Не удалось сгенерировать ссылку');
             }
@@ -289,6 +377,7 @@ export const AdminPage: React.FC = () => {
             const response = await APIRevokeInvite(inviteCode);
             if (response.ok) {
                 setInviteRevoked(true);
+                void fetchInviteHistory();
             } else {
                 alert('Не удалось закрыть ссылку');
             }
@@ -343,6 +432,44 @@ export const AdminPage: React.FC = () => {
                 >
                     {inviteLoading ? 'Генерация...' : 'Пригласить пользователя'}
                 </button>
+                {(inviteLive.length > 0 || inviteHistory.length > 0) && (
+                    <div className={css.inviteHistory}>
+                        {inviteLive.length > 0 && (
+                            <>
+                                <p className={css.inviteHistoryTitle}>Живые ссылки</p>
+                                <ul className={css.inviteHistoryList}>
+                                    {inviteLive.map((item) => (
+                                        <li key={item.code}>
+                                            <code>{item.code.slice(0, 8)}…</code>
+                                            {item.multiUse
+                                                ? ` · многоразовая (${item.useCount})`
+                                                : ' · одноразовая'}
+                                            {' · до '}
+                                            {new Date(item.expiresAt).toLocaleDateString('ru-RU')}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </>
+                        )}
+                        {inviteHistory.length > 0 && (
+                            <>
+                                <p className={css.inviteHistoryTitle}>История</p>
+                                <ul className={css.inviteHistoryList}>
+                                    {inviteHistory.slice(0, 10).map((item) => (
+                                        <li key={item.code}>
+                                            <code>{item.code.slice(0, 8)}…</code>
+                                            {item.revokedAt
+                                                ? ' · отозвана'
+                                                : item.usedAt
+                                                  ? ' · использована'
+                                                  : ''}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </>
+                        )}
+                    </div>
+                )}
             </div>
 
             <ModalPopup isOpen={isInviteOptionsOpen} onClose={() => setIsInviteOptionsOpen(false)}>
@@ -474,9 +601,11 @@ export const AdminPage: React.FC = () => {
                                 !user ||
                                 !canDeleteUser(user.role, u.role, u._id === user._id);
                             const canEditEmail =
+                                EMAIL_AUTH_UI_ENABLED &&
                                 !!user &&
                                 canAssignRole(user.role, u.role, u.role);
                             const showEmailForm = emailLoginUserId === u._id;
+                            const showRoleLog = roleLogUserId === u._id;
 
                             return (
                                 <React.Fragment key={u._id}>
@@ -520,6 +649,14 @@ export const AdminPage: React.FC = () => {
                                                 </button>
                                             )}
                                             <button
+                                                className={css.inviteButton}
+                                                type="button"
+                                                onClick={() => toggleRoleLog(u._id || '')}
+                                                style={{ marginRight: 8 }}
+                                            >
+                                                {showRoleLog ? 'Скрыть журнал' : 'Журнал'}
+                                            </button>
+                                            <button
                                                 className={css.deleteButton}
                                                 onClick={() => handleDeleteUser(u._id || '', u.role)}
                                                 disabled={deleteDisabled}
@@ -532,19 +669,51 @@ export const AdminPage: React.FC = () => {
                                         <tr>
                                             <td colSpan={5}>
                                                 <EmailAuthForm
+                                                    mode="link"
                                                     compact
                                                     submitLabel="Отправить ссылку на почту"
                                                     defaultEmail={u.emailLogin || ''}
                                                     loading={emailLoginLoading}
-                                                    onSubmit={(email, password) =>
-                                                        handleSetEmailLogin(
+                                                    onSubmit={({ email, password }) => {
+                                                        if (!email || !password) {
+                                                            return;
+                                                        }
+                                                        return handleSetEmailLogin(
                                                             u._id || '',
                                                             u.role,
                                                             email,
                                                             password,
-                                                        )
-                                                    }
+                                                        );
+                                                    }}
                                                 />
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {showRoleLog && (
+                                        <tr>
+                                            <td colSpan={5}>
+                                                <div className={css.inviteHistory}>
+                                                    <p className={css.inviteHistoryTitle}>
+                                                        Смены ролей
+                                                    </p>
+                                                    {roleLogLoading ? (
+                                                        <p className={css.inviteDescription}>Загрузка…</p>
+                                                    ) : roleLogEntries.length === 0 ? (
+                                                        <p className={css.inviteDescription}>Записей нет</p>
+                                                    ) : (
+                                                        <ul className={css.inviteHistoryList}>
+                                                            {roleLogEntries.map((entry) => (
+                                                                <li key={entry.id}>
+                                                                    {ROLE_LABELS[entry.fromRole]}
+                                                                    {' → '}
+                                                                    {ROLE_LABELS[entry.toRole]}
+                                                                    {' · '}
+                                                                    {new Date(entry.createdAt).toLocaleString('ru-RU')}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     )}

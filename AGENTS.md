@@ -61,7 +61,7 @@ src/contexts/AuthContext.tsx
 
 См. таблицу в [README.md](README.md). Открытые задачи: [docs/NEXT.md](docs/NEXT.md).
 
-Legacy (`/api/users/auth`, `/api/invite/*`) — только для совместимости; новый код — `/api/auth/*`.
+Legacy (`/api/users/register`, `/api/users/info`) — только для совместимости; новый код — `/api/auth/*`.
 
 ---
 

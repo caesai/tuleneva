@@ -23,6 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .cert
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 # Local deploy artifacts (rsync/scp output)
 sushkazzlo@*/

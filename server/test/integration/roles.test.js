@@ -91,6 +91,26 @@ describe('role integration', () => {
         expect(res.body.role).toBe('admin');
     });
 
+    it('role change writes journal entry and GET returns it', async () => {
+        const admin = await seedUser({ role: 'admin' });
+        const guest = await seedUser({ role: 'guest', first_name: 'Logged' });
+
+        const put = await request(app)
+            .put(`/api/users/${guest._id}/role`)
+            .set(authHeader(admin))
+            .send({ role: 'user' });
+        expect(put.status).toBe(200);
+
+        const log = await request(app)
+            .get(`/api/users/${guest._id}/role-log`)
+            .set(authHeader(admin));
+        expect(log.status).toBe(200);
+        expect(log.body.entries).toHaveLength(1);
+        expect(log.body.entries[0].fromRole).toBe('guest');
+        expect(log.body.entries[0].toRole).toBe('user');
+        expect(log.body.entries[0].actorId).toBe(String(admin._id));
+    });
+
     it('admin cannot delete super_admin', async () => {
         const admin = await seedUser({ role: 'admin' });
         const superAdmin = await seedUser({ role: 'super_admin', first_name: 'SA' });
