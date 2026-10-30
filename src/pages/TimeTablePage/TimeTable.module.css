@@ -8,22 +8,6 @@
     gap: 12px;
 }
 
-.emailLinkBlock {
-    width: 360px;
-    max-width: 100%;
-    box-sizing: border-box;
-    padding: 12px;
-    background: #f7f7f8;
-    border-radius: 12px;
-}
-
-.emailLinkTitle {
-    margin: 0 0 8px;
-    font-size: 13px;
-    color: #333;
-    line-height: 1.3;
-}
-
 .emailLoginBar {
     width: 360px;
     max-width: 100%;
@@ -77,14 +61,18 @@
 }
 
 /**
- * Компактный вход в админку (только admin / super_admin),
- * правый верхний угол над календарём.
+ * Иконки в правом верхнем углу карточки: почта, затем админка.
  */
-.adminEntryButton {
+.cardCornerActions {
     position: absolute;
     top: 6px;
     right: 6px;
     z-index: 3;
+    display: flex;
+    gap: 2px;
+}
+
+.adminEntryButton {
     display: inline-flex;
     align-items: center;
     justify-content: center;
