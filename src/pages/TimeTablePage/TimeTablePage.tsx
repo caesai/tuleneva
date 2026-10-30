@@ -47,6 +47,7 @@ import { usePageMeta } from '@/hooks/usePageMeta.ts';
  * - Позволяет авторизованным пользователям (или администраторам) отменять свои бронирования.
  * - Обрабатывает взаимодействие с API для бронирования и отмены.
  * - Управляет состоянием выбранной даты, часов для бронирования и часов для отмены.
+ * - Привязка почты для входа в браузере открывается иконкой конверта рядом с админкой.
  *
  * @returns {JSX.Element} Отрисованный компонент TimeTablePage.
  */
@@ -173,6 +174,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     });
     const [searchParams, setSearchParams] = useSearchParams();
     const [emailLinkLoading, setEmailLinkLoading] = useState(false);
+    const [isEmailLinkOpen, setIsEmailLinkOpen] = useState(false);
     const [isEmailLoginOpen, setIsEmailLoginOpen] = useState(false);
     const [emailLoginLoading, setEmailLoginLoading] = useState(false);
     const [forgotMode, setForgotMode] = useState(false);
@@ -181,8 +183,8 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const [passwordResetToken, setPasswordResetToken] = useState<string | null>(null);
     const [passwordResetLoading, setPasswordResetLoading] = useState(false);
     /**
-     * Привязка своей почты: админ — всегда; остальные — при VITE_EMAIL_AUTH_UI.
-     * Кнопка входа в браузере только при флаге. Массовое предложение почты своим — позже.
+     * Привязка своей почты открывается иконкой у календаря: админ — всегда,
+     * остальные — при VITE_EMAIL_AUTH_UI. Кнопка входа в браузере только при флаге.
      */
     const showEmailLinkForm = shouldShowEmailLinkForm({
         isAuthenticated: isAuthenticated && !!user,
@@ -563,12 +565,16 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                 </div>
             )}
 
-            {showEmailLinkForm && (
-                <div className={css.emailLinkBlock}>
-                    <p className={css.emailLinkTitle}>
+            <ModalPopup
+                isOpen={showEmailLinkForm && isEmailLinkOpen}
+                onClose={() => setIsEmailLinkOpen(false)}
+            >
+                <div className={css.emailLoginModal}>
+                    <h3 className={css.emailLoginTitle}>Вход в браузере</h3>
+                    <p className={css.emailLoginHint}>
                         {user?.emailLogin
-                            ? `Вход в браузере: ${user.emailLogin}`
-                            : 'Вход в браузере — привяжите почту (ссылка в письме)'}
+                            ? `Привязана почта ${user.emailLogin}. Новый адрес нужно подтвердить письмом.`
+                            : 'Привяжите почту — ссылка подтверждения придёт на неё.'}
                     </p>
                     <EmailAuthForm
                         mode="link"
@@ -594,6 +600,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                 } else {
                                     showToast('Пароль для входа обновлён.', 'success');
                                 }
+                                setIsEmailLinkOpen(false);
                             } catch (err) {
                                 showToast(
                                     err instanceof Error ? err.message : 'Не удалось сохранить.',
@@ -606,31 +613,58 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                         }}
                     />
                 </div>
-            )}
+            </ModalPopup>
 
             <div className={css.card}>
-                {isAdmin && (
-                    <button
-                        type="button"
-                        className={css.adminEntryButton}
-                        onClick={() => navigate('/admin')}
-                        aria-label="Админ-панель"
-                        title="Админ-панель"
-                    >
-                        <svg
-                            className={css.adminEntryIcon}
-                            viewBox="0 0 24 24"
-                            width="18"
-                            height="18"
-                            aria-hidden="true"
-                            focusable="false"
-                        >
-                            <path
-                                fill="currentColor"
-                                d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"
-                            />
-                        </svg>
-                    </button>
+                {(showEmailLinkForm || isAdmin) && (
+                    <div className={css.cardCornerActions}>
+                        {showEmailLinkForm && (
+                            <button
+                                type="button"
+                                className={css.adminEntryButton}
+                                onClick={() => setIsEmailLinkOpen(true)}
+                                aria-label="Вход в браузере"
+                                title="Вход в браузере"
+                            >
+                                <svg
+                                    className={css.adminEntryIcon}
+                                    viewBox="0 0 24 24"
+                                    width="18"
+                                    height="18"
+                                    aria-hidden="true"
+                                    focusable="false"
+                                >
+                                    <path
+                                        fill="currentColor"
+                                        d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5L4 8V6l8 5 8-5v2z"
+                                    />
+                                </svg>
+                            </button>
+                        )}
+                        {isAdmin && (
+                            <button
+                                type="button"
+                                className={css.adminEntryButton}
+                                onClick={() => navigate('/admin')}
+                                aria-label="Админ-панель"
+                                title="Админ-панель"
+                            >
+                                <svg
+                                    className={css.adminEntryIcon}
+                                    viewBox="0 0 24 24"
+                                    width="18"
+                                    height="18"
+                                    aria-hidden="true"
+                                    focusable="false"
+                                >
+                                    <path
+                                        fill="currentColor"
+                                        d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"
+                                    />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
                 )}
                 {showCardLoader ? (
                     <div
