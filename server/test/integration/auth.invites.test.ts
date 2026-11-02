@@ -155,10 +155,10 @@ describe('invite integration', () => {
         for (const user of webUsers) {
             const webIdentity = user.identities.find((i) => i.provider === 'web');
             expect(webIdentity).toBeTruthy();
-            expect(webIdentity.verifiedAt).toBeUndefined();
-            expect(webIdentity.email).toBeUndefined();
-            expect(webIdentity.providerUserId).not.toBe(claimedEmail);
-            expect(webIdentity.providerUserId).toMatch(
+            expect(webIdentity!.verifiedAt).toBeUndefined();
+            expect(webIdentity!.email).toBeUndefined();
+            expect(webIdentity!.providerUserId).not.toBe(claimedEmail);
+            expect(webIdentity!.providerUserId).toMatch(
                 /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
             );
         }

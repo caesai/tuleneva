@@ -40,17 +40,17 @@ const isNextHour = (previous, current) =>
  * @param {Array<object>} hours
  * @returns {Array<{ range: string }>}
  */
-const groupBookedHours = (hours) => {
+const groupBookedHours = (hours: Array<{ hour?: string } | null | undefined>) => {
     const sorted = [...(hours || [])]
-        .filter((slot) => slot && slot.hour)
+        .filter((slot): slot is { hour: string } => Boolean(slot && slot.hour))
         .sort((a, b) => getHourNumber(a.hour) - getHourNumber(b.hour));
 
     if (sorted.length === 0) {
         return [];
     }
 
-    const groups = [];
-    let current = [sorted[0]];
+    const groups: Array<typeof sorted> = [];
+    let current: typeof sorted = [sorted[0]];
 
     for (let i = 1; i < sorted.length; i += 1) {
         if (isNextHour(sorted[i - 1], sorted[i])) {
@@ -111,9 +111,16 @@ const formatFreeSlots = (dateDdMmYyyy, hours) => {
  * @param {number} [limit=10]
  * @returns {string}
  */
-const formatMyBookings = (rehearsals, userId, limit = 10) => {
+const formatMyBookings = (
+    rehearsals: Array<{
+        date: Date | string;
+        hours?: Array<{ userId?: string; hour?: string; band_name?: string }>;
+    }>,
+    userId: string,
+    limit = 10,
+) => {
     const uid = String(userId);
-    const rows = [];
+    const rows: Array<{ dateStr: string; hour: string; band: string }> = [];
 
     for (const doc of rehearsals || []) {
         const dateStr = typeof doc.date === 'string'
@@ -121,7 +128,11 @@ const formatMyBookings = (rehearsals, userId, limit = 10) => {
             : formatDdMmYyyyMoscow(new Date(doc.date));
         const mine = (doc.hours || []).filter((h) => String(h.userId) === uid);
         for (const slot of mine) {
-            rows.push({ dateStr, hour: slot.hour, band: (slot.band_name || '').trim() });
+            rows.push({
+                dateStr,
+                hour: String(slot.hour || ''),
+                band: (slot.band_name || '').trim(),
+            });
         }
     }
 

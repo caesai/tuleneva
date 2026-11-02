@@ -35,7 +35,7 @@ describe('inviteService', () => {
         });
         const found = await findValidInvite('valid-code');
         expect(found).toBeTruthy();
-        expect(found.code).toBe('valid-code');
+        expect(found!.code).toBe('valid-code');
     });
 
     it('findValidInvite returns null for expired code', async () => {
@@ -59,7 +59,7 @@ describe('inviteService', () => {
 
         const first = await consumeInvite('once-code', guest._id);
         expect(first).toBeTruthy();
-        expect(first.usedAt).toBeTruthy();
+        expect(first!.usedAt).toBeTruthy();
 
         const second = await consumeInvite('once-code', guest._id);
         expect(second).toBeNull();
@@ -79,12 +79,12 @@ describe('inviteService', () => {
         const second = await consumeInvite('chat-code', guest._id);
         expect(first).toBeTruthy();
         expect(second).toBeTruthy();
-        expect(second.usedAt).toBeFalsy();
-        expect(second.useCount).toBe(2);
+        expect(second!.usedAt).toBeFalsy();
+        expect(second!.useCount).toBe(2);
         expect(await findValidInvite('chat-code')).toBeTruthy();
 
         const revoked = await revokeInvite('chat-code');
-        expect(revoked.revokedAt).toBeTruthy();
+        expect(revoked!.revokedAt).toBeTruthy();
         expect(await findValidInvite('chat-code')).toBeNull();
         expect(await consumeInvite('chat-code', guest._id)).toBeNull();
     });

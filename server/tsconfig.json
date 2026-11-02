@@ -8,7 +8,6 @@
     "skipLibCheck": true,
     "strict": true,
     "noImplicitAny": false,
-    "strictNullChecks": false,
     "useUnknownInCatchVariables": false,
     "noEmit": true,
     "noUnusedLocals": false,

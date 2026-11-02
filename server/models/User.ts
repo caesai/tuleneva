@@ -1,4 +1,49 @@
-import mongoose, { type Model } from 'mongoose';
+import mongoose, { type HydratedDocument, type Model } from 'mongoose';
+import { ALL_ROLES } from '../../shared/roleLattice';
+
+/** Роль пользователя студии. */
+export type StudioRole = (typeof ALL_ROLES)[number];
+
+/** Провайдер идентичности. */
+export type IdentityProvider = 'telegram' | 'web' | 'email' | 'phone';
+
+/**
+ * Идентичность в документе пользователя (без собственного `_id`).
+ */
+export interface UserIdentity {
+    provider: IdentityProvider;
+    providerUserId: string;
+    email?: string;
+    phone?: string;
+    verifiedAt?: Date;
+}
+
+/**
+ * Поля документа User в MongoDB.
+ * Секреты с `select: false` остаются в типе: после `.select('+passwordHash')` они есть.
+ */
+export interface UserDoc {
+    telegram_id?: number | null;
+    first_name: string;
+    last_name?: string | null;
+    username?: string | null;
+    photo_url?: string | null;
+    role: StudioRole;
+    identities: UserIdentity[];
+    emailLogin?: string | null;
+    passwordHash?: string;
+    pendingEmail?: string;
+    pendingPasswordHash?: string;
+    emailConfirmTokenHash?: string;
+    emailConfirmExpires?: Date;
+    passwordResetTokenHash?: string;
+    passwordResetExpires?: Date;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+
+/** Hydrated-документ User (с методами Mongoose). */
+export type UserDocument = HydratedDocument<UserDoc>;
 
 const userIdentitySchema = new mongoose.Schema(
     {
@@ -98,6 +143,8 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ 'identities.provider': 1, 'identities.providerUserId': 1 });
 
-const User = (mongoose.models.User || mongoose.model('User', userSchema)) as Model<any>;
+const User =
+    (mongoose.models.User as Model<UserDoc> | undefined)
+    ?? mongoose.model<UserDoc>('User', userSchema);
 
 export default User;
