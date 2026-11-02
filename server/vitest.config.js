@@ -7,8 +7,8 @@ module.exports = defineConfig({
         environment: 'node',
         hookTimeout: 60000,
         testTimeout: 30000,
-        include: ['test/**/*.test.js'],
-        setupFiles: ['./test/setup.js'],
+        include: ['test/**/*.test.ts'],
+        setupFiles: ['./test/setup.ts'],
     },
     resolve: {
         alias: {

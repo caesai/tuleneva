@@ -4,7 +4,7 @@ import classNames from 'classnames';
 import css from '@/components/TimeSlots/TimeSlots.module.css';
 import type { IHour } from '@/types/timetable.types.ts';
 import { SafeAvatar } from '@/components/SafeAvatar/SafeAvatar.tsx';
-import { AVAILABLE_HOURS, isSlotInPast } from '../../../shared/studioHours.cjs';
+import { AVAILABLE_HOURS, isSlotInPast } from '../../../shared/studioHours.ts';
 
 /**
  * Свойства компонента TimeSlots.

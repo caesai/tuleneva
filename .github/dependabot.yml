@@ -1,0 +1,42 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      production-patch:
+        dependency-type: production
+        update-types:
+          - "patch"
+      development-patch:
+        dependency-type: development
+        update-types:
+          - "patch"
+    ignore:
+      # Клиент ставится с --legacy-peer-deps; мажоры Telegram/MUI — вручную.
+      - dependency-name: "@telegram-apps/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@mui/*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: "/server"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      production-patch:
+        dependency-type: production
+        update-types:
+          - "patch"
+      development-patch:
+        dependency-type: development
+        update-types:
+          - "patch"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

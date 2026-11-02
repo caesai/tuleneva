@@ -29,10 +29,8 @@
   },
   "include": [
     "src",
-    "shared/studioHours.cjs",
-    "shared/studioHours.d.cts",
-    "shared/roleLattice.cjs",
-    "shared/roleLattice.d.cts"
+    "shared/studioHours.ts",
+    "shared/roleLattice.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",

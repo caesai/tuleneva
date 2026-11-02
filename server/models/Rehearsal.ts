@@ -1,0 +1,33 @@
+import mongoose, { type Model } from 'mongoose';
+
+// Define the schema for a single time slot booking
+const bookedHourSchema = new mongoose.Schema({
+    hour: { type: String, required: true }, // e.g., '10:00'
+    userId: { type: String, required: true },
+    username: { type: String, required: true },
+    /** Название коллектива необязательно: в форме оно спрятано в «Дополнительно». */
+    band_name: { type: String, default: '' },
+    userPhotoUrl: { type: String }, // URL фото пользователя из Telegram
+    rehearsalType: { type: String, required: true },
+}, { _id: false });
+
+// Define the main Rehearsal schema
+const rehearsalSchema = new mongoose.Schema(
+    {
+        date: {
+            type: Date,
+            required: true,
+            unique: true, // One document per day
+        },
+        hours: {
+            type: [bookedHourSchema], // An array of booked time slots
+            default: [],
+        },
+    },
+    {
+        timestamps: true,
+    }
+);
+
+const Rehearsal = (mongoose.models.Rehearsal || mongoose.model('Rehearsal', rehearsalSchema)) as Model<any>;
+export default Rehearsal;

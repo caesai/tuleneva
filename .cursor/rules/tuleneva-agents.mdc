@@ -10,19 +10,20 @@ alwaysApply: true
 ## Архитектура
 
 - **Клиент** `src/` — React, TS, API в `src/api/`, auth в `AuthContext` + `auth.api.ts`
-- **Сервер** `server/` — Express через `createApp()` в `app.js`, auth в `server/auth/`
-- **Общее** `shared/contracts/`, `shared/roleLattice.cjs`, `shared/test/roleMatrix.ts`
+- **Сервер** `server/` — Express через `createApp()` в `app.ts`, auth в `server/auth/` (TypeScript)
+- **Общее** `shared/contracts/`, `shared/roleLattice.ts`, `shared/studioHours.ts`, `shared/test/roleMatrix.ts`
 - UI: только `useAuth().capabilities`, не сырые проверки Telegram
-- Роли: источник `shared/roleLattice.cjs`; адаптеры `roleHelpers.js` / `rolePermissions.ts`; `roleMatrix` гоняет оба
+- Роли: источник `shared/roleLattice.ts`; адаптеры `roleHelpers.ts` / `rolePermissions.ts`; `roleMatrix` гоняет оба
 
 ## JSDoc (обязательно)
 
-В каждом **созданном** или **изменённом** файле — JSDoc на экспорты и нетривиальную логику (`@description`, `@param`, `@returns`; для routes — `@route`). Язык: русский. Примеры: `server/auth/*.js`, `src/api/auth.api.ts`.
+В каждом **созданном** или **изменённом** файле — JSDoc на экспорты и нетривиальную логику (`@description`, `@param`, `@returns`; для routes — `@route`). Язык: русский. Примеры: `server/auth/*.ts`, `src/api/auth.api.ts`.
 
 ## Тесты (обязательно после изменений)
 
 ```bash
-npm test                    # клиент
+npm run check               # lint + typecheck + тесты клиента и сервера
+npm test                    # только клиент
 cd server && npm run test:all
 ```
 
@@ -31,10 +32,11 @@ cd server && npm run test:all
 - Новая логика ролей/инвайтов → unit + `roleMatrix`
 - Заметный UI-поток → `*.test.tsx`
 - Не сбрасывать моки через `vi.clearAllMocks()` без восстановления `mockResolvedValue`
+- Локальный Vite ходит в боевую Mongo: не писать из двух агентов сразу; worktree вместо `git switch` в общем checkout
 
 ## Практики
 
 - Минимальный diff, без лишнего рефакторинга
-- Новый auth только `/api/auth/*`, не legacy `/api/users/*`
+- Новый auth только `/api/auth/*`, не legacy `/api/users/*` (freeze-тест)
 - Коммиты — только по запросу пользователя
 - Env/API/команды — обновлять README при изменении
