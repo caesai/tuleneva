@@ -17,7 +17,13 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    "baseUrl": ".",
+    // shared/contracts импортирует zod. tsc ищет пакет от файла вверх и в CI
+    // не видит server/node_modules — там нет корневого node_modules.
+    "paths": {
+      "zod": ["node_modules/zod"]
+    }
   },
   "include": [
     "**/*.ts",
