@@ -1,5 +1,7 @@
 import { describe, it, beforeAll, afterAll, beforeEach, expect, vi } from 'vitest';
+import moment from 'moment';
 import request from 'supertest';
+import Rehearsal from '../../models/Rehearsal';
 import {
     connectTestDb,
     disconnectTestDb,
@@ -8,7 +10,7 @@ import {
     seedUser,
     authHeader,
 } from '../helpers/testApp';
-import { loadHoursForDate } from '../../telegram/createBot';
+import { loadHoursForDate, loadMyRehearsals } from '../../telegram/createBot';
 import { formatDayBookings, formatMyBookings } from '../../telegram/scheduleMessages';
 
 /**
@@ -110,5 +112,36 @@ describe('day-read parity HTTP vs bot', () => {
         expect(text).toContain('My Band');
         expect(text).not.toContain('15:00');
         expect(text).not.toContain('Other Band');
+    });
+
+    it('loadMyRehearsals keeps the user day after other studio days', async () => {
+        const mine = await seedUser({
+            role: 'user',
+            username: 'late_mine',
+            first_name: 'Late',
+        });
+        const other = await seedUser({
+            role: 'user',
+            username: 'early_other',
+            first_name: 'Early',
+        });
+        const slot = (userId, username) => ({
+            hour: '12:00',
+            userId: String(userId),
+            username,
+            band_name: username === 'late_mine' ? 'Late Band' : 'Early Band',
+            rehearsalType: 'rehearsal',
+        });
+        const at = (date) => moment.utc(date, 'DD/MM/YYYY').startOf('day').toDate();
+        await Rehearsal.create({ date: at('01/07/2030'), hours: [slot(other._id, 'early_other')] });
+        await Rehearsal.create({ date: at('02/07/2030'), hours: [slot(other._id, 'early_other')] });
+        await Rehearsal.create({ date: at('03/07/2030'), hours: [slot(mine._id, 'late_mine')] });
+
+        const days = await loadMyRehearsals(mine._id, at('01/07/2030'), 1);
+        expect(days).toHaveLength(1);
+        expect(days[0].date).toBe('03/07/2030');
+        const text = formatMyBookings(days, String(mine._id));
+        expect(text).toContain('Late Band');
+        expect(text).not.toContain('Early Band');
     });
 });

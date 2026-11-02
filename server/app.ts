@@ -33,6 +33,21 @@ import { safeNotify } from './notifications/telegramNotify';
 import { createBooking } from './booking/createBooking';
 
 /**
+ * Запускает Telegram-уведомление после уже отправленного ответа.
+ * Синхронный сбой не уходит в catch, который пишет второй JSON.
+ * @param {(() => Promise<unknown>) | undefined} afterResponse
+ * @returns {void}
+ */
+const notifyAfterResponse = (afterResponse) => {
+    if (!afterResponse) return;
+    try {
+        safeNotify(afterResponse());
+    } catch (err) {
+        console.error('Background telegram notify failed:', err?.message || err);
+    }
+};
+
+/**
  * @param {object} options
  * @param {string} options.jwtSecret
  * @param {string} options.botToken
@@ -459,23 +474,23 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
     const dbUser = requireDbUser(req, res);
     if (!dbUser) return;
 
+    let result;
     try {
         const { date, hours, band_name, rehearsalType } = req.body;
-        const result = await booking.book({
+        result = await booking.book({
             dbUser,
             date,
             hours,
             band_name,
             rehearsalType,
         });
-        res.status(result.status).json(result.body);
-        if (result.afterResponse) {
-            safeNotify(result.afterResponse());
-        }
     } catch (err) {
         console.error('An error occurred during booking:', err);
         res.status(500).json({ error: 'An internal server error occurred.' });
+        return;
     }
+    res.status(result.status).json(result.body);
+    notifyAfterResponse(result.afterResponse);
 });
 
 /**
@@ -490,21 +505,21 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
     const dbUser = requireDbUser(req, res);
     if (!dbUser) return;
 
+    let result;
     try {
         const { date, hours } = req.body;
-        const result = await booking.cancel({
+        result = await booking.cancel({
             dbUser,
             date,
             hours,
         });
-        res.status(result.status).json(result.body);
-        if (result.afterResponse) {
-            safeNotify(result.afterResponse());
-        }
     } catch (err) {
         console.error('An error occurred during cancellation:', err);
         res.status(500).json({ error: 'An internal server error occurred.' });
+        return;
     }
+    res.status(result.status).json(result.body);
+    notifyAfterResponse(result.afterResponse);
 });
 
 /**

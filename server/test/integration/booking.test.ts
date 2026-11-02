@@ -144,8 +144,10 @@ describe('booking integration', () => {
         expect(notifyAdmins).toHaveBeenCalledTimes(1);
     });
 
-    it('starts notifyAdmins only after the HTTP book response', async () => {
-        const notifyAdmins = vi.fn(async () => {});
+    it('returns 201 when notifyAdmins throws before a promise', async () => {
+        const notifyAdmins = vi.fn(() => {
+            throw new Error('notify boom');
+        });
         const bookApp = createTestApp({ notifyAdmins });
         const user = await seedUser({ role: 'user', username: 'http_notify' });
 
@@ -160,6 +162,8 @@ describe('booking integration', () => {
 
         expect(res.status).toBe(201);
         expect(notifyAdmins).toHaveBeenCalledTimes(1);
+        const docs = await Rehearsal.find({});
+        expect(docs).toHaveLength(1);
     });
 
     it('publishes booking_update with public hours through createBroadcast', async () => {
