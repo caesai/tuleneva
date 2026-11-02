@@ -9,8 +9,8 @@
 | Путь | Назначение |
 |------|------------|
 | `src/` | **Клиент**: React + TypeScript, Vite |
-| `server/` | **Бэкенд**: Express, Mongoose, Telegraf |
-| `shared/` | Общее между клиентом и сервером: Zod-контракты, `roleMatrix` |
+| `server/` | **Бэкенд**: Express, Mongoose, Telegraf (TypeScript → бандл `dist/index.cjs`) |
+| `shared/` | Общее между клиентом и сервером: Zod-контракты, `roleLattice`, `studioHours`, `roleMatrix` |
 | `docs/` | Handoff и доменная документация |
 
 **Не путать:** изменения API — в `server/`; вызовы API и UI — в `src/`. Синхронизировать оба слоя при смене контрактов.
@@ -21,12 +21,17 @@
 
 ### Точка входа сервера
 
-- `server/index.js` — bootstrap: MongoDB, Telegraf, WebSocket, `listen`
-- `server/app.js` — `createApp({ jwtSecret, botToken, ... })`: все HTTP-маршруты **без** `listen` (для тестов)
+- `server/index.ts` — bootstrap: MongoDB, Telegraf, WebSocket, `listen`
+- `server/app.ts` — `createApp({ jwtSecret, botToken, ... })`: все HTTP-маршруты **без** `listen` (для тестов)
+- Проверка типов сервера: `cd server && npm run typecheck` (`server/tsconfig.json`)
 
-### Прокси в разработке
+### Прокси в разработке и параллельные агенты
 
-Vite (`vite.config.ts`) проксирует `/api` и `/ws` на production/staging backend. Клиент ходит на относительные пути `/api/...`.
+Vite (`vite.config.ts`) проксирует `/api` и `/ws` на **боевой** backend. Клиент ходит на относительные пути `/api/...`. Запись через локальный `npm run dev` попадает в прод-Mongo.
+
+- Не гонять сценарии, которые пишут в боевую Mongo, из двух агентов одновременно.
+- Не делать `git switch` / `git checkout` в общем checkout, пока в нём работает другой агент: используйте отдельные git worktree.
+- Тяжёлые команды (`npm run check`, полный `test:all`) не запускать параллельно без нужды — делят CPU и MongoMemoryServer.
 
 ### Поток авторизации
 
@@ -34,7 +39,7 @@ Vite (`vite.config.ts`) проксирует `/api` и `/ws` на production/sta
 src/contexts/AuthContext.tsx
   → src/api/auth.api.ts
   → GET/POST /api/auth/*
-  → server/auth/authRoutes.js
+  → server/auth/authRoutes.ts
   → identityService / telegramProvider / webProvider / inviteService
   → MongoDB (User, InviteCode)
 ```
@@ -45,11 +50,11 @@ src/contexts/AuthContext.tsx
 
 ### Роли
 
-Источник правил: [`shared/roleLattice.cjs`](shared/roleLattice.cjs).
+Источник правил: [`shared/roleLattice.ts`](shared/roleLattice.ts).
 
-- Сервер: `server/auth/roleHelpers.js` — тонкий адаптер (`canDeleteUser` по `_id`)
+- Сервер: `server/auth/roleHelpers.ts` — тонкий адаптер (`canDeleteUser` по `_id`)
 - Клиент: `src/utils/rolePermissions.ts` — тонкий адаптер с типами `TRole`
-- Тесты: `shared/test/roleMatrix.ts` — гоняет оба адаптера; при смене правил править `roleLattice.cjs`
+- Тесты: `shared/test/roleMatrix.ts` — гоняет оба адаптера; при смене правил править `roleLattice.ts`
 
 ### WebSocket
 
@@ -69,12 +74,13 @@ Legacy (`/api/users/register`, `/api/users/info`) — только для сов
 
 При **создании** или **существенном изменении** файла добавляй/обновляй JSDoc.
 
-### TypeScript (`src/**/*.ts`, `src/**/*.tsx`)
+### TypeScript (`src/**/*.ts`, `src/**/*.tsx`, `server/**/*.ts`, `shared/**/*.ts`)
 
 - Файл: краткий `@file` или блочный комментарий в начале (если модуль нетривиальный)
 - Экспорты: `@description` для функций, компонентов, типов, хуков
 - Параметры и возврат: `@param`, `@returns` где неочевидно
 - Публичные API (`src/api/*`): описание контракта, ошибок, требований auth
+- HTTP-обработчики сервера: `@route`, `@param`, `@returns` (как в `server/auth/telegramProvider.ts`, `server/app.ts`)
 
 ```typescript
 /**
@@ -84,20 +90,14 @@ Legacy (`/api/users/register`, `/api/users/info`) — только для сов
 export const getAuthSession = async (): Promise<Response> => { ... }
 ```
 
-### JavaScript (`server/**/*.js`)
-
-- Стиль как в `server/auth/telegramProvider.js`, `server/app.js`
-- `@param`, `@returns`, `@route` для HTTP-обработчиков в `app.js` / роутерах
-- `@description` для middleware и бизнес-функций
-
-```javascript
+```typescript
 /**
  * Проверяет подпись Telegram Mini App init data.
- * @param {string} initDataRaw - Сырые query-параметры init data
- * @param {string} botToken - Токен бота
- * @returns {boolean}
+ * @param initDataRaw Сырые query-параметры init data
+ * @param botToken Токен бота
+ * @returns true, если подпись верна
  */
-const verifyTelegramInitData = (initDataRaw, botToken) => { ... }
+const verifyTelegramInitData = (initDataRaw: string, botToken: string): boolean => { ... }
 ```
 
 ### Что не документировать
@@ -115,10 +115,11 @@ JSDoc — **на русском** (как в существующем коде �
 После любого изменения логики **запусти тесты** и исправь регрессии:
 
 ```bash
-# из корня — клиент
-npm test
+# полный gate (lint + typecheck + клиентские и серверные тесты)
+npm run check
 
-# сервер
+# по отдельности
+npm test
 cd server && npm run test:all
 ```
 
@@ -135,7 +136,7 @@ cd server && npm run test:all
 ### Инфраструктура
 
 - Клиент: Vitest + Testing Library, `src/test/setup.ts`
-- Сервер: Vitest + supertest + `mongodb-memory-server`, `server/test/helpers/testApp.js`
+- Сервер: Vitest + supertest + `mongodb-memory-server`, `server/test/helpers/testApp.ts`
 - Общая матрица ролей: `shared/test/roleMatrix.ts`
 - **Не** использовать `vi.clearAllMocks()` без восстановления моков — сбрасывает `mockResolvedValue`
 
@@ -150,10 +151,11 @@ cd server && npm run test:all
 1. **Минимальный diff** — только то, что нужно для задачи; не рефакторить «заодно».
 2. **Согласованность** — именование, структура папок, CSS Modules, `@/` alias как в соседних файлах.
 3. **Без over-engineering** — не вводить лишние абстракции и обёртки.
-4. **Секреты** — не коммитить `.env`, токены, ключи.
+4. **Секреты** — не коммитить `.env`, токены, ключи. В CI сканирует gitleaks (`.gitleaks.toml`).
 5. **Git** — коммиты и push **только по явной просьбе** пользователя.
 6. **README** — при добавлении env-переменных, эндпоинтов или команд обновляй [README.md](README.md).
-7. **Deprecated** — не расширять legacy-маршруты; новое — в `/api/auth/*` и `auth.api.ts`.
+7. **Deprecated** — не расширять legacy-маршруты `/api/users/*`; новое — в `/api/auth/*` и `auth.api.ts`. Список legacy заморожен тестом `server/test/unit/legacyUsersRoutes.freeze.test.ts`.
+8. **Node** — CI и `.node-version` на 20; `engines` допускает 20 и новее.
 
 ---
 
@@ -171,12 +173,17 @@ cd server && npm run test:all
 ## 7. Полезные команды
 
 ```bash
-npm run dev              # клиент (HTTPS, proxy /api)
+npm run check                     # lint + typecheck:all + клиентские и серверные тесты
+npm run typecheck                 # только клиент (tsc -b)
+npm run typecheck:all             # клиент + server
+npm run dev                       # клиент (HTTPS, proxy /api на прод)
 npm run build && npm run lint
 npm test
 
-cd server && npm run dev
+cd server && npm run dev          # tsx watch index.ts
+cd server && npm run typecheck
 cd server && npm run test:all
+cd server && npm run build        # dist/index.cjs
 ```
 
 Установка клиента: `npm install --legacy-peer-deps` (peer-deps Telegram SDK).
@@ -188,4 +195,5 @@ cd server && npm run test:all
 - [README.md](README.md) — установка, API, тесты
 - [docs/NEXT.md](docs/NEXT.md) — открытые задачи
 - [docs/VPS.md](docs/VPS.md) — деплой и CD
-- `server/test/helpers/testApp.js` — пример поднятия app в тестах
+- `server/test/helpers/testApp.ts` — пример поднятия app в тестах
+

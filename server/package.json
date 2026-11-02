@@ -13,14 +13,18 @@
   "license": "MIT",
   "author": "Vasily Kharlamov",
   "type": "commonjs",
-  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "dist/index.cjs",
   "scripts": {
     "test": "vitest run test/unit test/contracts",
     "test:integration": "vitest run test/integration",
     "test:all": "npm test && npm run test:integration",
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "build": "esbuild index.js --bundle --platform=node --packages=external --outfile=dist/index.cjs"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node dist/index.cjs",
+    "dev": "tsx watch index.ts",
+    "build": "esbuild index.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/index.cjs --banner:js=\"const __import_meta_url = require('url').pathToFileURL(__filename).href;\" --define:import.meta.url=__import_meta_url"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -32,16 +36,23 @@
     "moment": "^2.30.1",
     "mongoose": "^8.19.2",
     "nodemailer": "^6.10.1",
-    "nodemon": "^3.1.10",
     "telegraf": "^4.16.3",
     "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.6",
     "@types/nodemailer": "^6.4.24",
+    "@types/supertest": "^7.2.1",
+    "@types/ws": "^8.18.2",
     "esbuild": "^0.27.2",
     "mongodb-memory-server": "^11.1.0",
     "supertest": "^7.2.2",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
     "vitest": "^4.1.7",
     "zod": "^4.4.3"
   }

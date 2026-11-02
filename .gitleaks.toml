@@ -1,0 +1,18 @@
+# Конфиг gitleaks для Tuleneva.
+# В allowlist только строки-фикстуры тестов, не целые каталоги.
+
+title = "tuleneva"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Фикстуры тестов, не прод-ключи"
+regexes = [
+  '''bot1:SECRET''',
+  '''test-secret''',
+  '''test-bot-token''',
+  '''unit-test-secret''',
+  '''secret-hash''',
+  '''secret-token''',
+]

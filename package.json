@@ -3,11 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "dev:https": "vite --host",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "typecheck": "tsc -b --pretty false",
+    "typecheck:all": "npm run typecheck && npm run typecheck --prefix server",
+    "check": "npm run lint && npm run typecheck:all && npm test && npm run test:all --prefix server",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

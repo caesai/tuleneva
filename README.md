@@ -71,8 +71,8 @@ PORT=3000
 Деплой на новый VPS (Nginx, systemd, пользователь `deploy`, CD из Actions, первый `super_admin`, бэкапы): [docs/VPS.md](docs/VPS.md).
 
 ```bash
-npm start      # production
-npm run dev    # nodemon
+npm start      # production (node dist/index.cjs)
+npm run dev    # tsx watch
 ```
 
 ### Клиент
@@ -91,6 +91,9 @@ npm run dev
 ## Тестирование
 
 ```bash
+# Полный quality gate (lint + typecheck:all + клиент + сервер)
+npm run check
+
 # Клиент (unit + UI)
 npm test
 npm run test:watch
@@ -101,10 +104,11 @@ npx playwright install chromium
 npm run test:e2e
 
 # Сервер (unit + contracts + integration)
+cd server && npm run typecheck
 cd server && npm run test:all
 ```
 
-Integration-тесты используют in-memory MongoDB; внешний Mongo не нужен.
+Node 20 (см. `.node-version`). Integration-тесты используют in-memory MongoDB; внешний Mongo не нужен. Локальный Vite проксирует `/api` на прод — см. [AGENTS.md](AGENTS.md).
 
 ## API
 
@@ -190,13 +194,14 @@ npm run build
 ```
 tuleneva/
 ├── server/
-│   ├── app.js              # createApp() — Express без listen/bot.launch
-│   ├── index.js            # bootstrap: Mongo, Telegraf, WebSocket
+│   ├── app.ts              # createApp() — Express без listen/bot.launch
+│   ├── index.ts            # bootstrap: Mongo, Telegraf, WebSocket
 │   ├── auth/               # authRoutes, providers, inviteService
 │   ├── booking/            # createBooking — book/cancel/day/month
 │   ├── realtime/           # createBroadcast — publish /ws
 │   ├── telegram/           # createBot, команды расписания
 │   ├── models/
+│   ├── dist/index.cjs      # esbuild-бандл для VPS
 │   └── test/               # unit, contracts, integration
 ├── src/
 │   ├── api/
@@ -207,7 +212,8 @@ tuleneva/
 │   └── utils/              # rolePermissions
 ├── shared/
 │   ├── contracts/          # Zod-схемы API
-│   ├── roleLattice.cjs     # решётка ролей (server + client)
+│   ├── roleLattice.ts      # решётка ролей (server + client)
+│   ├── studioHours.ts      # часы студии и «слот в прошлом»
 │   └── test/               # roleMatrix для server + client
 ├── deploy/                 # remote-release.sh, systemd, nginx
 ├── docs/

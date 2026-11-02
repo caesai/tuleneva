@@ -1,6 +1,6 @@
 /**
  * @file Адаптер решётки ролей для клиента (AdminPage).
- * Источник правил: shared/roleLattice.cjs.
+ * Источник правил: shared/roleLattice.ts.
  */
 import type { TRole } from '@/types/user.types.ts';
 import {
@@ -9,7 +9,7 @@ import {
     canAssignRole as canAssignRoleShared,
     canDeleteByRole,
     getAssignableRoles as getAssignableRolesShared,
-} from '../../shared/roleLattice.cjs';
+} from '../../shared/roleLattice.ts';
 
 /**
  * Админ или супер-админ.
