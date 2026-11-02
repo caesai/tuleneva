@@ -19,7 +19,7 @@ import {
     findUserByTelegramId,
     upsertTelegramUser,
 } from './auth/identityService';
-import { isAdminLike, canAssignRole, canDeleteUser } from './auth/roleHelpers';
+import { isAdminLike, isStudioRole, canAssignRole, canDeleteUser } from './auth/roleHelpers';
 import { requireAdmin } from './auth/requireAdmin';
 import { requireDbUser } from './auth/requireDbUser';
 import { createOptionalAuth } from './auth/optionalAuth';
@@ -254,7 +254,7 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
     const { id } = req.params;
     const { role } = req.body;
 
-    if (!['super_admin', 'admin', 'user', 'guest'].includes(role)) {
+    if (!isStudioRole(role)) {
         return res.status(400).json({ message: 'Invalid role provided.' });
     }
 
@@ -453,10 +453,13 @@ app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, re
  * @returns {Object} Обновленный объект репетиции.
  */
 app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
+    const dbUser = requireDbUser(req, res);
+    if (!dbUser) return;
+
     try {
         const { date, hours, band_name, rehearsalType } = req.body;
         const result = await booking.book({
-            dbUser: req.dbUser,
+            dbUser,
             date,
             hours,
             band_name,
@@ -481,10 +484,13 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
  * @returns {Object} Сообщение об успешной отмене и обновленные данные.
  */
 app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) => {
+    const dbUser = requireDbUser(req, res);
+    if (!dbUser) return;
+
     try {
         const { date, hours } = req.body;
         const result = await booking.cancel({
-            dbUser: req.dbUser,
+            dbUser,
             date,
             hours,
         });

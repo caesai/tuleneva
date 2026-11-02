@@ -35,7 +35,10 @@ describe('inviteService', () => {
         });
         const found = await findValidInvite('valid-code');
         expect(found).toBeTruthy();
-        expect(found!.code).toBe('valid-code');
+        if (!found) {
+            throw new Error('Invite not found');
+        }
+        expect(found.code).toBe('valid-code');
     });
 
     it('findValidInvite returns null for expired code', async () => {
@@ -59,7 +62,10 @@ describe('inviteService', () => {
 
         const first = await consumeInvite('once-code', guest._id);
         expect(first).toBeTruthy();
-        expect(first!.usedAt).toBeTruthy();
+        if (!first) {
+            throw new Error('Invite was not consumed');
+        }
+        expect(first.usedAt).toBeTruthy();
 
         const second = await consumeInvite('once-code', guest._id);
         expect(second).toBeNull();
@@ -79,12 +85,18 @@ describe('inviteService', () => {
         const second = await consumeInvite('chat-code', guest._id);
         expect(first).toBeTruthy();
         expect(second).toBeTruthy();
-        expect(second!.usedAt).toBeFalsy();
-        expect(second!.useCount).toBe(2);
+        if (!second) {
+            throw new Error('Multi-use invite was not consumed');
+        }
+        expect(second.usedAt).toBeFalsy();
+        expect(second.useCount).toBe(2);
         expect(await findValidInvite('chat-code')).toBeTruthy();
 
         const revoked = await revokeInvite('chat-code');
-        expect(revoked!.revokedAt).toBeTruthy();
+        if (!revoked) {
+            throw new Error('Invite was not revoked');
+        }
+        expect(revoked.revokedAt).toBeTruthy();
         expect(await findValidInvite('chat-code')).toBeNull();
         expect(await consumeInvite('chat-code', guest._id)).toBeNull();
     });

@@ -1,8 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { canAssignRole, canDeleteUser } from '../../auth/roleHelpers';
+import { canAssignRole, canDeleteUser, isStudioRole } from '../../auth/roleHelpers';
 import { assignRoleMatrix, deleteRoleMatrix } from '../../../shared/test/roleMatrix';
 
 describe('roleHelpers', () => {
+    describe('isStudioRole', () => {
+        it('accepts lattice roles and rejects anything else', () => {
+            expect(isStudioRole('guest')).toBe(true);
+            expect(isStudioRole('super_admin')).toBe(true);
+            expect(isStudioRole('owner')).toBe(false);
+            expect(isStudioRole(null)).toBe(false);
+        });
+    });
+
     describe('canAssignRole', () => {
         it.each(assignRoleMatrix)(
             '$actor assigns $newRole to user with role $target → $expected',

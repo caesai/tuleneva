@@ -5,6 +5,7 @@
 import {
     ALL_ROLES,
     isAdminLike,
+    isStudioRole,
     isSuperAdmin,
     canAssignRole,
     canDeleteByRole,
@@ -25,6 +26,7 @@ const canDeleteUser = (actorRole, targetUser, actorId) => {
 
 export {
     isAdminLike,
+    isStudioRole,
     isSuperAdmin,
     canAssignRole,
     canDeleteUser,

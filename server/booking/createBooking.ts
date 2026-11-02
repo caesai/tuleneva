@@ -4,7 +4,7 @@
  */
 import moment from 'moment';
 
-import User from '../models/User';
+import User, { type UserDocument } from '../models/User';
 import Rehearsal from '../models/Rehearsal';
 import { isAdminLike } from '../auth/roleHelpers';
 import {
@@ -80,18 +80,32 @@ const formatHoursRange = (hours) => {
  * @param {Object} oldFormatObj - Объект старого формата { "12:00": {...}, ... }
  * @returns {Array} Массив нового формата
  */
+/** Слот старого формата: ключ — час, значение — объект брони. */
+type LegacyBookedSlot = {
+    status?: string;
+    userId?: unknown;
+    owner?: string;
+    bandName?: string;
+    avatar?: string | null;
+    rehearsalType?: string;
+};
+
+/** Слот после конвертации. `rehearsalType` есть только если он был в старых данных. */
 type NormalizedLegacySlot = {
     hour: string;
     userId: string | null;
     username: string;
     band_name: string;
     userPhotoUrl: string | null;
+    rehearsalType?: string;
 };
 
-const convertOldFormatToNew = (oldFormatObj: Record<string, any>): NormalizedLegacySlot[] => {
+const convertOldFormatToNew = (
+    oldFormatObj: Record<string, LegacyBookedSlot | null | undefined>,
+): NormalizedLegacySlot[] => {
     const normalizedHours: NormalizedLegacySlot[] = [];
 
-    for (const [hour, slotData] of Object.entries(oldFormatObj) as [string, any][]) {
+    for (const [hour, slotData] of Object.entries(oldFormatObj)) {
         if (!isTimeKey(hour)) {
             continue;
         }
@@ -100,13 +114,17 @@ const convertOldFormatToNew = (oldFormatObj: Record<string, any>): NormalizedLeg
             continue;
         }
 
-        normalizedHours.push({
-            hour: hour,
+        const slot: NormalizedLegacySlot = {
+            hour,
             userId: slotData.userId ? String(slotData.userId) : null,
             username: slotData.owner || '',
             band_name: slotData.bandName || '',
             userPhotoUrl: slotData.avatar || null,
-        });
+        };
+        if (slotData.rehearsalType) {
+            slot.rehearsalType = String(slotData.rehearsalType);
+        }
+        normalizedHours.push(slot);
     }
 
     normalizedHours.sort((a, b) => a.hour.localeCompare(b.hour));
@@ -203,14 +221,26 @@ const createBooking = ({
     /**
      * Создаёт бронирование слотов на дату.
      * @param {object} input
-     * @param {object} input.dbUser - Пользователь из БД (req.dbUser)
+     * @param {import('../models/User').UserDocument} input.dbUser - Пользователь из БД после verifyUserExists
      * @param {string} input.date - Дата DD/MM/YYYY
      * @param {string[]} input.hours - Часы для бронирования
      * @param {string} [input.band_name]
      * @param {string} [input.rehearsalType]
      * @returns {Promise<{ status: number, body: object, afterResponse?: Promise<unknown> }>}
      */
-    const book = async ({ dbUser, date, hours, band_name, rehearsalType }) => {
+    const book = async ({
+        dbUser,
+        date,
+        hours,
+        band_name,
+        rehearsalType,
+    }: {
+        dbUser: UserDocument;
+        date?: unknown;
+        hours?: unknown;
+        band_name?: unknown;
+        rehearsalType?: unknown;
+    }) => {
         const username = dbUser.username || dbUser.first_name;
         const userId = dbUser._id;
         const userPhotoUrl = dbUser.photo_url;
@@ -219,7 +249,7 @@ const createBooking = ({
             return { status: 403, body: { error: 'Guests cannot book rehearsals.' } };
         }
 
-        if (!date || !hours || !Array.isArray(hours) || hours.length === 0) {
+        if (typeof date !== 'string' || !hours || !Array.isArray(hours) || hours.length === 0) {
             return { status: 400, body: { error: 'Missing or invalid booking data.' } };
         }
 
@@ -273,7 +303,9 @@ const createBooking = ({
             username,
             band_name: typeof band_name === 'string' ? band_name.trim() : '',
             userPhotoUrl,
-            rehearsalType: rehearsalType || 'rehearsal',
+            rehearsalType: typeof rehearsalType === 'string' && rehearsalType
+                ? rehearsalType
+                : 'rehearsal',
         }));
 
         /**
@@ -355,17 +387,25 @@ const createBooking = ({
     /**
      * Отменяет бронирование слотов (свои или любые — для admin-like).
      * @param {object} input
-     * @param {object} input.dbUser
+     * @param {import('../models/User').UserDocument} input.dbUser - Пользователь из БД после verifyUserExists
      * @param {string} input.date
      * @param {string[]} input.hours
      * @returns {Promise<{ status: number, body: object, afterResponse?: Promise<unknown> }>}
      */
-    const cancel = async ({ dbUser, date, hours }) => {
+    const cancel = async ({
+        dbUser,
+        date,
+        hours,
+    }: {
+        dbUser: UserDocument;
+        date?: unknown;
+        hours?: unknown;
+    }) => {
         const username = dbUser.username || dbUser.first_name;
         const userId = dbUser._id;
         const isAdmin = isAdminLike(dbUser.role);
 
-        if (!date || !hours || !Array.isArray(hours) || hours.length === 0) {
+        if (typeof date !== 'string' || !hours || !Array.isArray(hours) || hours.length === 0) {
             return { status: 400, body: { error: 'Missing or invalid cancellation data.' } };
         }
 
@@ -512,10 +552,16 @@ const createBooking = ({
      * Слоты дня с учётом прав зрителя на PII.
      * @param {object} input
      * @param {string} input.date - DD/MM/YYYY
-     * @param {object|null|undefined} [input.dbUser] - Пользователь после optional auth
+     * @param {import('../models/User').UserDocument|null|undefined} [input.dbUser] - Пользователь после optional auth
      * @returns {Promise<{ status: number, body: object }>}
      */
-    const getDayHours = async ({ date, dbUser }) => {
+    const getDayHours = async ({
+        date,
+        dbUser,
+    }: {
+        date?: unknown;
+        dbUser?: UserDocument | null;
+    }) => {
         if (!date) {
             return { status: 400, body: { message: 'Date query parameter is required.' } };
         }
