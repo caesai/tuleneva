@@ -8,7 +8,7 @@ import moment from 'moment';
 import User from '../models/User';
 import Rehearsal from '../models/Rehearsal';
 import { isAdminLike } from '../auth/roleHelpers';
-import { loadNormalizedDayHours } from '../booking/createBooking';
+import { loadNormalizedDayHours, normalizeHoursData } from '../booking/createBooking';
 import {
     formatDayBookings,
     formatFreeSlots,
@@ -25,6 +25,37 @@ import {
 const loadHoursForDate = async (dateDdMmYyyy) => {
     const day = await loadNormalizedDayHours(dateDdMmYyyy);
     return day.valid ? day.hours : [];
+};
+
+/** Сколько ближайших дней пользователя отдаёт /my. */
+const MY_BOOKINGS_DAY_LIMIT = 40;
+
+/**
+ * Дни с бронями пользователя начиная с `from`.
+ * Слоты нормализуются так же, как day-read `/today`, без повторного запроса дня.
+ * Лимит считается по дням этого пользователя, а не по любым дням студии.
+ * @param {string} userId
+ * @param {Date} from - Начало «сегодня» (UTC)
+ * @param {number} [limit]
+ * @returns {Promise<Array<{ date: string, hours: Array<object> }>>}
+ */
+const loadMyRehearsals = async (userId, from, limit = MY_BOOKINGS_DAY_LIMIT) => {
+    const docs = await Rehearsal.find({
+        date: { $gte: from },
+    }).sort({ date: 1 });
+    const uid = String(userId);
+    const rehearsals: Array<{ date: string; hours: ReturnType<typeof normalizeHoursData> }> = [];
+    for (const doc of docs) {
+        const hours = normalizeHoursData(doc.hours);
+        const mine = hours.some((slot) => slot && String(slot.userId) === uid);
+        if (!mine) continue;
+        rehearsals.push({
+            date: moment.utc(doc.date).format('DD/MM/YYYY'),
+            hours,
+        });
+        if (rehearsals.length >= limit) break;
+    }
+    return rehearsals;
 };
 
 /**
@@ -246,19 +277,7 @@ const createBot = ({
                 return;
             }
             const { today } = moscowTodayTomorrow();
-            const from = startOfDayUtc(today);
-            // Те же документы по дате, что дальше; слоты — через day-read (/today),
-            // чтобы legacy-формат и UTC-окно совпадали с остальными командами.
-            const docs = await Rehearsal.find({
-                date: { $gte: from },
-            }).sort({ date: 1 }).limit(40);
-            const rehearsals = await Promise.all(
-                docs.map(async (doc) => {
-                    const dateStr = moment.utc(doc.date).format('DD/MM/YYYY');
-                    const hours = await loadHoursForDate(dateStr);
-                    return { date: dateStr, hours };
-                }),
-            );
+            const rehearsals = await loadMyRehearsals(user._id, startOfDayUtc(today));
             await replyHere(ctx, formatMyBookings(rehearsals, String(user._id)));
         } catch (err) {
             console.error('Bot /my failed:', err?.message || err);
@@ -408,6 +427,7 @@ export {
     startBotTransport,
     stopBotSafely,
     loadHoursForDate,
+    loadMyRehearsals,
     isAllowedChat,
     parseStudioChatIds,
     threadReplyExtra,
