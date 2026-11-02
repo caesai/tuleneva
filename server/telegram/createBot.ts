@@ -102,6 +102,11 @@ const createBot = ({
     apiRoot = 'https://api.telegram.org',
     webAppBaseUrl = 'https://tuleneva25.ru',
     studioChatId = null,
+}: {
+    botToken: string;
+    apiRoot?: string;
+    webAppBaseUrl?: string;
+    studioChatId?: string | null;
 }) => {
     // apiRoot обязан заканчиваться на `/` (см. server/index.ts) — иначе PREFIX воркера
     // выпадает из URL и sendMessage получает 404 Not Found от Worker.
@@ -246,7 +251,7 @@ const createBot = ({
                 date: { $gte: from },
                 'hours.userId': String(user._id),
             }).sort({ date: 1 }).limit(40);
-            await replyHere(ctx, formatMyBookings(docs, user._id));
+            await replyHere(ctx, formatMyBookings(docs, String(user._id)));
         } catch (err) {
             console.error('Bot /my failed:', err?.message || err);
             await replyHere(ctx, 'Не удалось загрузить ваши брони.');
@@ -336,6 +341,11 @@ const startBotTransport = async ({
     webhookSecret,
     webAppBaseUrl,
     webhookUrl = null,
+}: {
+    bot: import('telegraf').Telegraf;
+    webhookSecret: string | null;
+    webAppBaseUrl: string;
+    webhookUrl?: string | null;
 }) => {
     await registerBotCommands(bot);
 

@@ -51,7 +51,7 @@ const formatHoursRange = (hours) => {
     if (!hours || hours.length === 0) return '';
 
     const sortedHours = [...hours].sort((a, b) => getHourNumber(a) - getHourNumber(b));
-    const ranges = [];
+    const ranges: string[] = [];
 
     let rangeStart = sortedHours[0];
     let rangeEnd = sortedHours[0];
@@ -80,8 +80,16 @@ const formatHoursRange = (hours) => {
  * @param {Object} oldFormatObj - Объект старого формата { "12:00": {...}, ... }
  * @returns {Array} Массив нового формата
  */
-const convertOldFormatToNew = (oldFormatObj) => {
-    const normalizedHours = [];
+type NormalizedLegacySlot = {
+    hour: string;
+    userId: string | null;
+    username: string;
+    band_name: string;
+    userPhotoUrl: string | null;
+};
+
+const convertOldFormatToNew = (oldFormatObj: Record<string, any>): NormalizedLegacySlot[] => {
+    const normalizedHours: NormalizedLegacySlot[] = [];
 
     for (const [hour, slotData] of Object.entries(oldFormatObj) as [string, any][]) {
         if (!isTimeKey(hour)) {

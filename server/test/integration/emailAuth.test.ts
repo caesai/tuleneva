@@ -317,6 +317,9 @@ describe('email auth integration', () => {
         const resetMail = sentMails[sentMails.length - 1];
         const resetMatch = String(resetMail?.text || '').match(/passwordReset=([a-f0-9]+)/i);
         expect(resetMatch).toBeTruthy();
+        if (!resetMatch) {
+            throw new Error('Reset token not found in mail');
+        }
         const resetToken = resetMatch[1];
 
         const reset = await request(app)

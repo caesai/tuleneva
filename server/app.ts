@@ -21,6 +21,7 @@ import {
 } from './auth/identityService';
 import { isAdminLike, canAssignRole, canDeleteUser } from './auth/roleHelpers';
 import { requireAdmin } from './auth/requireAdmin';
+import { requireDbUser } from './auth/requireDbUser';
 import { createOptionalAuth } from './auth/optionalAuth';
 import {
     linkEmailCredentials,
@@ -176,9 +177,11 @@ app.get('/', (req, res) => {
 
 /** Совместимость: GET /api/users/info */
 app.get('/api/users/info', authenticateToken, verifyUserExists, async (req, res) => {
-    const token = signAuthToken(req.dbUser, jwtSecret);
-    const provider = req.dbUser.identities?.[0]?.provider || (req.dbUser.telegram_id ? 'telegram' : null);
-    res.status(200).json(buildAuthResponse(req.dbUser, token, provider));
+    const dbUser = requireDbUser(req, res);
+    if (!dbUser) return;
+    const token = signAuthToken(dbUser, jwtSecret);
+    const provider = dbUser.identities?.[0]?.provider || (dbUser.telegram_id ? 'telegram' : null);
+    res.status(200).json(buildAuthResponse(dbUser, token, provider));
 });
 
 /**
@@ -242,7 +245,9 @@ app.get('/api/users', authenticateToken, verifyUserExists, requireAdmin, async (
  * @returns {Object} Обновленный объект пользователя.
  */
 app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, res) => {
-    if (!isAdminLike(req.dbUser.role)) {
+    const dbUser = requireDbUser(req, res);
+    if (!dbUser) return;
+    if (!isAdminLike(dbUser.role)) {
         return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -253,7 +258,7 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
         return res.status(400).json({ message: 'Invalid role provided.' });
     }
 
-    if (String(id) === String(req.dbUser._id)) {
+    if (String(id) === String(dbUser._id)) {
         return res.status(403).json({ message: 'Cannot change your own role.' });
     }
 
@@ -263,7 +268,7 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        if (!canAssignRole(req.dbUser.role, user.role, role)) {
+        if (!canAssignRole(dbUser.role, user.role, role)) {
             return res.status(403).json({ message: 'Insufficient permissions to assign this role.' });
         }
 
@@ -273,7 +278,7 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
 
         try {
             await RoleChangeLog.create({
-                actorId: req.dbUser._id,
+                actorId: dbUser._id,
                 targetId: user._id,
                 fromRole: oldRole,
                 toRole: role,
@@ -310,7 +315,9 @@ app.put('/api/users/:id/role', authenticateToken, verifyUserExists, async (req, 
  * @access Admin
  */
 app.get('/api/users/:id/role-log', authenticateToken, verifyUserExists, async (req, res) => {
-    if (!isAdminLike(req.dbUser.role)) {
+    const dbUser = requireDbUser(req, res);
+    if (!dbUser) return;
+    if (!isAdminLike(dbUser.role)) {
         return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -352,7 +359,9 @@ app.get('/api/users/:id/role-log', authenticateToken, verifyUserExists, async (r
  * @access Admin
  */
 app.put('/api/users/:id/email-login', authenticateToken, verifyUserExists, async (req, res) => {
-    if (!isAdminLike(req.dbUser.role)) {
+    const dbUser = requireDbUser(req, res);
+    if (!dbUser) return;
+    if (!isAdminLike(dbUser.role)) {
         return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -366,7 +375,7 @@ app.put('/api/users/:id/email-login', authenticateToken, verifyUserExists, async
         }
 
         // Те же границы, что для смены роли: admin не трогает admin/super_admin
-        if (!canAssignRole(req.dbUser.role, targetUser.role, targetUser.role)) {
+        if (!canAssignRole(dbUser.role, targetUser.role, targetUser.role)) {
             return res.status(403).json({ message: 'Insufficient permissions to edit this user.' });
         }
 
@@ -405,7 +414,9 @@ app.put('/api/users/:id/email-login', authenticateToken, verifyUserExists, async
 });
 
 app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, res) => {
-    if (!isAdminLike(req.dbUser.role)) {
+    const dbUser = requireDbUser(req, res);
+    if (!dbUser) return;
+    if (!isAdminLike(dbUser.role)) {
         return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -417,7 +428,7 @@ app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, re
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        if (!canDeleteUser(req.dbUser.role, targetUser, req.dbUser._id)) {
+        if (!canDeleteUser(dbUser.role, targetUser, dbUser._id)) {
             return res.status(403).json({ message: 'Insufficient permissions to delete this user.' });
         }
 

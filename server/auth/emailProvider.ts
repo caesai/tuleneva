@@ -140,7 +140,10 @@ const mapDuplicateEmailError = (err) => {
  * @param {import('mongoose').Types.ObjectId|string} [excludeUserId]
  * @returns {Promise<import('mongoose').Document|null>}
  */
-const findUserByEmailLogin = async (email, excludeUserId = null) => {
+const findUserByEmailLogin = async (
+    email: string,
+    excludeUserId: import('mongoose').Types.ObjectId | string | null = null,
+) => {
     const normalized = normalizeEmail(email);
     const query = {
         $or: [

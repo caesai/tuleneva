@@ -15,6 +15,7 @@ import {
 } from './identityService';
 import { signAuthToken, buildAuthResponse } from './tokenService';
 import { isAdminLike } from './roleHelpers';
+import { requireDbUser } from './requireDbUser';
 import {
     findValidInvite,
     consumeInvite,
@@ -97,7 +98,8 @@ const createAuthRouter = ({
     router.get('/session', authenticateToken, verifyUserExists, async (req, res) => {
         noCache(res);
         try {
-            const user = req.dbUser;
+            const user = requireDbUser(req, res);
+            if (!user) return;
             const token = signAuthToken(user, jwtSecret);
             const provider = user.identities?.[0]?.provider || (user.telegram_id ? 'telegram' : null);
 
@@ -247,7 +249,9 @@ const createAuthRouter = ({
     });
 
     router.post('/invite/generate', authenticateToken, verifyUserExists, async (req, res) => {
-        if (!isAdminLike(req.dbUser.role)) {
+        const dbUser = requireDbUser(req, res);
+        if (!dbUser) return;
+        if (!isAdminLike(dbUser.role)) {
             return res.status(403).json({ message: 'Access denied' });
         }
 
@@ -268,7 +272,7 @@ const createAuthRouter = ({
 
             const inviteCode = new InviteCode({
                 code,
-                createdBy: req.dbUser._id,
+                createdBy: dbUser._id,
                 expiresAt,
                 purpose,
                 initialRole,
@@ -303,7 +307,9 @@ const createAuthRouter = ({
      * @access Admin
      */
     router.get('/invite/history', authenticateToken, verifyUserExists, async (req, res) => {
-        if (!isAdminLike(req.dbUser.role)) {
+        const dbUser = requireDbUser(req, res);
+        if (!dbUser) return;
+        if (!isAdminLike(dbUser.role)) {
             return res.status(403).json({ message: 'Access denied' });
         }
         try {
@@ -320,7 +326,9 @@ const createAuthRouter = ({
      * @description Закрывает инвайт: одноразовый и многоразовый перестают приниматься.
      */
     router.post('/invite/revoke', authenticateToken, verifyUserExists, async (req, res) => {
-        if (!isAdminLike(req.dbUser.role)) {
+        const dbUser = requireDbUser(req, res);
+        if (!dbUser) return;
+        if (!isAdminLike(dbUser.role)) {
             return res.status(403).json({ message: 'Access denied' });
         }
 
@@ -516,7 +524,9 @@ const createAuthRouter = ({
         authenticateToken,
         verifyUserExists,
         async (req, res) => {
-            if (!isAdminLike(req.dbUser.role)) {
+            const dbUser = requireDbUser(req, res);
+            if (!dbUser) return;
+            if (!isAdminLike(dbUser.role)) {
                 return res.status(403).json({ message: 'Access denied' });
             }
             try {

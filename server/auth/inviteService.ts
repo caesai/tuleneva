@@ -125,8 +125,8 @@ const listInviteHistory = async () => {
         .limit(100)
         .lean();
 
-    const live = [];
-    const history = [];
+    const live: ReturnType<typeof serializeInvite>[] = [];
+    const history: ReturnType<typeof serializeInvite>[] = [];
     for (const doc of docs) {
         if (isLiveInvite(doc, now)) {
             live.push(serializeInvite(doc));
