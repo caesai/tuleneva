@@ -14,8 +14,6 @@ import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useToast } from '@/hooks/useToast.ts';
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
-import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
-import { getTelegramEnvironment } from '@/telegram/env.ts';
 import { useTelegramStartInvite } from '@/auth/useInviteEntry.ts';
 import { useEmailAuth } from '@/auth/useEmailAuth.ts';
 import {
@@ -146,6 +144,8 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         capabilities,
         isAuthenticated,
         isLoading: authLoading,
+        isInTelegram,
+        telegramStartParam,
         registerWithInvite,
     } = useAuth();
     const {
@@ -156,19 +156,17 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         resetPasswordWithToken,
     } = useEmailAuth();
     const { isAdmin, isGuest, canManageBookings, canViewUserDetails } = capabilities;
-    const { launchParams, isTelegram } = useSafeLaunchParams();
-    const isInTelegram = isTelegram && getTelegramEnvironment();
 
     /**
      * Mini App открывается на /app, а не на /. startapp из общей ссылки
      * нужно применить здесь, иначе человек не попадает в базу и остаётся без роли user.
      */
     useTelegramStartInvite({
-        isInTelegram: Boolean(isInTelegram),
+        isInTelegram,
         authLoading,
         isAuthenticated,
         user,
-        launchParams,
+        telegramStartParam,
         registerWithInvite,
         showToast,
     });

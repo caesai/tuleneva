@@ -26,6 +26,7 @@ import { createOptionalAuth } from './auth/optionalAuth';
 import {
     linkEmailCredentials,
     mapDuplicateEmailError,
+    getEmailErrorStatus,
 } from './auth/emailProvider';
 import { createSmtpSendMail } from './auth/mailer';
 import { safeNotify } from './notifications/telegramNotify';
@@ -399,15 +400,17 @@ app.put('/api/users/:id/email-login', authenticateToken, verifyUserExists, async
     } catch (err) {
         const mapped = mapDuplicateEmailError(err);
         console.error('Admin email-login error:', mapped);
-        const status = mapped.status
-            || (mapped.message?.includes('Invalid') || mapped.message?.includes('Password')
-                || mapped.message?.includes('Current password')
+        const statusFromErr = getEmailErrorStatus(mapped);
+        const mappedMessage = mapped instanceof Error ? mapped.message : '';
+        const status = statusFromErr
+            || (mappedMessage.includes('Invalid') || mappedMessage.includes('Password')
+                || mappedMessage.includes('Current password')
                 ? 400
                 : 500);
-        const message = mapped.status === 409
+        const message = statusFromErr === 409
             ? 'Email already in use'
-            : (mapped.status && mapped.status < 500
-                ? mapped.message
+            : (statusFromErr && statusFromErr < 500
+                ? mappedMessage
                 : 'Failed to set email login');
         res.status(status).json({ message });
     }
@@ -467,7 +470,7 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
         });
         res.status(result.status).json(result.body);
         if (result.afterResponse) {
-            safeNotify(result.afterResponse);
+            safeNotify(result.afterResponse());
         }
     } catch (err) {
         console.error('An error occurred during booking:', err);
@@ -496,7 +499,7 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
         });
         res.status(result.status).json(result.body);
         if (result.afterResponse) {
-            safeNotify(result.afterResponse);
+            safeNotify(result.afterResponse());
         }
     } catch (err) {
         console.error('An error occurred during cancellation:', err);

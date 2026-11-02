@@ -186,9 +186,11 @@ const gracefulShutdown = (signal) => {
     }, 10000);
     forceTimer.unref?.();
 
-    server.close(async () => {
-        stopRealtime();
+    // Снимаем heartbeat и закрываем /ws до server.close — иначе открытые
+    // сокеты держат HTTP и колбэк close может не наступить до force-exit.
+    stopRealtime();
 
+    server.close(async () => {
         stopBotSafely(bot, signal);
 
         try {

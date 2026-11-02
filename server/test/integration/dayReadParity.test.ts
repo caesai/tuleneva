@@ -9,7 +9,7 @@ import {
     authHeader,
 } from '../helpers/testApp';
 import { loadHoursForDate } from '../../telegram/createBot';
-import { formatDayBookings } from '../../telegram/scheduleMessages';
+import { formatDayBookings, formatMyBookings } from '../../telegram/scheduleMessages';
 
 /**
  * HTTP /api/hours режет PII. Ответ бота в чат — только интервалы, без имени.
@@ -67,5 +67,48 @@ describe('day-read parity HTTP vs bot', () => {
         expect(botText).not.toContain('parity_user');
         expect(botText).not.toContain('Parity');
         expect(botText).not.toContain('Parity Band');
+    });
+
+    it('formatMyBookings keeps own day-read slots and drops others', async () => {
+        const mine = await seedUser({
+            role: 'user',
+            username: 'my_slots',
+            first_name: 'Mine',
+        });
+        const other = await seedUser({
+            role: 'user',
+            username: 'other_slots',
+            first_name: 'Other',
+        });
+        const date = '22/06/2030';
+
+        const bookMine = await request(app)
+            .post('/api/book')
+            .set(authHeader(mine))
+            .send({
+                date,
+                hours: ['14:00'],
+                band_name: 'My Band',
+                rehearsalType: 'rehearsal',
+            });
+        expect(bookMine.status).toBe(201);
+
+        const bookOther = await request(app)
+            .post('/api/book')
+            .set(authHeader(other))
+            .send({
+                date,
+                hours: ['15:00'],
+                band_name: 'Other Band',
+                rehearsalType: 'rehearsal',
+            });
+        expect(bookOther.status).toBe(201);
+
+        const hours = await loadHoursForDate(date);
+        const text = formatMyBookings([{ date, hours }], String(mine._id));
+        expect(text).toContain('14:00');
+        expect(text).toContain('My Band');
+        expect(text).not.toContain('15:00');
+        expect(text).not.toContain('Other Band');
     });
 });

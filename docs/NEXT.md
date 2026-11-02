@@ -22,6 +22,4 @@
 
 ## Можно позже
 
-- `afterResponse` как функция: Telegram-notify стартует только после `res.json`
-- Остановка heartbeat realtime до `server.close`
-- `/my` у бота на том же day-read, что `/today`
+Не начинать без явной просьбы. Список: [LATER.md](LATER.md).
