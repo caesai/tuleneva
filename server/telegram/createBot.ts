@@ -247,11 +247,19 @@ const createBot = ({
             }
             const { today } = moscowTodayTomorrow();
             const from = startOfDayUtc(today);
+            // Те же документы по дате, что дальше; слоты — через day-read (/today),
+            // чтобы legacy-формат и UTC-окно совпадали с остальными командами.
             const docs = await Rehearsal.find({
                 date: { $gte: from },
-                'hours.userId': String(user._id),
             }).sort({ date: 1 }).limit(40);
-            await replyHere(ctx, formatMyBookings(docs, String(user._id)));
+            const rehearsals = await Promise.all(
+                docs.map(async (doc) => {
+                    const dateStr = moment.utc(doc.date).format('DD/MM/YYYY');
+                    const hours = await loadHoursForDate(dateStr);
+                    return { date: dateStr, hours };
+                }),
+            );
+            await replyHere(ctx, formatMyBookings(rehearsals, String(user._id)));
         } catch (err) {
             console.error('Bot /my failed:', err?.message || err);
             await replyHere(ctx, 'Не удалось загрузить ваши брони.');

@@ -26,12 +26,14 @@ const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
 
 function Probe() {
-    const { authStatus, authProvider, isLoading } = useAuth();
+    const { authStatus, authProvider, isLoading, isInTelegram, telegramStartParam } = useAuth();
     return (
         <div>
             <span data-testid="status">{authStatus}</span>
             <span data-testid="provider">{authProvider ?? 'none'}</span>
             <span data-testid="loading">{String(isLoading)}</span>
+            <span data-testid="in-telegram">{String(isInTelegram)}</span>
+            <span data-testid="start-param">{telegramStartParam ?? 'none'}</span>
         </div>
     );
 }
@@ -87,6 +89,8 @@ describe('AuthContext', () => {
         });
         expect(screen.getByTestId('status').textContent).toBe('authenticated');
         expect(screen.getByTestId('provider').textContent).toBe('web');
+        expect(screen.getByTestId('in-telegram').textContent).toBe('false');
+        expect(screen.getByTestId('start-param').textContent).toBe('none');
         expect(mockFetch).toHaveBeenCalledWith(
             expect.stringContaining('/api/auth/session'),
             expect.objectContaining({ method: 'GET' }),

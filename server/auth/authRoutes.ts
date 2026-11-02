@@ -30,23 +30,26 @@ import {
     requestPasswordReset,
     resetPasswordWithToken,
     mapDuplicateEmailError,
+    getEmailErrorStatus,
 } from './emailProvider';
 import { safeNotify } from '../notifications/telegramNotify';
 import { createRateLimiter } from './rateLimit';
 
 /**
  * Статус HTTP для ошибок email-провайдера.
- * @param {Error} err
- * @returns {number}
+ * @param err Пойманная ошибка
+ * @returns Код ответа
  */
-const emailErrorStatus = (err) => {
-    if (err?.status) return err.status;
+const emailErrorStatus = (err: unknown): number => {
+    const fromProvider = getEmailErrorStatus(err);
+    if (fromProvider != null) return fromProvider;
+    const message = err instanceof Error ? err.message : '';
     if (
-        err?.message?.includes('Invalid')
-        || err?.message?.includes('Password')
-        || err?.message?.includes('Current password')
-        || err?.message?.includes('confirmation token')
-        || err?.message?.includes('reset token')
+        message.includes('Invalid')
+        || message.includes('Password')
+        || message.includes('Current password')
+        || message.includes('confirmation token')
+        || message.includes('reset token')
     ) {
         return 400;
     }
@@ -411,11 +414,12 @@ const createAuthRouter = ({
                 const mapped = mapDuplicateEmailError(err);
                 console.error('Email link error:', mapped);
                 const status = emailErrorStatus(mapped);
+                const mappedMessage = mapped instanceof Error ? mapped.message : '';
                 res.status(status).json({
                     valid: false,
                     message: status === 409
                         ? 'Email already in use'
-                        : (status < 500 ? mapped.message : 'Failed to link email'),
+                        : (status < 500 ? mappedMessage : 'Failed to link email'),
                 });
             }
         },
@@ -437,11 +441,12 @@ const createAuthRouter = ({
             const mapped = mapDuplicateEmailError(err);
             console.error('Email confirm error:', mapped);
             const status = emailErrorStatus(mapped);
+            const mappedMessage = mapped instanceof Error ? mapped.message : '';
             res.status(status).json({
                 valid: false,
                 message: status === 409
                     ? 'Email already in use'
-                    : (status < 500 ? mapped.message : 'Failed to confirm email'),
+                    : (status < 500 ? mappedMessage : 'Failed to confirm email'),
             });
         }
     });
@@ -466,10 +471,11 @@ const createAuthRouter = ({
             res.status(200).json(buildAuthResponse(user, token, 'email'));
         } catch (err) {
             console.error('Email login error:', err);
-            const status = err.status || 500;
+            const status = emailErrorStatus(err);
+            const errMessage = err instanceof Error ? err.message : '';
             res.status(status).json({
                 valid: false,
-                message: status < 500 ? err.message : 'Login failed',
+                message: status < 500 ? errMessage : 'Login failed',
             });
         }
     });
@@ -514,9 +520,10 @@ const createAuthRouter = ({
         } catch (err) {
             console.error('Email reset error:', err);
             const status = emailErrorStatus(err);
+            const errMessage = err instanceof Error ? err.message : '';
             res.status(status).json({
                 valid: false,
-                message: status < 500 ? err.message : 'Failed to reset password',
+                message: status < 500 ? errMessage : 'Failed to reset password',
             });
         }
     });

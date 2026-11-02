@@ -14,7 +14,11 @@ import {
 } from '@/api/auth.api.ts';
 import { buildTelegramAuthPayload } from '@/auth/telegramAuth.ts';
 import { getTelegramEnvironment } from '@/telegram/env.ts';
-import { useSafeLaunchParams, useSafeRawInitData } from '@/telegram/useSafeLaunchParams.ts';
+import {
+    useSafeLaunchParams,
+    useSafeRawInitData,
+    readTelegramStartParam,
+} from '@/telegram/useSafeLaunchParams.ts';
 import { AuthContext } from './AuthContextDefinition.ts';
 
 interface AuthContextProps {
@@ -32,7 +36,11 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
 
     const { launchParams: lp, isTelegram } = useSafeLaunchParams();
     const rawLp = useSafeRawInitData();
-    const isInTelegram = isTelegram && getTelegramEnvironment();
+    const isInTelegram = Boolean(isTelegram && getTelegramEnvironment());
+    const telegramStartParam = useMemo(
+        () => (lp ? readTelegramStartParam(lp) : null),
+        [lp],
+    );
 
     const login = useCallback((
         userData: IUser,
@@ -188,6 +196,8 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
                 authProvider,
                 user,
                 capabilities,
+                isInTelegram,
+                telegramStartParam,
                 login,
                 logout,
                 register,

@@ -226,7 +226,7 @@ const createBooking = ({
      * @param {string[]} input.hours - Часы для бронирования
      * @param {string} [input.band_name]
      * @param {string} [input.rehearsalType]
-     * @returns {Promise<{ status: number, body: object, afterResponse?: Promise<unknown> }>}
+     * @returns {Promise<{ status: number, body: object, afterResponse?: () => Promise<unknown> }>}
      */
     const book = async ({
         dbUser,
@@ -380,7 +380,7 @@ const createBooking = ({
         return {
             status: 201,
             body: updatedRehearsal,
-            afterResponse: notifyAdmins(BOOK_MESSAGE),
+            afterResponse: () => notifyAdmins(BOOK_MESSAGE),
         };
     };
 
@@ -390,7 +390,7 @@ const createBooking = ({
      * @param {import('../models/User').UserDocument} input.dbUser - Пользователь из БД после verifyUserExists
      * @param {string} input.date
      * @param {string[]} input.hours
-     * @returns {Promise<{ status: number, body: object, afterResponse?: Promise<unknown> }>}
+     * @returns {Promise<{ status: number, body: object, afterResponse?: () => Promise<unknown> }>}
      */
     const cancel = async ({
         dbUser,
@@ -524,7 +524,7 @@ const createBooking = ({
             return {
                 status: 200,
                 body: { message: 'All bookings for this day canceled, document deleted.' },
-                afterResponse: sendCancelNotifications(),
+                afterResponse: () => sendCancelNotifications(),
             };
         }
 
@@ -544,7 +544,7 @@ const createBooking = ({
                 message: 'Bookings canceled successfully.',
                 rehearsal: updatedRehearsal,
             },
-            afterResponse: sendCancelNotifications(),
+            afterResponse: () => sendCancelNotifications(),
         };
     };
 

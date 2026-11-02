@@ -7,7 +7,6 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 
 /**
  * Границы слоёв и lint для клиента (src) и сервера (server).
- * TimeTablePage временно может импортировать @/telegram — исключение до выноса в capabilities/auth.
  */
 export default defineConfig([
   globalIgnores(['dist', 'server/dist', 'server/node_modules', 'node_modules']),
@@ -59,30 +58,6 @@ export default defineConfig([
               group: ['@/telegram/**', '**/telegram/**'],
               message:
                 'Страницы и компоненты не импортируют src/telegram/. Используйте useAuth / auth helpers.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    // Исключение: TimeTablePage ещё читает launch params напрямую.
-    files: ['src/pages/TimeTablePage/TimeTablePage.tsx'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          paths: [
-            {
-              name: '@telegram-apps/sdk-react',
-              message:
-                'SDK Telegram только в init/telegram/auth/AuthContext. В UI — useAuth().capabilities.',
-            },
-          ],
-          patterns: [
-            {
-              group: ['**/server/**', '@/../server/**'],
-              message: 'Клиент не импортирует server/. Общий код — в shared/.',
             },
           ],
         },

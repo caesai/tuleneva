@@ -10,7 +10,6 @@ import type {
     TAuthProvider,
 } from '@/types/auth.types.ts';
 import type { IUser } from '@/types/user.types.ts';
-import { readTelegramStartParam } from '@/telegram/useSafeLaunchParams.ts';
 import {
     readInviteCodeFromSearchParams,
     shouldSkipLandingInvite,
@@ -158,7 +157,8 @@ export interface UseTelegramStartInviteParams {
     authLoading: boolean;
     isAuthenticated: boolean;
     user: IUser | null;
-    launchParams: object;
+    /** Код startapp из AuthContext (без launch params SDK). */
+    telegramStartParam: string | null;
     registerWithInvite: (code: string, webProfile?: IWebInviteProfile) => Promise<void>;
     showToast: ShowToast;
 }
@@ -174,7 +174,7 @@ export const useTelegramStartInvite = (params: UseTelegramStartInviteParams): vo
         authLoading,
         isAuthenticated,
         user,
-        launchParams,
+        telegramStartParam,
         registerWithInvite,
         showToast,
     } = params;
@@ -185,7 +185,7 @@ export const useTelegramStartInvite = (params: UseTelegramStartInviteParams): vo
         if (!isInTelegram || authLoading || inviteApplyStarted.current) {
             return;
         }
-        const code = readTelegramStartParam(launchParams);
+        const code = telegramStartParam;
         if (!code) {
             return;
         }
@@ -208,7 +208,7 @@ export const useTelegramStartInvite = (params: UseTelegramStartInviteParams): vo
         authLoading,
         isAuthenticated,
         isInTelegram,
-        launchParams,
+        telegramStartParam,
         registerWithInvite,
         showToast,
         user,

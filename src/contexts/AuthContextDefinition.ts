@@ -18,6 +18,10 @@ export interface IAuthContext {
     authProvider: TAuthProvider | null;
     user: IUser | null;
     capabilities: IAuthCapabilities;
+    /** Открыто ли приложение как Telegram Mini App. */
+    isInTelegram: boolean;
+    /** Код startapp из launch params, если есть. */
+    telegramStartParam: string | null;
     login: (userData: IUser, token: string | null, provider?: TAuthProvider | null) => void;
     logout: () => void;
     register: () => Promise<void>;
@@ -36,6 +40,8 @@ export const initialAuthState: IAuthContext = {
     authProvider: null,
     user: null,
     capabilities: initialAuthCapabilities,
+    isInTelegram: false,
+    telegramStartParam: null,
     login: () => {},
     logout: () => {},
     register: async () => {},

@@ -14,6 +14,49 @@ const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 const loginAttempts = new Map();
 
 /**
+ * Ошибка email-провайдера с HTTP-статусом (без `as any` на Error).
+ */
+class EmailAuthError extends Error {
+    /** HTTP-статус для ответа клиенту. */
+    status: number;
+
+    /**
+     * @param message Текст ошибки
+     * @param status Код ответа (400, 404, 409, 429, 503, …)
+     */
+    constructor(message: string, status: number) {
+        super(message);
+        this.name = 'EmailAuthError';
+        this.status = status;
+    }
+}
+
+/**
+ * Создаёт ошибку с HTTP-статусом.
+ * @param message Текст
+ * @param status Код ответа
+ * @returns Ошибка с полем status
+ */
+const emailAuthError = (message: string, status: number): EmailAuthError =>
+    new EmailAuthError(message, status);
+
+/**
+ * Читает HTTP-статус у ошибки email-провайдера.
+ * @param err Любая пойманная ошибка
+ * @returns Статус или undefined
+ */
+const getEmailErrorStatus = (err: unknown): number | undefined => {
+    if (err instanceof EmailAuthError) {
+        return err.status;
+    }
+    if (err && typeof err === 'object' && 'status' in err) {
+        const status = (err as { status?: unknown }).status;
+        return typeof status === 'number' ? status : undefined;
+    }
+    return undefined;
+};
+
+/**
  * Нормализует адрес почты для хранения и поиска.
  * @param {string} email
  * @returns {string}
@@ -121,14 +164,18 @@ const clearLoginAttempts = (email) => {
 
 /**
  * Преобразует ошибку уникального индекса Mongo в 409.
- * @param {Error} err
- * @returns {Error}
+ * @param err Исходная ошибка сохранения
+ * @returns Ошибка с status 409 или исходная
  */
-const mapDuplicateEmailError = (err) => {
-    if (err && (err.code === 11000 || err.code === '11000')) {
-        const mapped = new Error('Email already in use');
-        (mapped as any).status = 409;
-        return mapped;
+const mapDuplicateEmailError = (err: unknown) => {
+    if (
+        err
+        && typeof err === 'object'
+        && 'code' in err
+        && ((err as { code?: unknown }).code === 11000
+            || (err as { code?: unknown }).code === '11000')
+    ) {
+        return emailAuthError('Email already in use', 409);
     }
     return err;
 };
@@ -202,9 +249,7 @@ const startEmailConfirmation = async ({
     sendMail,
 }) => {
     if (typeof sendMail !== 'function') {
-        const err = new Error('Email delivery is not configured');
-        (err as any).status = 503;
-        throw err;
+        throw emailAuthError('Email delivery is not configured', 503);
     }
 
     const rawToken = crypto.randomBytes(32).toString('hex');
@@ -256,30 +301,22 @@ const linkEmailCredentials = async (user: UserDocument, email, password, options
     const normalized = validateEmailCredentials(email, password);
     const fullUser = await loadUserWithEmailSecrets(user._id);
     if (!fullUser) {
-        const err = new Error('User not found');
-        (err as any).status = 404;
-        throw err;
+        throw emailAuthError('User not found', 404);
     }
 
     if (fullUser.passwordHash && !skipCurrentPassword) {
         if (!currentPassword) {
-            const err = new Error('Current password is required');
-            (err as any).status = 400;
-            throw err;
+            throw emailAuthError('Current password is required', 400);
         }
         const ok = await verifyPassword(currentPassword, fullUser.passwordHash);
         if (!ok) {
-            const err = new Error('Current password is incorrect');
-            (err as any).status = 400;
-            throw err;
+            throw emailAuthError('Current password is incorrect', 400);
         }
     }
 
     const conflict = await findUserByEmailLogin(normalized, fullUser._id);
     if (conflict) {
-        const err = new Error('Email already in use');
-        (err as any).status = 409;
-        throw err;
+        throw emailAuthError('Email already in use', 409);
     }
 
     const newHash = await hashPassword(password);
@@ -314,9 +351,7 @@ const linkEmailCredentials = async (user: UserDocument, email, password, options
 const confirmEmailToken = async (rawToken) => {
     const token = String(rawToken || '').trim();
     if (!token) {
-        const err = new Error('Invalid or expired confirmation token');
-        (err as any).status = 400;
-        throw err;
+        throw emailAuthError('Invalid or expired confirmation token', 400);
     }
 
     const tokenHash = hashConfirmToken(token);
@@ -328,9 +363,7 @@ const confirmEmailToken = async (rawToken) => {
     );
 
     if (!user || !user.pendingEmail || !user.pendingPasswordHash) {
-        const err = new Error('Invalid or expired confirmation token');
-        (err as any).status = 400;
-        throw err;
+        throw emailAuthError('Invalid or expired confirmation token', 400);
     }
 
     const previousEmail = user.emailLogin;
@@ -372,9 +405,7 @@ const authenticateEmailPassword = async (email, password) => {
     }
 
     if (!allowLoginAttempt(normalized)) {
-        const err = new Error('Too many login attempts. Try again later.');
-        (err as any).status = 429;
-        throw err;
+        throw emailAuthError('Too many login attempts. Try again later.', 429);
     }
 
     let user = await User.findOne({ emailLogin: normalized }).select('+passwordHash');
@@ -456,14 +487,13 @@ const requestPasswordReset = async (email, options: any = {}) => {
 const resetPasswordWithToken = async (rawToken, newPassword) => {
     const token = String(rawToken || '').trim();
     if (!token) {
-        const err = new Error('Invalid or expired reset token');
-        (err as any).status = 400;
-        throw err;
+        throw emailAuthError('Invalid or expired reset token', 400);
     }
     if (!newPassword || String(newPassword).length < MIN_PASSWORD_LENGTH) {
-        const err = new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
-        (err as any).status = 400;
-        throw err;
+        throw emailAuthError(
+            `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+            400,
+        );
     }
 
     const tokenHash = hashConfirmToken(token);
@@ -473,9 +503,7 @@ const resetPasswordWithToken = async (rawToken, newPassword) => {
     }).select('+passwordHash +passwordResetTokenHash +passwordResetExpires');
 
     if (!user) {
-        const err = new Error('Invalid or expired reset token');
-        (err as any).status = 400;
-        throw err;
+        throw emailAuthError('Invalid or expired reset token', 400);
     }
 
     user.passwordHash = await hashPassword(newPassword);
@@ -487,6 +515,8 @@ const resetPasswordWithToken = async (rawToken, newPassword) => {
 };
 
 export {
+    EmailAuthError,
+    getEmailErrorStatus,
     normalizeEmail,
     validateEmailCredentials,
     hashPassword,

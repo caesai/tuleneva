@@ -194,6 +194,7 @@ cd server && npm run build        # dist/index.cjs
 
 - [README.md](README.md) — установка, API, тесты
 - [docs/NEXT.md](docs/NEXT.md) — открытые задачи
+- [docs/LATER.md](docs/LATER.md) — не срочно; не начинать без явной просьбы
 - [docs/VPS.md](docs/VPS.md) — деплой и CD
 - `server/test/helpers/testApp.ts` — пример поднятия app в тестах
 

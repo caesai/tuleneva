@@ -1,6 +1,7 @@
 import { describe, it, beforeAll, afterAll, beforeEach, expect, vi } from 'vitest';
 import request from 'supertest';
 import Rehearsal from '../../models/Rehearsal';
+import { createBooking } from '../../booking/createBooking';
 import { createBroadcast } from '../../realtime/createBroadcast';
 import {
     connectTestDb,
@@ -115,6 +116,50 @@ describe('booking integration', () => {
             });
         expect(res.status).toBe(400);
         expect(res.body.pastHours).toEqual(['14:00']);
+    });
+
+    it('defers notifyAdmins until afterResponse runs', async () => {
+        const notifyAdmins = vi.fn(async () => {});
+        const booking = createBooking({
+            notifyAdmins,
+            broadcastUpdate: () => {},
+        });
+        const user = await seedUser({ role: 'user', username: 'notify_user' });
+
+        const result = await booking.book({
+            dbUser: user,
+            date: '19/06/2030',
+            hours: ['13:00'],
+            rehearsalType: 'rehearsal',
+        });
+
+        expect(result.status).toBe(201);
+        expect(notifyAdmins).not.toHaveBeenCalled();
+        expect(typeof result.afterResponse).toBe('function');
+        if (!result.afterResponse) {
+            throw new Error('afterResponse missing on successful book');
+        }
+
+        await result.afterResponse();
+        expect(notifyAdmins).toHaveBeenCalledTimes(1);
+    });
+
+    it('starts notifyAdmins only after the HTTP book response', async () => {
+        const notifyAdmins = vi.fn(async () => {});
+        const bookApp = createTestApp({ notifyAdmins });
+        const user = await seedUser({ role: 'user', username: 'http_notify' });
+
+        const res = await request(bookApp)
+            .post('/api/book')
+            .set(authHeader(user))
+            .send({
+                date: '19/06/2030',
+                hours: ['14:00'],
+                rehearsalType: 'rehearsal',
+            });
+
+        expect(res.status).toBe(201);
+        expect(notifyAdmins).toHaveBeenCalledTimes(1);
     });
 
     it('publishes booking_update with public hours through createBroadcast', async () => {
