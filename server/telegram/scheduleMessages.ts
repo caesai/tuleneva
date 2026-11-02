@@ -128,9 +128,10 @@ const formatMyBookings = (
             : formatDdMmYyyyMoscow(new Date(doc.date));
         const mine = (doc.hours || []).filter((h) => String(h.userId) === uid);
         for (const slot of mine) {
+            if (!slot.hour) continue;
             rows.push({
                 dateStr,
-                hour: String(slot.hour || ''),
+                hour: slot.hour,
                 band: (slot.band_name || '').trim(),
             });
         }

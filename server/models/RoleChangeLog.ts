@@ -1,4 +1,5 @@
 import mongoose, { type HydratedDocument, type Model, type Types } from 'mongoose';
+import { ALL_ROLES } from '../../shared/roleLattice';
 import type { StudioRole } from './User';
 
 /**
@@ -31,12 +32,12 @@ const roleChangeLogSchema = new mongoose.Schema(
         },
         fromRole: {
             type: String,
-            enum: ['super_admin', 'admin', 'user', 'guest'],
+            enum: [...ALL_ROLES],
             required: true,
         },
         toRole: {
             type: String,
-            enum: ['super_admin', 'admin', 'user', 'guest'],
+            enum: [...ALL_ROLES],
             required: true,
         },
     },

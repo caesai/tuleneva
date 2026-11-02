@@ -61,4 +61,18 @@ describe('scheduleMessages', () => {
         expect(text).toContain('15:00');
         expect(text).not.toContain('16:00');
     });
+
+    it('formatMyBookings skips a slot without hour', () => {
+        const text = formatMyBookings([
+            {
+                date: '20/06/2030',
+                hours: [
+                    { userId: 'u1', band_name: 'Band' },
+                    { hour: '15:00', userId: 'u1', band_name: '' },
+                ],
+            },
+        ], 'u1');
+        expect(text).toContain('15:00');
+        expect(text).not.toContain('Band');
+    });
 });

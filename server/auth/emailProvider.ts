@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import User from '../models/User';
+import User, { type UserDocument } from '../models/User';
 import { findUserByIdentity, ensureIdentity } from './identityService';
 
 const BCRYPT_ROUNDS = 12;
@@ -235,7 +235,7 @@ const startEmailConfirmation = async ({
 /**
  * Привязывает или обновляет почту и пароль (с подтверждением по письму).
  * Смена только пароля на той же подтверждённой почте применяется сразу.
- * @param {import('mongoose').Document} user - Документ User (можно без passwordHash)
+ * @param {import('../models/User').UserDocument} user - Документ User (можно без passwordHash)
  * @param {string} email
  * @param {string} password
  * @param {object} [options]
@@ -245,7 +245,7 @@ const startEmailConfirmation = async ({
  * @param {Function} options.sendMail
  * @returns {Promise<{ user: import('mongoose').Document, pendingConfirmation: boolean }>}
  */
-const linkEmailCredentials = async (user, email, password, options: any = {}) => {
+const linkEmailCredentials = async (user: UserDocument, email, password, options: any = {}) => {
     const {
         currentPassword,
         skipCurrentPassword = false,

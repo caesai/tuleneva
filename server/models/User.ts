@@ -89,7 +89,7 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ['super_admin', 'admin', 'user', 'guest'],
+            enum: [...ALL_ROLES],
             default: 'guest',
         },
         identities: {

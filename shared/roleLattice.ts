@@ -18,6 +18,14 @@ export const isAdminLike = (role?: string | null): boolean =>
     Boolean(role && (ADMIN_LIKE_ROLES as readonly string[]).includes(role));
 
 /**
+ * Значение входит в решётку ролей.
+ * @param role Произвольное значение из запроса
+ * @returns true, если это одна из ALL_ROLES
+ */
+export const isStudioRole = (role: unknown): role is (typeof ALL_ROLES)[number] =>
+    typeof role === 'string' && (ALL_ROLES as readonly string[]).includes(role);
+
+/**
  * Только супер-админ.
  * @param role Роль пользователя
  * @returns true, если роль super_admin

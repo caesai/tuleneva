@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ALL_ROLES } from '../roleLattice';
 
 export const UserIdentitySchema = z.object({
     provider: z.enum(['telegram', 'web', 'email', 'phone']),
@@ -15,7 +16,7 @@ export const UserSchema = z.object({
     last_name: z.string().nullable().optional(),
     username: z.string().nullable().optional(),
     photo_url: z.string().nullable().optional(),
-    role: z.enum(['super_admin', 'admin', 'user', 'guest']),
+    role: z.enum(ALL_ROLES),
     identities: z.array(UserIdentitySchema).optional(),
     emailLogin: z.string().nullable().optional(),
     isRegistered: z.boolean().optional(),

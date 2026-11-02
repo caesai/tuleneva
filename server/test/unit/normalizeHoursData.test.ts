@@ -32,6 +32,27 @@ describe('normalizeHoursData', () => {
         ]);
     });
 
+    it('copies rehearsalType from a legacy booked slot', () => {
+        const hours = normalizeHoursData({
+            '12:00': {
+                status: 'BOOKED',
+                owner: 'a',
+                userId: 'u',
+                rehearsalType: 'recording',
+            },
+        });
+        expect(hours).toEqual([
+            {
+                hour: '12:00',
+                userId: 'u',
+                username: 'a',
+                band_name: '',
+                userPhotoUrl: null,
+                rehearsalType: 'recording',
+            },
+        ]);
+    });
+
     it('passes through new-format array', () => {
         const modern = [
             {

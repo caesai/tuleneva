@@ -379,10 +379,12 @@ const createAuthRouter = ({
         verifyUserExists,
         async (req, res) => {
             noCache(res);
+            const dbUser = requireDbUser(req, res);
+            if (!dbUser) return;
             const { email, password, currentPassword } = req.body || {};
             try {
                 const { user, pendingConfirmation } = await linkEmailCredentials(
-                    req.dbUser,
+                    dbUser,
                     email,
                     password,
                     {
