@@ -2,7 +2,7 @@
  * @file Unit-тесты видимости формы привязки почты.
  */
 import { describe, expect, it } from 'vitest';
-import { shouldShowEmailLinkForm } from './emailAuthUi.ts';
+import { shouldShowEmailLinkForm } from '@/config/emailAuthUi.ts';
 
 describe('shouldShowEmailLinkForm', () => {
     it('скрывает форму без сессии', () => {

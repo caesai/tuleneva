@@ -130,12 +130,12 @@ cd server && npm run test:all
 | Мелкий фикс, рефакторинг без смены поведения | Достаточно зелёных существующих тестов |
 | Новый эндпоинт / смена формата ответа | Zod-схема в `shared/contracts/` + contract test; integration при необходимости |
 | Новая бизнес-логика (роли, инвайты, провайдеры) | Unit на server; при дублировании на клиенте — кейсы в `roleMatrix` |
-| Новый UI-поток (модалки, формы, capabilities) | RTL-тест в `src/**/*.test.tsx` |
+| Новый UI-поток (модалки, формы, capabilities) | RTL-тест в `src/test/unit` |
 | Только стили / текст кнопок | Тесты не обязательны |
 
 ### Инфраструктура
 
-- Клиент: Vitest + Testing Library, `src/test/setup.ts`
+- Клиент: Vitest + Testing Library, тесты в `src/test/unit` и `src/test/contracts`, setup — `src/test/setup.ts`
 - Сервер: Vitest + supertest + `mongodb-memory-server`, `server/test/helpers/testApp.ts`
 - Общая матрица ролей: `shared/test/roleMatrix.ts`
 - **Не** использовать `vi.clearAllMocks()` без восстановления моков — сбрасывает `mockResolvedValue`

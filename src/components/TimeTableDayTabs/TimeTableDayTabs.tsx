@@ -5,7 +5,7 @@ import { TimeSlots } from '@/components/TimeSlots/TimeSlots.tsx';
 import { Schedule } from '@/components/Schedule/Schedule';
 import type { IHour } from '@/types/timetable.types.ts';
 import type { Moment } from '@/lib/moment';
-import css from '@/pages/TimeTablePage/TimeTable.module.css';
+import css from '@/components/TimeTableDayTabs/TimeTableDayTabs.module.css';
 
 /**
  * Свойства панели вкладок «расписание дня / бронирование» (MUI Lab).

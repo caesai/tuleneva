@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readBookFailure } from './timetable.api.ts';
+import { readBookFailure } from '@/api/timetable.api.ts';
 
 /**
  * Ответ POST /api/book с JSON-телом.

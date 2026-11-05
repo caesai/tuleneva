@@ -384,6 +384,61 @@ describe('booking integration', () => {
         expect(doc?.hours.map((slot) => slot.hour).sort()).toEqual(['14:00', '16:00', '18:00']);
     });
 
+    it('does not push into legacy hours when conversion never lands', async () => {
+        const user = await seedUser({ role: 'user', username: 'legacy_stuck' });
+        const date = new Date(Date.UTC(2030, 5, 25));
+        await Rehearsal.collection.insertOne({
+            date,
+            hours: {
+                '14:00': {
+                    status: 'BOOKED',
+                    userId: 'legacy-user',
+                    owner: 'legacy',
+                    bandName: 'Old',
+                },
+            },
+        });
+
+        const updateOne = Rehearsal.collection.updateOne.bind(Rehearsal.collection);
+        const spy = vi.spyOn(Rehearsal.collection, 'updateOne').mockImplementation(async (...args) => {
+            const filter = args[0] as { hours?: unknown };
+            if (filter && typeof filter.hours === 'object' && !Array.isArray(filter.hours)) {
+                return {
+                    acknowledged: true,
+                    matchedCount: 0,
+                    modifiedCount: 0,
+                    upsertedCount: 0,
+                    upsertedId: null,
+                };
+            }
+            return updateOne(...args);
+        });
+
+        const booking = createBooking();
+        try {
+            const result = await booking.book({
+                dbUser: user,
+                date: '25/06/2030',
+                hours: ['16:00'],
+                rehearsalType: 'rehearsal',
+            });
+            expect(result.status).toBe(409);
+
+            const canceled = await booking.cancel({
+                dbUser: user,
+                date: '25/06/2030',
+                hours: ['14:00'],
+            });
+            expect(canceled.status).toBe(409);
+        } finally {
+            spy.mockRestore();
+        }
+
+        const raw = await Rehearsal.collection.findOne({});
+        expect(Array.isArray(raw?.hours)).toBe(false);
+        expect((raw?.hours as { '14:00'?: { owner?: string } })['14:00']?.owner).toBe('legacy');
+    });
+
     it('highlights the UTC day of a booking', async () => {
         const user = await seedUser({ role: 'user', username: 'utc_day' });
         const booking = createBooking();

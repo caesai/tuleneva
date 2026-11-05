@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { IUser } from './user.types.ts';
-import { buildAuthCapabilities, resolveAuthStatus } from './auth.types.ts';
+import type { IUser } from '@/types/user.types.ts';
+import { buildAuthCapabilities, resolveAuthStatus } from '@/types/auth.types.ts';
 
 const baseUser = (role: IUser['role']): IUser => ({
     _id: '1',

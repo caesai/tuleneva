@@ -19,9 +19,10 @@ import {
     preloadBookModalChunk,
     preloadTimeTableMuiChunks,
 } from '@/pages/TimeTablePage/lazyMuiChunks.ts';
-import { TimeTableEmailDialogs } from '@/pages/TimeTablePage/TimeTableEmailAuth.tsx';
-import { useTimeTableEmailAuth } from '@/pages/TimeTablePage/useTimeTableEmailAuth.ts';
-import { readSavedBandNames, useTimeTableBooking } from '@/pages/TimeTablePage/useTimeTableBooking.ts';
+import { TimeTableEmailDialogs } from '@/components/TimeTableEmailDialogs/TimeTableEmailDialogs.tsx';
+import { readSavedBandNames, useTimeTableBooking } from '@/hooks/useTimeTableBooking.ts';
+import { useTimeTableEmailAuth } from '@/hooks/useTimeTableEmailAuth.ts';
+import { studioTodayMoment } from '@/lib/studioToday.ts';
 import type { TRehearsalType } from '@/types/timetable.types';
 import { formatDdMmYyyyMoscow, isStudioDayBeforeToday } from '../../../shared/studioHours.ts';
 import { APP_PAGE_META } from '@/config/siteMeta.ts';
@@ -49,10 +50,10 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     usePageMeta(APP_PAGE_META);
 
     const navigate = useNavigate();
-    // Состояние для текущей выбранной даты в календаре
-    const [selectedDate, setSelectedDate] = useState<Moment | null>(moment());
-    // Состояние для текущего просматриваемого месяца (влияет на загружаемые данные)
-    const [viewDate, setViewDate] = useState<Moment | null>(moment());
+    // Календарный день студии (Москва), а не «сегодня» в поясе браузера.
+    const [selectedDate, setSelectedDate] = useState<Moment | null>(() => studioTodayMoment());
+    // Месяц, для которого грузится подсветка. Та же точка отсчёта, что у выбранного дня.
+    const [viewDate, setViewDate] = useState<Moment | null>(() => studioTodayMoment());
     // Состояние для часов, выбранных для бронирования
     const [selectedHours, setSelectedHours] = useState<string[]>([]);
     // Состояние для часов, выбранных для отмены
@@ -399,7 +400,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                     fallback={(
                                         <SuspenseLoaderFallback
                                             fullScreen={false}
-                                            className={`${css.tabWrapper} ${css.suspenseLoader} ${css.suspenseLoaderTabs}`}
+                                            className={`${css.suspenseLoader} ${css.suspenseLoaderTabs}`}
                                         />
                                     )}
                                 >

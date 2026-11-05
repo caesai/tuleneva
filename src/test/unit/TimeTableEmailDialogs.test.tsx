@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { TimeTableEmailDialogs } from './TimeTableEmailAuth.tsx';
-import { useTimeTableEmailAuth } from './useTimeTableEmailAuth.ts';
+import { TimeTableEmailDialogs } from '@/components/TimeTableEmailDialogs/TimeTableEmailDialogs.tsx';
+import { useTimeTableEmailAuth } from '@/hooks/useTimeTableEmailAuth.ts';
 
 vi.mock('@/auth/useEmailAuth.ts', () => ({
     useEmailAuth: () => ({

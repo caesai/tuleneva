@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import moment from '@/lib/moment';
 import { APICancelBooking, APIPostBookRehearsal } from '@/api/timetable.api.ts';
-import { useTimeTableBooking } from './useTimeTableBooking.ts';
+import { useTimeTableBooking } from '@/hooks/useTimeTableBooking.ts';
 
 vi.mock('@/api/timetable.api.ts', async () => {
     const actual = await vi.importActual<typeof import('@/api/timetable.api.ts')>('@/api/timetable.api.ts');
@@ -92,5 +92,20 @@ describe('useTimeTableBooking', () => {
         expect(setHoursToCancel).toHaveBeenCalledWith([]);
         expect(fetchBookedHours).toHaveBeenCalledWith(date);
         expect(showToast).toHaveBeenCalledWith('Слоты уже изменились. Расписание обновлено.', 'error');
+    });
+
+    it('keeps the cancel selection when the server fails', async () => {
+        vi.mocked(APICancelBooking).mockResolvedValue(jsonResponse(500, {
+            error: 'Internal error',
+        }));
+
+        const { result } = renderBooking();
+        await act(async () => {
+            await result.current.handleCancel();
+        });
+
+        expect(setHoursToCancel).not.toHaveBeenCalled();
+        expect(fetchBookedHours).toHaveBeenCalledWith(date);
+        expect(showToast).toHaveBeenCalledWith('Не удалось отменить бронирование.', 'error');
     });
 });

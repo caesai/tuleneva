@@ -1,0 +1,12 @@
+.tabWrapper {
+    position: relative;
+    width: 100%;
+    min-height: 250px;
+}
+
+.noRehearsals {
+    text-align: center;
+    padding: 40px 20px;
+    color: #888;
+    font-size: 16px;
+}

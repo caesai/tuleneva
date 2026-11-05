@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import moment from '@/lib/moment';
-import type { WebSocketCallback, WebSocketMessage } from './useWebSocket';
+import type { WebSocketCallback, WebSocketMessage } from '@/hooks/useWebSocket';
 
 const mockGetTimeTable = vi.fn();
 const mockGetHours = vi.fn();
@@ -16,14 +16,14 @@ vi.mock('@/api/timetable.api.ts', () => ({
     APIGetHours: (...args: unknown[]) => mockGetHours(...args),
 }));
 
-vi.mock('./useWebSocket', () => ({
+vi.mock('@/hooks/useWebSocket', () => ({
     useWebSocket: (options: { onMessage?: WebSocketCallback }) => {
         capturedOnMessage = options.onMessage;
         return { isConnected: true, lastMessage: null, reconnect: vi.fn() };
     },
 }));
 
-import { useTimeTableData } from './useTimeTableData';
+import { useTimeTableData } from '@/hooks/useTimeTableData';
 
 /**
  * Ответ fetch-подобного API.

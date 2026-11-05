@@ -8,43 +8,6 @@
     gap: 12px;
 }
 
-.emailLoginBar {
-    width: 360px;
-    max-width: 100%;
-    display: flex;
-    justify-content: flex-end;
-}
-
-.emailLoginOpenButton {
-    padding: 8px 14px;
-    border-radius: 8px;
-    border: 1px solid #007aff;
-    background: transparent;
-    color: #007aff;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-.emailLoginModal {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-width: 260px;
-}
-
-.emailLoginTitle {
-    margin: 0;
-    font-size: 18px;
-}
-
-.emailLoginHint {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #555;
-}
-
 .title {
     text-align: center;
     margin-bottom: 1em;
@@ -165,12 +128,6 @@
     }
 }
 
-.tabWrapper {
-    position: relative;
-    width: 100%;
-    min-height: 250px;
-}
-
 .tabLoader {
     position: absolute;
     top: 0;
@@ -187,13 +144,6 @@
 
 .tabContent {
     transition: opacity 0.35s ease-out;
-}
-
-.noRehearsals {
-    text-align: center;
-    padding: 40px 20px;
-    color: #888;
-    font-size: 16px;
 }
 
 .confirmButton,

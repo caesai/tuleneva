@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
-import { AuthProvider } from './AuthContext.tsx';
+import { AuthProvider } from '@/contexts/AuthContext.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { useEmailAuth } from '@/auth/useEmailAuth.ts';
 

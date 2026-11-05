@@ -1,7 +1,7 @@
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
-import css from '@/pages/TimeTablePage/TimeTable.module.css';
-import type { TTimeTableEmailAuthState } from '@/pages/TimeTablePage/useTimeTableEmailAuth.ts';
+import css from '@/components/TimeTableEmailDialogs/TimeTableEmailDialogs.module.css';
+import type { TTimeTableEmailAuthState } from '@/hooks/useTimeTableEmailAuth.ts';
 
 /**
  * Окна входа, сброса пароля и привязки почты на странице расписания.

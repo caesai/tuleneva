@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { AdminPage } from './AdminPage.tsx';
+import { AdminPage } from '@/pages/AdminPage/AdminPage.tsx';
 import { APIGenerateInvite, APIGetUsers, APIRevokeInvite } from '@/api/user.api.ts';
 
 const mockNavigate = vi.fn();

@@ -92,7 +92,7 @@ vi.mock('@/hooks/useToast.ts', () => ({
     }),
 }));
 
-import App from './App.tsx';
+import App from '@/App.tsx';
 
 describe('App invite flow', () => {
     beforeEach(() => {

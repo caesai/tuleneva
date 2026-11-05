@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { AdminRoute } from './AdminRoute.tsx';
+import { AdminRoute } from '@/components/AdminRoute/AdminRoute.tsx';
 
 const mockUseAuth = vi.fn();
 

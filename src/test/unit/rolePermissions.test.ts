@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { canAssignRole, canDeleteUser } from './rolePermissions.ts';
-import { assignRoleMatrix, deleteRoleMatrix } from '../../shared/test/roleMatrix.ts';
+import { canAssignRole, canDeleteUser } from '@/utils/rolePermissions.ts';
+import { assignRoleMatrix, deleteRoleMatrix } from '../../../shared/test/roleMatrix.ts';
 
 describe('rolePermissions', () => {
     describe('canAssignRole', () => {

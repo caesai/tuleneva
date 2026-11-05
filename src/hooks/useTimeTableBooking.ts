@@ -126,7 +126,8 @@ export const useTimeTableBooking = ({
 
     /**
      * Отменяет отмеченные часы.
-     * 409 перечитывает день: слот уже мог сменить владельца.
+     * 409 снимает выбор: слот уже мог сменить владельца.
+     * Другой отказ расписание перечитывает, но выбор оставляет.
      */
     const handleCancel = async () => {
         if (!canManageBookings) return;
@@ -142,7 +143,9 @@ export const useTimeTableBooking = ({
                 hoursToCancel,
             );
             if (!response.ok) {
-                setHoursToCancel([]);
+                if (response.status === 409) {
+                    setHoursToCancel([]);
+                }
                 await reloadSelectedDay();
                 showToast(
                     response.status === 409

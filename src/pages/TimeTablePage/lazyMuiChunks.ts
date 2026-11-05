@@ -4,13 +4,13 @@ import { lazy } from 'react';
  * Async-чанки с MUI: календарь (X Date Pickers), вкладки дня (Lab), модалка бронирования.
  */
 export const LazyTimeTableCalendarBlock = lazy(() =>
-    import('@/pages/TimeTablePage/TimeTableCalendarBlock.tsx').then((m) => ({
+    import('@/components/TimeTableCalendarBlock/TimeTableCalendarBlock.tsx').then((m) => ({
         default: m.TimeTableCalendarBlock,
     })),
 );
 
 export const LazyTimeTableDayTabs = lazy(() =>
-    import('@/pages/TimeTablePage/TimeTableDayTabs.tsx').then((m) => ({
+    import('@/components/TimeTableDayTabs/TimeTableDayTabs.tsx').then((m) => ({
         default: m.TimeTableDayTabs,
     })),
 );
@@ -25,8 +25,8 @@ export const LazyBookModalPopup = lazy(() =>
  * Предзагрузка чанков календаря и вкладок после первой отрисовки расписания.
  */
 export const preloadTimeTableMuiChunks = (): void => {
-    void import('@/pages/TimeTablePage/TimeTableCalendarBlock.tsx');
-    void import('@/pages/TimeTablePage/TimeTableDayTabs.tsx');
+    void import('@/components/TimeTableCalendarBlock/TimeTableCalendarBlock.tsx');
+    void import('@/components/TimeTableDayTabs/TimeTableDayTabs.tsx');
 };
 
 /**

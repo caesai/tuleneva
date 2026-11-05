@@ -8,8 +8,8 @@
  * - alias `@` → `./src` задан явно, потому что корневой `tsconfig.json`
  *   содержит только `references` и `vite-tsconfig-paths` не подхватывает
  *   `paths` из `tsconfig.app.json`;
- * - тесты исключены из production-сборки (`tsc -b`) через `exclude`
- *   в `tsconfig.app.json`, поэтому здесь они собираются отдельно.
+ * - тесты лежат в `src/test` (unit и contracts), как `server/test`;
+ *   из production-сборки их исключает `tsconfig.app.json`.
  */
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
@@ -29,6 +29,6 @@ export default defineConfig({
         environment: 'jsdom',
         globals: true,
         setupFiles: ['./src/test/setup.ts'],
-        include: ['src/**/*.test.{ts,tsx}'],
+        include: ['src/test/**/*.test.{ts,tsx}'],
     },
 });

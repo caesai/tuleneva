@@ -30,7 +30,7 @@ cd server && npm run test:all
 - Регрессии — исправить до завершения задачи
 - Новый API → `shared/contracts/` + contract/integration тесты
 - Новая логика ролей/инвайтов → unit + `roleMatrix`
-- Заметный UI-поток → `*.test.tsx`
+- Заметный UI-поток → тест в `src/test/unit`
 - Не сбрасывать моки через `vi.clearAllMocks()` без восстановления `mockResolvedValue`
 - Локальный Vite ходит в боевую Mongo: не писать из двух агентов сразу; worktree вместо `git switch` в общем checkout
 

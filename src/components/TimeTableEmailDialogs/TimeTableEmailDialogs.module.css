@@ -1,0 +1,36 @@
+.emailLoginBar {
+    width: 360px;
+    max-width: 100%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.emailLoginOpenButton {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid #007aff;
+    background: transparent;
+    color: #007aff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.emailLoginModal {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 260px;
+}
+
+.emailLoginTitle {
+    margin: 0;
+    font-size: 18px;
+}
+
+.emailLoginHint {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #555;
+}

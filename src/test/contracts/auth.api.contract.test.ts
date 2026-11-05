@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { AuthSessionResponseSchema } from '../../shared/contracts/auth.ts';
-import { parseAuthResponse } from './auth.api.ts';
+import { AuthSessionResponseSchema } from '../../../shared/contracts/auth.ts';
+import { parseAuthResponse } from '@/api/auth.api.ts';
 
 describe('auth.api contracts', () => {
     it('parseAuthResponse result satisfies AuthSessionResponseSchema', async () => {

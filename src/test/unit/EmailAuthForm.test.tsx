@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { EmailAuthForm } from './EmailAuthForm.tsx';
+import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 
 describe('EmailAuthForm', () => {
     it('submits email and password in login mode', async () => {

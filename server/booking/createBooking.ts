@@ -258,8 +258,10 @@ const LEGACY_HOURS_ATTEMPTS = 3;
  * Тип поля читается из BSON: Mongoose иногда показывает такой объект как массив.
  * $set совпадает только с прочитанным объектом. Если за это время часы уже
  * стали массивом или сменились, документ перечитывается.
+ * Если объект так и не удалось переписать, возвращает null: вызывающий код
+ * не делает $push в объект и не читает у него .length.
  * @param doc Документ дня
- * @returns Документ с массивом hours либо null, если день уже удалён
+ * @returns Документ с массивом hours либо null, если день удалён или legacy-объект не переписан
  */
 const ensureHoursArray = async (doc: RehearsalDocument): Promise<RehearsalDocument | null> => {
     let current = doc;
@@ -290,7 +292,16 @@ const ensureHoursArray = async (doc: RehearsalDocument): Promise<RehearsalDocume
         current = fresh;
     }
 
-    return current;
+    const last = await Rehearsal.collection.findOne(
+        { _id: current._id },
+        { projection: { hours: 1 } },
+    );
+    if (!last) return null;
+    const lastHours = last.hours;
+    if (!lastHours || typeof lastHours !== 'object' || Array.isArray(lastHours)) {
+        return Rehearsal.findById(current._id);
+    }
+    return null;
 };
 
 /**
@@ -569,7 +580,13 @@ const createBooking = ({
         }
 
         const rehearsalDoc = await ensureHoursArray(found);
-        if (!rehearsalDoc || rehearsalDoc.hours.length === 0) {
+        if (!rehearsalDoc) {
+            return {
+                status: 409,
+                body: { error: 'Selected bookings changed. Refresh and try again.' },
+            };
+        }
+        if (rehearsalDoc.hours.length === 0) {
             return { status: 404, body: { error: 'No bookings found for this day.' } };
         }
 
