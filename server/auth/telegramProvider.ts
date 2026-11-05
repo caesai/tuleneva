@@ -1,4 +1,18 @@
 import crypto from 'crypto';
+import type { TelegramProfile } from './identityService';
+
+/** Поля init data после разбора query. Остальные ключи не используются логином. */
+interface TelegramInitFields {
+    auth_date?: string;
+    user?: unknown;
+    [key: string]: unknown;
+}
+
+/** Проверенные init data: свежий auth_date и профиль с id. */
+interface ParsedTelegramInit {
+    auth_date: string;
+    user: TelegramProfile;
+}
 
 /** Максимальный возраст Telegram init data (секунды). */
 const INIT_DATA_MAX_AGE_SECONDS = 24 * 60 * 60;
@@ -9,19 +23,19 @@ const INIT_DATA_CLOCK_SKEW_SECONDS = 60;
 /**
  * Парсит строку запроса init data Telegram.
  * @param {string} queryString
- * @returns {Record<string, any>}
+ * @returns {TelegramInitFields}
  */
-const parseQueryToNestedJson = (queryString: string): Record<string, any> => {
+const parseQueryToNestedJson = (queryString: string): TelegramInitFields => {
     const params = new URLSearchParams(queryString);
-    const result: Record<string, any> = {};
+    const result: TelegramInitFields = {};
 
     params.forEach((encodedValue, key) => {
         const value = decodeURIComponent(encodedValue);
         if (key === 'user') {
             try {
-                result[key] = JSON.parse(value);
+                result.user = JSON.parse(value) as unknown;
             } catch {
-                result[key] = value;
+                result.user = value;
             }
         } else {
             result[key] = value;
@@ -70,10 +84,10 @@ const verifyTelegramInitData = (initDataRaw: string, botToken: string): boolean 
 
 /**
  * Проверяет наличие и свежесть auth_date в init data.
- * @param {Record<string, any>} tg - Распарсенные поля init data
+ * @param {TelegramInitFields} tg - Распарсенные поля init data
  * @throws {Error}
  */
-const assertFreshAuthDate = (tg: Record<string, any>) => {
+function assertFreshAuthDate(tg: TelegramInitFields): asserts tg is TelegramInitFields & { auth_date: string } {
     const authDateRaw = tg.auth_date;
     if (authDateRaw == null || authDateRaw === '') {
         throw new Error('Missing Telegram auth_date');
@@ -86,15 +100,52 @@ const assertFreshAuthDate = (tg: Record<string, any>) => {
     if (ageSeconds < -INIT_DATA_CLOCK_SKEW_SECONDS || ageSeconds > INIT_DATA_MAX_AGE_SECONDS) {
         throw new Error('Telegram init data expired');
     }
+}
+
+/**
+ * Опциональное текстовое поле профиля. Чужой тип отбрасывается.
+ * @param {unknown} value
+ * @returns {string | null | undefined}
+ */
+const readOptionalText = (value: unknown): string | null | undefined => {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    return typeof value === 'string' ? value : undefined;
+};
+
+/**
+ * Собирает профиль Telegram из разобранного user.
+ * Нет id или first_name — та же ошибка, что и у прежней проверки payload.
+ * @param {unknown} value
+ * @returns {TelegramProfile}
+ */
+const readTelegramProfile = (value: unknown): TelegramProfile => {
+    if (!value || typeof value !== 'object') {
+        throw new Error('Invalid Telegram user payload');
+    }
+    const record = value as Record<string, unknown>;
+    const { id, first_name: firstName } = record;
+    if ((typeof id !== 'number' && typeof id !== 'string') || !id || typeof firstName !== 'string') {
+        throw new Error('Invalid Telegram user payload');
+    }
+
+    const profile: TelegramProfile = { id, first_name: firstName };
+    const lastName = readOptionalText(record.last_name);
+    const username = readOptionalText(record.username);
+    const photoUrl = readOptionalText(record.photo_url);
+    if (lastName !== undefined) profile.last_name = lastName;
+    if (username !== undefined) profile.username = username;
+    if (photoUrl !== undefined) profile.photo_url = photoUrl;
+    return profile;
 };
 
 /**
  * Извлекает и валидирует Telegram user из init data.
  * @param {string} userDataRaw
  * @param {string} botToken
- * @returns {object}
+ * @returns {ParsedTelegramInit}
  */
-const parseTelegramUser = (userDataRaw: any, botToken: string): any => {
+const parseTelegramUser = (userDataRaw: string, botToken: string): ParsedTelegramInit => {
     if (!userDataRaw) {
         throw new Error('Missing Telegram initialization data');
     }
@@ -103,10 +154,10 @@ const parseTelegramUser = (userDataRaw: any, botToken: string): any => {
     }
     const tg = parseQueryToNestedJson(userDataRaw);
     assertFreshAuthDate(tg);
-    if (!tg.user?.id) {
-        throw new Error('Invalid Telegram user payload');
-    }
-    return tg;
+    return {
+        auth_date: tg.auth_date,
+        user: readTelegramProfile(tg.user),
+    };
 };
 
 export {

@@ -109,6 +109,22 @@ export const InviteGenerateResponseSchema = z.object({
 });
 
 /** Запись инвайта в списке живых / истории. */
+export interface InviteHistoryItem {
+    code: string;
+    purpose?: string;
+    initialRole?: string;
+    allowedProviders?: string[];
+    multiUse: boolean;
+    useCount: number;
+    createdBy: string | null;
+    usedBy: string | null;
+    createdAt?: Date;
+    expiresAt: Date;
+    usedAt: Date | null;
+    revokedAt: Date | null;
+}
+
+/** Схема записи инвайта. Выход совпадает с InviteHistoryItem. */
 export const InviteHistoryItemSchema = z.object({
     code: z.string(),
     purpose: z.string().optional(),
@@ -122,7 +138,7 @@ export const InviteHistoryItemSchema = z.object({
     expiresAt: z.coerce.date(),
     usedAt: z.coerce.date().nullable(),
     revokedAt: z.coerce.date().nullable(),
-});
+}) satisfies z.ZodType<InviteHistoryItem>;
 
 /** Ответ GET /api/auth/invite/history. */
 export const InviteHistoryResponseSchema = z.object({

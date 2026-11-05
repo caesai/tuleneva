@@ -1,18 +1,24 @@
+/** Параметры in-memory rate limit. Пропущенные поля берутся из дефолтов. */
+interface RateLimitOptions {
+    /** Окно в миллисекундах. */
+    windowMs?: number;
+    /** Максимум запросов в окне. */
+    max?: number;
+    /** Текст ответа 429. */
+    message?: string;
+}
+
 /**
  * Простой in-memory rate limit по IP (без внешних зависимостей).
- * @param {object} [options]
- * @param {number} [options.windowMs=60000] - Окно в миллисекундах
- * @param {number} [options.max=30] - Максимум запросов в окне
- * @param {string} [options.message] - Текст ответа 429
+ * @param {RateLimitOptions} [options]
  * @returns {import('express').RequestHandler & { reset: () => void }}
  */
 const createRateLimiter = ({
     windowMs = 60_000,
     max = 30,
     message = 'Too many requests',
-} : any = {}): import('express').RequestHandler & { reset: () => void; } => {
-    /** @type {Map<string, { count: number, resetAt: number }>} */
-    const hits: Map<string, { count: number; resetAt: number; }> = new Map();
+}: RateLimitOptions = {}): import('express').RequestHandler & { reset: () => void; } => {
+    const hits = new Map<string, { count: number; resetAt: number; }>();
 
     /**
      * @param {import('express').Request} req

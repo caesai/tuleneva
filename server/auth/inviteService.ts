@@ -1,29 +1,13 @@
+import type { FilterQuery } from 'mongoose';
+import type { InviteHistoryItem } from '../../shared/contracts/auth';
 import InviteCode, { type InviteCodeDoc, type InviteCodeDocument } from '../models/InviteCode';
-
-/**
- * Инвайт в ответе API: ObjectId заменены строками, флаги всегда заданы.
- */
-interface SerializedInvite {
-    code: string;
-    purpose: InviteCodeDoc['purpose'];
-    initialRole: InviteCodeDoc['initialRole'];
-    allowedProviders: string[];
-    multiUse: boolean;
-    useCount: number;
-    createdBy: string | null;
-    usedBy: string | null;
-    createdAt?: Date;
-    expiresAt: Date;
-    usedAt: Date | null;
-    revokedAt: Date | null;
-}
 
 /**
  * Условие «код ещё действует»: не истёк и не закрыт админом.
  * @param {string} code
- * @returns {object}
+ * @returns {FilterQuery<InviteCodeDoc>}
  */
-const activeInviteFilter = (code: string): object => ({
+const activeInviteFilter = (code: string): FilterQuery<InviteCodeDoc> => ({
     code,
     expiresAt: { $gt: new Date() },
     revokedAt: { $exists: false },
@@ -104,9 +88,9 @@ const revokeInvite = async (code: string): Promise<InviteCodeDocument | null> =>
 /**
  * Сериализует документ инвайта для API.
  * @param {InviteCodeDoc} doc - Lean-документ InviteCode
- * @returns {SerializedInvite}
+ * @returns {InviteHistoryItem}
  */
-const serializeInvite = (doc: InviteCodeDoc): SerializedInvite => ({
+const serializeInvite = (doc: InviteCodeDoc): InviteHistoryItem => ({
     code: doc.code,
     purpose: doc.purpose,
     initialRole: doc.initialRole,
@@ -134,9 +118,9 @@ const isLiveInvite = (doc: InviteCodeDoc, now: Date): boolean =>
 
 /**
  * Список живых инвайтов и истории (used/revoked, пока TTL не стёр документ).
- * @returns {Promise<{ live: SerializedInvite[], history: SerializedInvite[] }>}
+ * @returns {Promise<{ live: InviteHistoryItem[], history: InviteHistoryItem[] }>}
  */
-const listInviteHistory = async (): Promise<{ live: SerializedInvite[]; history: SerializedInvite[]; }> => {
+const listInviteHistory = async (): Promise<{ live: InviteHistoryItem[]; history: InviteHistoryItem[]; }> => {
     const now = new Date();
     const docs = await InviteCode.find({})
         .sort({ createdAt: -1 })
