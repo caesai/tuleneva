@@ -330,10 +330,26 @@ const findDuplicateIdentityPairs = async (): Promise<string[]> => {
     return rows.map((row) => `${row._id.provider ?? ''}:${row._id.providerUserId ?? ''}`);
 };
 
+const IDENTITY_INDEX_KEYS = {
+    'identities.provider': 1,
+    'identities.providerUserId': 1,
+} as const;
+
+/**
+ * Ставит неуникальный индекс, если уникальный собрать нельзя, а индекса нет.
+ * Иначе после срыва сборки коллекция остаётся без индекса identity.
+ * @param name Имя индекса
+ */
+const createPlainIdentityIndex = async (name: string) => {
+    await User.collection.createIndex(IDENTITY_INDEX_KEYS, { name });
+};
+
 /**
  * Ставит уникальный индекс identity.
  * Если в базе остался прежний неуникальный индекс и дублей нет — заменяет его.
- * При дублях индекс не снимает.
+ * Сначала снимает старый: два индекса с одним ключом MongoDB не хранит.
+ * Если новая сборка не прошла, возвращает прежний индекс.
+ * При дублях существующий индекс не снимает; если его уже нет — ставит неуникальный.
  * @returns Promise без значения; при дублях или ошибке построения бросает Error
  */
 const ensureUniqueIdentityIndex = async (): Promise<void> => {
@@ -354,16 +370,52 @@ const ensureUniqueIdentityIndex = async (): Promise<void> => {
 
     const duplicates = await findDuplicateIdentityPairs();
     if (duplicates.length > 0) {
+        if (!current) {
+            await createPlainIdentityIndex(IDENTITY_INDEX_NAME);
+        }
         throw new Error(`Duplicate identities: ${duplicates.join(', ')}`);
     }
 
-    if (current?.name) {
-        await User.collection.dropIndex(current.name);
+    const previousName = current?.name;
+    if (previousName) {
+        await User.collection.dropIndex(previousName);
     }
-    await User.collection.createIndex(
-        { 'identities.provider': 1, 'identities.providerUserId': 1 },
-        { unique: true, sparse: true, name: current?.name || IDENTITY_INDEX_NAME },
-    );
+    try {
+        await User.collection.createIndex(IDENTITY_INDEX_KEYS, {
+            unique: true,
+            sparse: true,
+            name: previousName || IDENTITY_INDEX_NAME,
+        });
+    } catch (err) {
+        if (current?.key && previousName) {
+            try {
+                await User.collection.createIndex(current.key, {
+                    name: previousName,
+                    unique: current.unique === true,
+                    sparse: current.sparse === true,
+                });
+            } catch (restoreErr) {
+                const restoreMessage = readMongoError(restoreErr).message;
+                throw new Error(
+                    `Unique identity index failed and the previous index was not restored: ${restoreMessage}`,
+                    { cause: err },
+                );
+            }
+        }
+        throw err;
+    }
+};
+
+/**
+ * Документ ещё без identity. То же условие стоит в фильтре update:
+ * пакет не затирает identity, которую успели записать после чтения.
+ */
+const emptyIdentitiesFilter = {
+    $or: [
+        { identities: { $exists: false } },
+        { identities: null },
+        { identities: { $size: 0 } },
+    ],
 };
 
 /**
@@ -375,11 +427,7 @@ const ensureUniqueIdentityIndex = async (): Promise<void> => {
 const migrateLegacyTelegramIdentities = async (): Promise<number> => {
     const legacyUsers = await User.find({
         telegram_id: { $exists: true, $ne: null },
-        $or: [
-            { identities: { $exists: false } },
-            { identities: null },
-            { identities: { $size: 0 } },
-        ],
+        ...emptyIdentitiesFilter,
     }).select('_id telegram_id createdAt').lean();
 
     const ops: AnyBulkWriteOperation[] = [];
@@ -388,7 +436,11 @@ const migrateLegacyTelegramIdentities = async (): Promise<number> => {
         if (telegramId == null) continue;
         ops.push({
             updateOne: {
-                filter: { _id: user._id },
+                filter: {
+                    _id: user._id,
+                    telegram_id: telegramId,
+                    ...emptyIdentitiesFilter,
+                },
                 update: {
                     $set: {
                         identities: [{

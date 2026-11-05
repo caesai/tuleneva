@@ -27,11 +27,48 @@ export const APIGetHours = async (date: string): Promise<Response> => {
 };
 
 /**
+ * Разбирает отказ POST /api/book: часы, которые сервер не принял, и текст для тоста.
+ * @param response Ответ с ok: false
+ * @returns Сообщение и часы, которые нужно снять с выбора
+ */
+export const readBookFailure = async (response: Response): Promise<{
+    message: string;
+    rejectedHours: string[];
+}> => {
+    const body = await response.json().catch(() => null) as {
+        pastHours?: unknown;
+        invalidHours?: unknown;
+        conflictingHours?: unknown;
+    } | null;
+    const rejectedHours = [body?.pastHours, body?.invalidHours, body?.conflictingHours]
+        .flatMap((value) => (
+            Array.isArray(value)
+                ? value.filter((hour): hour is string => typeof hour === 'string')
+                : []
+        ));
+
+    if (response.status === 409) {
+        return { message: 'Это время уже занято.', rejectedHours };
+    }
+    if (Array.isArray(body?.pastHours) && body.pastHours.length > 0) {
+        return { message: 'Нельзя бронировать прошедшее время.', rejectedHours };
+    }
+    if (Array.isArray(body?.invalidHours) && body.invalidHours.length > 0) {
+        return { message: 'Эти часы вне расписания студии.', rejectedHours };
+    }
+    if (response.status === 403) {
+        return { message: 'Бронирование недоступно.', rejectedHours };
+    }
+    return { message: 'Не удалось забронировать время.', rejectedHours };
+};
+
+/**
  * Бронирует репетицию.
- * @param date - Дата репетиции.
+ * @param date - Дата репетиции DD/MM/YYYY.
  * @param hours - Массив выбранных часов.
  * @param band_name - Название группы (опционально).
- * @returns {Promise<Response>} Ответ сервера о результате бронирования.
+ * @param rehearsalType - Тип слота.
+ * @returns Ответ POST /api/book. 201 — документ дня, 409 — conflictingHours.
  */
 export const APIPostBookRehearsal = async (date: string, hours: string[], band_name?: string, rehearsalType?: TRehearsalType) => {
     return await fetch(BOOK_URL, {
@@ -48,13 +85,13 @@ export const APIPostBookRehearsal = async (date: string, hours: string[], band_n
 
 /**
  * Отменяет бронирование репетиции.
- * @param date - Дата репетиции.
+ * Тело ответа разбирает страница: 409 значит, что слот уже изменился.
+ * @param date - Дата репетиции DD/MM/YYYY.
  * @param hours - Массив часов для отмены.
- * @returns {Promise<any>} Ответ сервера (JSON).
- * @throws {Error} Если бронирование не найдено или произошла ошибка сервера.
+ * @returns Ответ DELETE /api/cancel
  */
-export const APICancelBooking = async (date: string, hours: string[]) => {
-    const response = await fetch(CANCEL_URL, {
+export const APICancelBooking = async (date: string, hours: string[]): Promise<Response> => {
+    return await fetch(CANCEL_URL, {
         method: 'DELETE',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -62,13 +99,4 @@ export const APICancelBooking = async (date: string, hours: string[]) => {
             hours,
         }),
     });
-
-    if (response.status === 404) {
-        throw new Error('Booking not found or already canceled.');
-    }
-    if (!response.ok) {
-        throw new Error(`API call failed with status: ${response.status}`);
-    }
-
-    return await response.json();
 };

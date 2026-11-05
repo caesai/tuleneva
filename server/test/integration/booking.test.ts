@@ -321,6 +321,69 @@ describe('booking integration', () => {
         expect(doc?.hours.find((slot) => slot.hour === '14:00')?.username).toBe('legacy');
     });
 
+    it('keeps a slot booked while legacy hours are converted', async () => {
+        const user = await seedUser({ role: 'user', username: 'legacy_race' });
+        const date = new Date(Date.UTC(2030, 5, 24));
+        await Rehearsal.collection.insertOne({
+            date,
+            hours: {
+                '14:00': {
+                    status: 'BOOKED',
+                    userId: 'legacy-user',
+                    owner: 'legacy',
+                    bandName: 'Old',
+                },
+            },
+        });
+
+        const findOne = Rehearsal.collection.findOne.bind(Rehearsal.collection);
+        const spy = vi.spyOn(Rehearsal.collection, 'findOne').mockImplementationOnce(async (...args) => {
+            const raw = await findOne(...args);
+            if (raw?._id) {
+                await Rehearsal.collection.updateOne(
+                    { _id: raw._id },
+                    {
+                        $set: {
+                            hours: [
+                                {
+                                    hour: '14:00',
+                                    userId: 'legacy-user',
+                                    username: 'legacy',
+                                    band_name: 'Old',
+                                    rehearsalType: 'rehearsal',
+                                },
+                                {
+                                    hour: '18:00',
+                                    userId: 'racer',
+                                    username: 'racer',
+                                    band_name: '',
+                                    rehearsalType: 'rehearsal',
+                                },
+                            ],
+                        },
+                    },
+                );
+            }
+            return raw;
+        });
+
+        const booking = createBooking();
+        try {
+            const result = await booking.book({
+                dbUser: user,
+                date: '24/06/2030',
+                hours: ['16:00'],
+                rehearsalType: 'rehearsal',
+            });
+            expect(result.status).toBe(201);
+        } finally {
+            spy.mockRestore();
+        }
+
+        const doc = await Rehearsal.findOne({});
+        expect(doc?.hours.map((slot) => slot.hour).sort()).toEqual(['14:00', '16:00', '18:00']);
+    });
+
     it('highlights the UTC day of a booking', async () => {
         const user = await seedUser({ role: 'user', username: 'utc_day' });
         const booking = createBooking();

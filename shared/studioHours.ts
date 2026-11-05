@@ -78,6 +78,27 @@ export const parseDdMmYyyy = (
 };
 
 /**
+ * Календарный день раньше сегодняшнего по Москве.
+ * Та же граница, что у isSlotInPast: сутки студии, не локальные сутки браузера.
+ * @param dateDdMmYyyy Дата DD/MM/YYYY
+ * @param now Опорный момент времени
+ * @returns true, если день уже прошёл в Москве; для неразборной даты — false
+ */
+export const isStudioDayBeforeToday = (
+    dateDdMmYyyy: string,
+    now: Date = new Date(),
+): boolean => {
+    const selected = parseDdMmYyyy(dateDdMmYyyy);
+    if (!selected) {
+        return false;
+    }
+    const today = getMoscowNowParts(now);
+    const selectedKey = selected.year * 10000 + selected.month * 100 + selected.day;
+    const todayKey = today.year * 10000 + today.month * 100 + today.day;
+    return selectedKey < todayKey;
+};
+
+/**
  * Слот уже начался или прошёл в Москве (как на клиенте: currentHour >= slotHour).
  * @param dateDdMmYyyy Дата слота
  * @param hour Час "HH:00"

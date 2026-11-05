@@ -1,4 +1,4 @@
-import { describe, it, beforeAll, afterAll, beforeEach, expect } from 'vitest';
+import { describe, it, beforeAll, afterAll, beforeEach, expect, vi } from 'vitest';
 import User from '../../models/User';
 import {
     IdentityConflictError,
@@ -175,6 +175,38 @@ describe('identityService', () => {
         expect(kept?.identities).toHaveLength(1);
     });
 
+    it('does not overwrite identities linked before the legacy update', async () => {
+        const inserted = await User.collection.insertOne({
+            first_name: 'Legacy',
+            role: 'guest',
+            telegram_id: 88003,
+        });
+        const bulkWrite = User.bulkWrite.bind(User);
+        const spy = vi.spyOn(User, 'bulkWrite').mockImplementation(async (ops, options) => {
+            await User.updateOne(
+                { _id: inserted.insertedId },
+                {
+                    $set: {
+                        identities: [
+                            { provider: 'telegram', providerUserId: '88003' },
+                            { provider: 'email', providerUserId: 'kept@example.com' },
+                        ],
+                    },
+                },
+            );
+            return bulkWrite(ops, options);
+        });
+
+        try {
+            expect(await migrateLegacyTelegramIdentities()).toBe(0);
+        } finally {
+            spy.mockRestore();
+        }
+
+        const saved = await User.findById(inserted.insertedId);
+        expect(saved?.identities.map((item) => item.provider).sort()).toEqual(['email', 'telegram']);
+    });
+
     it('keeps migrating other users when one identity is already taken', async () => {
         await seedUser({
             first_name: 'Owner',
@@ -217,6 +249,10 @@ describe('identityService', () => {
     it('does not drop the index while duplicate identities exist', async () => {
         try {
             await dropIdentityIndex();
+            await User.collection.createIndex(
+                { 'identities.provider': 1, 'identities.providerUserId': 1 },
+                { name: 'identities.provider_1_identities.providerUserId_1' },
+            );
             await User.create({
                 first_name: 'One',
                 role: 'guest',
@@ -237,8 +273,74 @@ describe('identityService', () => {
                 const keys = Object.keys(index.key ?? {});
                 return keys.includes('identities.provider');
             });
+            expect(identityIndex?.name).toBe('identities.provider_1_identities.providerUserId_1');
             expect(identityIndex?.unique).not.toBe(true);
         } finally {
+            await restoreIdentityIndex();
+        }
+    });
+
+    it('restores a plain identity index when duplicates block the first build', async () => {
+        try {
+            await dropIdentityIndex();
+            await User.collection.insertMany([
+                {
+                    first_name: 'One',
+                    role: 'guest',
+                    identities: [{ provider: 'email', providerUserId: 'dup2@example.com' }],
+                },
+                {
+                    first_name: 'Two',
+                    role: 'guest',
+                    identities: [{ provider: 'email', providerUserId: 'dup2@example.com' }],
+                },
+            ]);
+
+            await expect(ensureUniqueIdentityIndex()).rejects.toThrow(/Duplicate identities/);
+
+            const indexes = await User.collection.indexes();
+            const identityIndex = indexes.find((index) => index.name === 'identities.provider_1_identities.providerUserId_1');
+            expect(identityIndex).toBeTruthy();
+            expect(identityIndex?.unique).not.toBe(true);
+        } finally {
+            await restoreIdentityIndex();
+        }
+    });
+
+    it('restores the previous identity index if the unique build fails', async () => {
+        await dropIdentityIndex();
+        await User.collection.createIndex(
+            { 'identities.provider': 1, 'identities.providerUserId': 1 },
+            { name: 'identities.provider_1_identities.providerUserId_1' },
+        );
+
+        const createIndex = User.collection.createIndex.bind(User.collection);
+        const dropIndex = User.collection.dropIndex.bind(User.collection);
+        let dropped = false;
+        const dropSpy = vi.spyOn(User.collection, 'dropIndex').mockImplementation(async (...args) => {
+            const result = await dropIndex(...args);
+            dropped = true;
+            return result;
+        });
+        const createSpy = vi.spyOn(User.collection, 'createIndex').mockImplementation(async (...args) => {
+            const options = args[1] as { unique?: boolean } | undefined;
+            if (dropped && options?.unique) {
+                throw new Error('create failed');
+            }
+            return createIndex(...args);
+        });
+
+        try {
+            await expect(ensureUniqueIdentityIndex()).rejects.toThrow('create failed');
+            const indexes = await User.collection.indexes();
+            const identityIndex = indexes.find((index) => (
+                index.name === 'identities.provider_1_identities.providerUserId_1'
+            ));
+            expect(identityIndex).toBeTruthy();
+            expect(identityIndex?.unique).not.toBe(true);
+        } finally {
+            dropSpy.mockRestore();
+            createSpy.mockRestore();
             await restoreIdentityIndex();
         }
     });

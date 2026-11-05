@@ -3,6 +3,7 @@ import {
     AVAILABLE_HOURS,
     isHourAllowed,
     isSlotInPast,
+    isStudioDayBeforeToday,
     addMoscowDaysDdMmYyyy,
 } from '../../../shared/studioHours';
 
@@ -24,6 +25,15 @@ describe('studioHours', () => {
 
     it('isSlotInPast for a future calendar day', () => {
         expect(isSlotInPast('01/01/2035', '14:00', new Date('2030-06-15T12:00:00Z'))).toBe(false);
+    });
+
+    it('isStudioDayBeforeToday uses the Moscow calendar, not UTC', () => {
+        // 22:30 UTC 5 ноября — уже 01:30 6 ноября в Москве
+        const now = new Date('2026-11-05T22:30:00.000Z');
+        expect(isStudioDayBeforeToday('05/11/2026', now)).toBe(true);
+        expect(isStudioDayBeforeToday('06/11/2026', now)).toBe(false);
+        expect(isStudioDayBeforeToday('07/11/2026', now)).toBe(false);
+        expect(isStudioDayBeforeToday('not-a-date', now)).toBe(false);
     });
 
     it('addMoscowDaysDdMmYyyy shifts by one day', () => {

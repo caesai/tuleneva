@@ -133,11 +133,6 @@ const convertOldFormatToNew = (
 };
 
 /**
- * Преобразует старый формат бронирований (объект с ключами-часами) в новый формат (массив bookedHourSchema).
- * @param {Object|Array} hoursData - Данные из БД (может быть старый формат или новый)
- * @returns {Array} Массив в новом формате bookedHourSchema
- */
-/**
  * Снимает обёртку Mongoose, если она есть.
  * @param value Объект слота или документ
  * @returns Плоский объект для разбора ключей-часов
@@ -151,6 +146,12 @@ const asLegacyRecord = (
     return value as Record<string, LegacyBookedSlot | null | undefined>;
 };
 
+/**
+ * Приводит часы дня к массиву слотов.
+ * Объект с ключами HH:MM — старый формат, массив с полем hour — новый.
+ * @param hoursData Значение поля hours или уже нормализованный список
+ * @returns Слоты нового формата; пустой список, если разобрать нечего
+ */
 const normalizeHoursData = (hoursData: unknown) => {
     if (!hoursData) {
         return [];
@@ -249,28 +250,47 @@ const isDuplicateKey = (err: unknown): boolean => (
     && (err as { code?: unknown }).code === 11000
 );
 
+/** Сколько раз перечитывать legacy-hours, если документ изменился между чтением и записью. */
+const LEGACY_HOURS_ATTEMPTS = 3;
+
 /**
  * Переписывает объектный legacy-hours в массив, не стирая занятые слоты.
  * Тип поля читается из BSON: Mongoose иногда показывает такой объект как массив.
+ * $set совпадает только с прочитанным объектом. Если за это время часы уже
+ * стали массивом или сменились, документ перечитывается.
  * @param doc Документ дня
- * @returns Документ с массивом hours
+ * @returns Документ с массивом hours либо null, если день уже удалён
  */
 const ensureHoursArray = async (doc: RehearsalDocument): Promise<RehearsalDocument | null> => {
-    // Mongoose может отдать объектный legacy как массив. Тип смотрим в BSON.
-    const raw = await Rehearsal.collection.findOne(
-        { _id: doc._id },
-        { projection: { hours: 1 } },
-    );
-    const rawHours = raw?.hours;
-    if (!rawHours || typeof rawHours !== 'object' || Array.isArray(rawHours)) {
-        return doc;
+    let current = doc;
+
+    for (let attempt = 0; attempt < LEGACY_HOURS_ATTEMPTS; attempt += 1) {
+        // Mongoose может отдать объектный legacy как массив. Тип смотрим в BSON.
+        const raw = await Rehearsal.collection.findOne(
+            { _id: current._id },
+            { projection: { hours: 1 } },
+        );
+        if (!raw) return null;
+
+        const rawHours = raw.hours;
+        if (!rawHours || typeof rawHours !== 'object' || Array.isArray(rawHours)) {
+            return attempt === 0 ? current : Rehearsal.findById(current._id);
+        }
+
+        const updated = await Rehearsal.collection.updateOne(
+            { _id: current._id, hours: rawHours },
+            { $set: { hours: toStoredHours(normalizeHoursData(rawHours)) } },
+        );
+        if (updated.matchedCount > 0) {
+            return Rehearsal.findById(current._id);
+        }
+
+        const fresh = await Rehearsal.findById(current._id);
+        if (!fresh) return null;
+        current = fresh;
     }
 
-    await Rehearsal.updateOne(
-        { _id: doc._id },
-        { $set: { hours: toStoredHours(normalizeHoursData(rawHours)) } },
-    );
-    return Rehearsal.findById(doc._id);
+    return current;
 };
 
 /**

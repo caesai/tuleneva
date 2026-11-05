@@ -1,21 +1,17 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
 import React, { useState, useEffect, Suspense, type JSX } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading.ts';
 import { useTimeTableData } from '@/hooks/useTimeTableData.ts';
 import moment, { type Moment } from '@/lib/moment';
 import css from '@/pages/TimeTablePage/TimeTable.module.css';
-import { APICancelBooking, APIPostBookRehearsal } from '@/api/timetable.api.ts';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { useNetwork } from '@/hooks/useNetwork.ts';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useToast } from '@/hooks/useToast.ts';
-import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
-import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useTelegramStartInvite } from '@/auth/useInviteEntry.ts';
-import { useEmailAuth } from '@/auth/useEmailAuth.ts';
 import {
     LazyBookModalPopup,
     LazyTimeTableCalendarBlock,
@@ -23,12 +19,12 @@ import {
     preloadBookModalChunk,
     preloadTimeTableMuiChunks,
 } from '@/pages/TimeTablePage/lazyMuiChunks.ts';
+import { TimeTableEmailDialogs } from '@/pages/TimeTablePage/TimeTableEmailAuth.tsx';
+import { useTimeTableEmailAuth } from '@/pages/TimeTablePage/useTimeTableEmailAuth.ts';
+import { readSavedBandNames, useTimeTableBooking } from '@/pages/TimeTablePage/useTimeTableBooking.ts';
 import type { TRehearsalType } from '@/types/timetable.types';
+import { formatDdMmYyyyMoscow, isStudioDayBeforeToday } from '../../../shared/studioHours.ts';
 import { APP_PAGE_META } from '@/config/siteMeta.ts';
-import {
-    EMAIL_AUTH_UI_ENABLED,
-    shouldShowEmailLinkForm,
-} from '@/config/emailAuthUi.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 
 
@@ -148,14 +144,17 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         telegramStartParam,
         registerWithInvite,
     } = useAuth();
-    const {
-        linkEmailPassword,
-        loginWithEmailPassword,
-        confirmEmailToken,
-        requestPasswordReset,
-        resetPasswordWithToken,
-    } = useEmailAuth();
     const { isAdmin, isGuest, canManageBookings, canViewUserDetails } = capabilities;
+    const currentUserId = user?._id ? String(user._id) : '';
+    const emailAuth = useTimeTableEmailAuth({
+        user,
+        isAuthenticated,
+        isGuest,
+        isAdmin,
+        isInTelegram,
+        authLoading,
+        showToast,
+    });
 
     /**
      * Mini App открывается на /app, а не на /. startapp из общей ссылки
@@ -170,35 +169,8 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         registerWithInvite,
         showToast,
     });
-    const [searchParams, setSearchParams] = useSearchParams();
-    const [emailLinkLoading, setEmailLinkLoading] = useState(false);
-    const [isEmailLinkOpen, setIsEmailLinkOpen] = useState(false);
-    const [isEmailLoginOpen, setIsEmailLoginOpen] = useState(false);
-    const [emailLoginLoading, setEmailLoginLoading] = useState(false);
-    const [forgotMode, setForgotMode] = useState(false);
-    const [forgotLoading, setForgotLoading] = useState(false);
-    const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false);
-    const [passwordResetToken, setPasswordResetToken] = useState<string | null>(null);
-    const [passwordResetLoading, setPasswordResetLoading] = useState(false);
-    /**
-     * Привязка своей почты открывается иконкой у календаря: админ — всегда,
-     * остальные — при VITE_EMAIL_AUTH_UI. Кнопка входа в браузере только при флаге.
-     */
-    const showEmailLinkForm = shouldShowEmailLinkForm({
-        isAuthenticated: isAuthenticated && !!user,
-        isGuest,
-        isAdmin,
-    });
-    const showEmailLoginButton =
-        EMAIL_AUTH_UI_ENABLED &&
-        !isInTelegram &&
-        !authLoading &&
-        !isAuthenticated;
 
-    // Получаем сохранённые настройки пользователя (история названий групп)
-    const localUserSettings = localStorage.getItem('userSettings');
-    const userSettings = localUserSettings ? JSON.parse(localUserSettings) : {};
-    const bandNames: string[] = userSettings.bandNames || [];
+    const bandNames = readSavedBandNames();
 
     // Показать toast при ошибке загрузки данных
     useEffect(() => {
@@ -206,62 +178,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
             showToast(error, 'error');
         }
     }, [error, showToast]);
-
-    const emailConfirmParam = searchParams.get('emailConfirm');
-    const passwordResetParam = searchParams.get('passwordReset');
-
-    /**
-     * Открывает модалку сброса пароля по ссылке из письма (?passwordReset=token).
-     * Без флага UI: ссылка в письме ведёт на прод, форма «забыли пароль» остаётся за флагом.
-     */
-    useEffect(() => {
-        if (!passwordResetParam || authLoading) {
-            return;
-        }
-        setPasswordResetToken(passwordResetParam);
-        setIsPasswordResetOpen(true);
-        const next = new URLSearchParams(searchParams);
-        next.delete('passwordReset');
-        setSearchParams(next, { replace: true });
-    }, [authLoading, passwordResetParam, searchParams, setSearchParams]);
-
-    /**
-     * Подтверждение почты по ссылке из письма (?emailConfirm=token).
-     */
-    useEffect(() => {
-        if (!emailConfirmParam || authLoading) {
-            return;
-        }
-
-        let cancelled = false;
-        const run = async () => {
-            try {
-                await confirmEmailToken(emailConfirmParam);
-                if (!cancelled) {
-                    showToast('Почта подтверждена. Вход выполнен.', 'success');
-                }
-            } catch (err) {
-                if (!cancelled) {
-                    showToast(
-                        err instanceof Error ? err.message : 'Не удалось подтвердить почту.',
-                        'error',
-                    );
-                }
-            } finally {
-                if (!cancelled) {
-                    setSearchParams((prev) => {
-                        const next = new URLSearchParams(prev);
-                        next.delete('emailConfirm');
-                        return next;
-                    }, { replace: true });
-                }
-            }
-        };
-        void run();
-        return () => {
-            cancelled = true;
-        };
-    }, [authLoading, confirmEmailToken, emailConfirmParam, setSearchParams, showToast]);
 
     /**
      * Обрабатывает изменение даты в компоненте Calendar.
@@ -307,7 +223,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         // Проверяем, является ли кликнутый час одним из уже забронированных
         const isBooked = bookedHours.some(b => b.hour === hour);
         const booking = bookedHours.find(b => b.hour === hour);
-        const isMyBooking = booking?.userId === user?._id;
+        const isMyBooking = currentUserId !== '' && String(booking?.userId) === currentUserId;
 
         if (isBooked) {
             if (isMyBooking || isAdmin) {
@@ -326,75 +242,27 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         }
     };
 
-    /**
-     * Отправляет запрос на бронирование выбранных часов.
-     * Вызывает APIPostBookRehearsal и обновляет данные в случае успеха.
-     */
-    const handleBooking = async () => {
-        if (!canManageBookings) return; // Защита от вызова без прав на бронирование
+    const { handleBooking, handleCancel } = useTimeTableBooking({
+        canManageBookings,
+        isOnline,
+        selectedDate,
+        selectedHours,
+        hoursToCancel,
+        bookingBandName,
+        rehearsalType,
+        bandNames,
+        showToast,
+        fetchBookedHours,
+        refetch,
+        closeBookingModal,
+        setSelectedHours,
+        setHoursToCancel,
+    });
 
-        // Проверка сетевого подключения перед запросом
-        if (!isOnline) {
-            showToast('Нет подключения к интернету. Попробуйте позже.', 'error');
-            return;
-        }
-
-        try {
-            const response = await APIPostBookRehearsal(
-                moment(selectedDate).format('DD/MM/YYYY'),
-                selectedHours,
-                bookingBandName,
-                rehearsalType
-            );
-            if (!response.ok) {
-                throw new Error('Не удалось забронировать время.');
-            }
-            // Сохраняем название группы в историю при успешном бронировании
-            if (bookingBandName && !bandNames.includes(bookingBandName)) {
-                const updatedSettings = { ...userSettings, bandNames: [...bandNames, bookingBandName] };
-                localStorage.setItem('userSettings', JSON.stringify(updatedSettings));
-            }
-            setSelectedHours([]); // Очищаем выбранные часы при успехе
-            await fetchBookedHours(selectedDate as Moment); // Повторно загружаем забронированные часы для текущей даты
-            refetch();
-            closeBookingModal();
-            showToast('Время успешно забронировано!', 'success');
-        } catch (err) {
-            console.error('Booking failed:', err);
-            showToast('Не удалось забронировать время.', 'error');
-        }
-    };
-
-    /**
-     * Отправляет запрос на отмену выбранных часов.
-     * Вызывает APICancelBooking и обновляет данные в случае успеха.
-     */
-    const handleCancel = async () => {
-        if (!canManageBookings) return; // Защита от вызова без прав на отмену
-
-        // Проверка сетевого подключения перед запросом
-        if (!isOnline) {
-            showToast('Нет подключения к интернету. Попробуйте позже.', 'error');
-            return;
-        }
-
-        try {
-            await APICancelBooking(moment(selectedDate).format('DD/MM/YYYY'), hoursToCancel);
-            // Обновляем состояние после успешной отмены
-            setHoursToCancel([]); // Очищаем часы для отмены
-            await fetchBookedHours(selectedDate as Moment); // Повторно загружаем забронированные часы для текущей даты
-            refetch();
-            showToast('Бронирование отменено.', 'success');
-        } catch (err) {
-            console.error('Cancellation failed:', err);
-            showToast('Не удалось отменить бронирование.', 'error');
-        }
-    };
-
-    const isSelectedDayBeforeToday = moment(selectedDate).startOf('day').isBefore(moment().startOf('day'));
     const selectedDateDdMmYyyy = selectedDate
         ? moment(selectedDate).format('DD/MM/YYYY')
-        : moment().format('DD/MM/YYYY');
+        : formatDdMmYyyyMoscow(new Date());
+    const isSelectedDayBeforeToday = isStudioDayBeforeToday(selectedDateDdMmYyyy);
     const hasBookedHours = bookedHours.length > 0;
     const canManageSelectedDate = canManageBookings && !isSelectedDayBeforeToday;
     const isBookingEnabled = selectedHours.length > 0 && canManageSelectedDate;
@@ -439,188 +307,16 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                 </Suspense>
             )}
 
-            <ModalPopup
-                isOpen={isEmailLoginOpen}
-                onClose={() => {
-                    setIsEmailLoginOpen(false);
-                    setForgotMode(false);
-                }}
-            >
-                <div className={css.emailLoginModal}>
-                    <h3 className={css.emailLoginTitle}>
-                        {forgotMode ? 'Сброс пароля' : 'Вход по почте'}
-                    </h3>
-                    <p className={css.emailLoginHint}>
-                        {forgotMode
-                            ? 'Если почта привязана, пришлём ссылку для нового пароля.'
-                            : 'Тот же аккаунт, что в Telegram-приложении, после привязки почты.'}
-                    </p>
-                    {forgotMode ? (
-                        <EmailAuthForm
-                            mode="forgot"
-                            loading={forgotLoading}
-                            onBack={() => setForgotMode(false)}
-                            onSubmit={async ({ email }) => {
-                                if (!email) return;
-                                setForgotLoading(true);
-                                try {
-                                    await requestPasswordReset(email);
-                                    showToast(
-                                        'Если почта зарегистрирована, письмо уже отправлено.',
-                                        'success',
-                                    );
-                                    setForgotMode(false);
-                                } catch (err) {
-                                    showToast(
-                                        err instanceof Error
-                                            ? err.message
-                                            : 'Не удалось отправить письмо.',
-                                        'error',
-                                    );
-                                    throw err;
-                                } finally {
-                                    setForgotLoading(false);
-                                }
-                            }}
-                        />
-                    ) : (
-                        <EmailAuthForm
-                            mode="login"
-                            loading={emailLoginLoading}
-                            onForgotClick={() => setForgotMode(true)}
-                            onSubmit={async ({ email, password }) => {
-                                if (!email || !password) return;
-                                setEmailLoginLoading(true);
-                                try {
-                                    await loginWithEmailPassword(email, password);
-                                    showToast('Вход выполнен.', 'success');
-                                    setIsEmailLoginOpen(false);
-                                } catch (err) {
-                                    showToast(
-                                        err instanceof Error
-                                            ? err.message
-                                            : 'Не удалось войти.',
-                                        'error',
-                                    );
-                                    throw err;
-                                } finally {
-                                    setEmailLoginLoading(false);
-                                }
-                            }}
-                        />
-                    )}
-                </div>
-            </ModalPopup>
-
-            <ModalPopup
-                isOpen={isPasswordResetOpen}
-                onClose={() => {
-                    setIsPasswordResetOpen(false);
-                    setPasswordResetToken(null);
-                }}
-            >
-                <div className={css.emailLoginModal}>
-                    <h3 className={css.emailLoginTitle}>Новый пароль</h3>
-                    <p className={css.emailLoginHint}>
-                        Задайте пароль не короче 8 символов.
-                    </p>
-                    <EmailAuthForm
-                        mode="reset"
-                        loading={passwordResetLoading}
-                        onSubmit={async ({ password }) => {
-                            if (!passwordResetToken || !password) return;
-                            setPasswordResetLoading(true);
-                            try {
-                                await resetPasswordWithToken(passwordResetToken, password);
-                                showToast('Пароль обновлён, вход выполнен.', 'success');
-                                setIsPasswordResetOpen(false);
-                                setPasswordResetToken(null);
-                            } catch (err) {
-                                showToast(
-                                    err instanceof Error
-                                        ? err.message
-                                        : 'Не удалось сбросить пароль.',
-                                    'error',
-                                );
-                                throw err;
-                            } finally {
-                                setPasswordResetLoading(false);
-                            }
-                        }}
-                    />
-                </div>
-            </ModalPopup>
-
-            {showEmailLoginButton && (
-                <div className={css.emailLoginBar}>
-                    <button
-                        type="button"
-                        className={css.emailLoginOpenButton}
-                        onClick={() => setIsEmailLoginOpen(true)}
-                    >
-                        Войти по почте
-                    </button>
-                </div>
-            )}
-
-            <ModalPopup
-                isOpen={showEmailLinkForm && isEmailLinkOpen}
-                onClose={() => setIsEmailLinkOpen(false)}
-            >
-                <div className={css.emailLoginModal}>
-                    <h3 className={css.emailLoginTitle}>Вход в браузере</h3>
-                    <p className={css.emailLoginHint}>
-                        {user?.emailLogin
-                            ? `Привязана почта ${user.emailLogin}. Новый адрес нужно подтвердить письмом.`
-                            : 'Привяжите почту — ссылка подтверждения придёт на неё.'}
-                    </p>
-                    <EmailAuthForm
-                        mode="link"
-                        compact
-                        submitLabel={user?.emailLogin ? 'Сохранить' : 'Привязать'}
-                        defaultEmail={user?.emailLogin || ''}
-                        loading={emailLinkLoading}
-                        requireCurrentPassword={!!user?.emailLogin}
-                        onSubmit={async ({ email, password, currentPassword }) => {
-                            if (!email || !password) return;
-                            setEmailLinkLoading(true);
-                            try {
-                                const result = await linkEmailPassword(
-                                    email,
-                                    password,
-                                    currentPassword,
-                                );
-                                if (result.pendingConfirmation) {
-                                    showToast(
-                                        'Проверьте почту — перейдите по ссылке для подтверждения.',
-                                        'success',
-                                    );
-                                } else {
-                                    showToast('Пароль для входа обновлён.', 'success');
-                                }
-                                setIsEmailLinkOpen(false);
-                            } catch (err) {
-                                showToast(
-                                    err instanceof Error ? err.message : 'Не удалось сохранить.',
-                                    'error',
-                                );
-                                throw err;
-                            } finally {
-                                setEmailLinkLoading(false);
-                            }
-                        }}
-                    />
-                </div>
-            </ModalPopup>
+            <TimeTableEmailDialogs auth={emailAuth} />
 
             <div className={css.card}>
-                {(showEmailLinkForm || isAdmin) && (
+                {(emailAuth.showEmailLinkForm || isAdmin) && (
                     <div className={css.cardCornerActions}>
-                        {showEmailLinkForm && (
+                        {emailAuth.showEmailLinkForm && (
                             <button
                                 type="button"
                                 className={css.adminEntryButton}
-                                onClick={() => setIsEmailLinkOpen(true)}
+                                onClick={emailAuth.openEmailLink}
                                 aria-label="Вход в браузере"
                                 title="Вход в браузере"
                             >
@@ -717,7 +413,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                         hoursToCancel={hoursToCancel}
                                         readonlyMessage={getReadonlyMessage()}
                                         canViewUserDetails={canViewUserDetails}
-                                        currentUserId={String(user?._id)}
+                                        currentUserId={currentUserId}
                                         isAdmin={isAdmin}
                                         isSelectedDayBeforeToday={isSelectedDayBeforeToday}
                                         selectedDateDdMmYyyy={selectedDateDdMmYyyy}
