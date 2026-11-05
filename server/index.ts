@@ -10,7 +10,10 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 import User from './models/User';
-import { migrateLegacyTelegramIdentities } from './auth/identityService';
+import {
+    ensureUniqueIdentityIndex,
+    migrateLegacyTelegramIdentities,
+} from './auth/identityService';
 import { createApp } from './app';
 import {
     createNotifyAdmins,
@@ -109,13 +112,24 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/test';
 mongoose.connect(MONGO_URI)
     .then(async () => {
         console.log('MongoDB connection established successfully!');
+        // Миграцию не запускаем, если уникальный индекс не встал: иначе пакет
+        // допишет те же пары identity второму документу.
+        let identityIndexReady = false;
         try {
-            const migrated = await migrateLegacyTelegramIdentities();
-            if (migrated > 0) {
-                console.log(`Migrated ${migrated} legacy telegram identities`);
-            }
+            await ensureUniqueIdentityIndex();
+            identityIndexReady = true;
         } catch (e) {
-            console.error('Identity migration failed:', e);
+            console.error('Unique identity index failed:', e);
+        }
+        if (identityIndexReady) {
+            try {
+                const migrated = await migrateLegacyTelegramIdentities();
+                if (migrated > 0) {
+                    console.log(`Migrated ${migrated} legacy telegram identities`);
+                }
+            } catch (e) {
+                console.error('Identity migration failed:', e);
+            }
         }
     })
     .catch((err) => console.error('MongoDB connection failed:', err.message));

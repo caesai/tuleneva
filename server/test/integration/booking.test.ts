@@ -204,4 +204,142 @@ describe('booking integration', () => {
 
         logSpy.mockRestore();
     });
+
+    it('rejects an overflowing cancel date', async () => {
+        const user = await seedUser({ role: 'user' });
+        const booking = createBooking();
+        const result = await booking.cancel({
+            dbUser: user,
+            date: '32/01/2030',
+            hours: ['14:00'],
+        });
+        expect(result.status).toBe(400);
+    });
+
+    it('lists only the hours the caller actually canceled', async () => {
+        const owner = await seedUser({ role: 'user', username: 'owner_part' });
+        const other = await seedUser({ role: 'user', username: 'other_part' });
+        const booking = createBooking();
+        const date = '22/06/2030';
+
+        expect((await booking.book({
+            dbUser: owner,
+            date,
+            hours: ['14:00', '15:00'],
+            rehearsalType: 'rehearsal',
+        })).status).toBe(201);
+        expect((await booking.book({
+            dbUser: other,
+            date,
+            hours: ['16:00'],
+            rehearsalType: 'rehearsal',
+        })).status).toBe(201);
+
+        const canceled = await booking.cancel({
+            dbUser: owner,
+            date,
+            hours: ['14:00', '16:00'],
+        });
+        expect(canceled.status).toBe(200);
+        expect(canceled.body.canceledHours).toEqual(['14:00']);
+
+        const doc = await Rehearsal.findOne({});
+        expect(doc?.hours.map((slot) => slot.hour).sort()).toEqual(['15:00', '16:00']);
+    });
+
+    it('does not remove a slot that was rebooked after the admin read it', async () => {
+        const owner = await seedUser({ role: 'user', username: 'owner_race' });
+        const next = await seedUser({ role: 'user', username: 'next_race' });
+        const admin = await seedUser({ role: 'admin', username: 'admin_race' });
+        const booking = createBooking({
+            notifyUser: async () => {},
+            notifyAdmins: async () => {},
+        });
+        const date = '23/06/2030';
+
+        expect((await booking.book({
+            dbUser: owner,
+            date,
+            hours: ['16:00'],
+            rehearsalType: 'rehearsal',
+        })).status).toBe(201);
+
+        const originalFindOne = Rehearsal.findOne.bind(Rehearsal);
+        const spy = vi.spyOn(Rehearsal, 'findOne').mockImplementationOnce(((filter: object) => {
+            const query = originalFindOne(filter);
+            return query.then(async (doc) => {
+                if (doc) {
+                    await Rehearsal.updateOne(
+                        { _id: doc._id, 'hours.hour': '16:00' },
+                        { $set: { 'hours.$.userId': String(next._id), 'hours.$.username': 'next' } },
+                    );
+                }
+                return doc;
+            });
+        }) as typeof Rehearsal.findOne);
+
+        const canceled = await booking.cancel({
+            dbUser: admin,
+            date,
+            hours: ['16:00'],
+        });
+        spy.mockRestore();
+
+        expect(canceled.status).toBe(409);
+        const doc = await Rehearsal.findOne({});
+        expect(doc?.hours).toHaveLength(1);
+        expect(String(doc?.hours[0]?.userId)).toBe(String(next._id));
+    });
+
+    it('keeps legacy booked hours when a new slot is added', async () => {
+        const user = await seedUser({ role: 'user', username: 'after_legacy' });
+        const date = new Date(Date.UTC(2030, 5, 21));
+        await Rehearsal.collection.insertOne({
+            date,
+            hours: {
+                '14:00': {
+                    status: 'BOOKED',
+                    userId: 'legacy-user',
+                    owner: 'legacy',
+                    bandName: 'Old',
+                },
+                '15:00': { status: 'FREE' },
+            },
+        });
+
+        const booking = createBooking();
+        const result = await booking.book({
+            dbUser: user,
+            date: '21/06/2030',
+            hours: ['16:00'],
+            rehearsalType: 'rehearsal',
+        });
+        expect(result.status).toBe(201);
+
+        const doc = await Rehearsal.findOne({});
+        expect(doc?.hours.map((slot) => slot.hour).sort()).toEqual(['14:00', '16:00']);
+        expect(doc?.hours.find((slot) => slot.hour === '14:00')?.username).toBe('legacy');
+    });
+
+    it('highlights the UTC day of a booking', async () => {
+        const user = await seedUser({ role: 'user', username: 'utc_day' });
+        const booking = createBooking();
+        expect((await booking.book({
+            dbUser: user,
+            date: '01/06/2030',
+            hours: ['12:00'],
+            rehearsalType: 'rehearsal',
+        })).status).toBe(201);
+
+        await Rehearsal.create({
+            date: new Date(Date.UTC(2030, 5, 2)),
+            hours: [],
+        });
+
+        const month = await booking.getMonthDates({ date: '15/06/2030' });
+        expect(month.status).toBe(200);
+        expect(month.body.result).toContain('01/06/2030');
+        expect(month.body.result).not.toContain('31/05/2030');
+        expect(month.body.result).not.toContain('02/06/2030');
+    });
 });

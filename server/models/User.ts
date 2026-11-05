@@ -141,7 +141,17 @@ const userSchema = new mongoose.Schema(
     },
 );
 
-userSchema.index({ 'identities.provider': 1, 'identities.providerUserId': 1 });
+/**
+ * Пара provider + providerUserId уникальна между документами.
+ * sparse: пустой identities не попадает в индекс, иначе уникальность
+ * разрешила бы только одного пользователя без identity.
+ * Повтор внутри одного документа индекс не запрещает — его снимает ensureIdentity.
+ * Старый неуникальный индекс при старте заменяет ensureUniqueIdentityIndex.
+ */
+userSchema.index(
+    { 'identities.provider': 1, 'identities.providerUserId': 1 },
+    { unique: true, sparse: true },
+);
 
 const User =
     (mongoose.models.User as Model<UserDoc> | undefined)

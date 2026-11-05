@@ -5,7 +5,7 @@
 import moment from 'moment';
 
 import User, { type UserDocument } from '../models/User';
-import Rehearsal from '../models/Rehearsal';
+import Rehearsal, { type RehearsalDocument } from '../models/Rehearsal';
 import { isAdminLike } from '../auth/roleHelpers';
 import {
     canViewBookingUserDetails,
@@ -18,7 +18,7 @@ import { isHourAllowed, isSlotInPast } from '../../shared/studioHours';
  * @param {string} str - Строка для проверки
  * @returns {boolean}
  */
-const isTimeKey = (str) => /^\d{1,2}:\d{2}$/.test(str);
+const isTimeKey = (str: string): boolean => /^\d{1,2}:\d{2}$/.test(str);
 
 /**
  * Вычисляет конечное время (начальный час + 1).
@@ -26,7 +26,7 @@ const isTimeKey = (str) => /^\d{1,2}:\d{2}$/.test(str);
  * @param {string} hour - Час в формате "HH:00"
  * @returns {string}
  */
-const calculateEndTime = (hour) => {
+const calculateEndTime = (hour: string): string => {
     const hourNum = parseInt(hour.split(':')[0], 10);
     const nextHour = (hourNum + 1) % 24;
     return `${nextHour.toString().padStart(2, '0')}:00`;
@@ -37,7 +37,7 @@ const calculateEndTime = (hour) => {
  * @param {string} hour - Час в формате "HH:00"
  * @returns {number}
  */
-const getHourNumber = (hour) => {
+const getHourNumber = (hour: string): number => {
     return parseInt(hour.split(':')[0], 10);
 };
 
@@ -47,7 +47,7 @@ const getHourNumber = (hour) => {
  * @param {string[]} hours - Массив часов
  * @returns {string}
  */
-const formatHoursRange = (hours) => {
+const formatHoursRange = (hours: string[]): string => {
     if (!hours || hours.length === 0) return '';
 
     const sortedHours = [...hours].sort((a, b) => getHourNumber(a) - getHourNumber(b));
@@ -137,7 +137,21 @@ const convertOldFormatToNew = (
  * @param {Object|Array} hoursData - Данные из БД (может быть старый формат или новый)
  * @returns {Array} Массив в новом формате bookedHourSchema
  */
-const normalizeHoursData = (hoursData) => {
+/**
+ * Снимает обёртку Mongoose, если она есть.
+ * @param value Объект слота или документ
+ * @returns Плоский объект для разбора ключей-часов
+ */
+const asLegacyRecord = (
+    value: object,
+): Record<string, LegacyBookedSlot | null | undefined> => {
+    if ('toObject' in value && typeof value.toObject === 'function') {
+        return value.toObject() as Record<string, LegacyBookedSlot | null | undefined>;
+    }
+    return value as Record<string, LegacyBookedSlot | null | undefined>;
+};
+
+const normalizeHoursData = (hoursData: unknown) => {
     if (!hoursData) {
         return [];
     }
@@ -154,7 +168,7 @@ const normalizeHoursData = (hoursData) => {
         }
 
         if (firstItem && typeof firstItem === 'object') {
-            const plainObj = firstItem.toObject ? firstItem.toObject() : firstItem;
+            const plainObj = asLegacyRecord(firstItem);
             const keys = Object.keys(plainObj);
 
             if (keys.some(isTimeKey)) {
@@ -166,42 +180,120 @@ const normalizeHoursData = (hoursData) => {
     }
 
     if (typeof hoursData === 'object') {
-        const plainObj = hoursData.toObject ? hoursData.toObject() : hoursData;
+        const plainObj = asLegacyRecord(hoursData);
         return convertOldFormatToNew(plainObj);
     }
 
     return [];
 };
 
+/** Границы календарного дня в UTC. */
+interface StudioDayBounds {
+    start: Date;
+    end: Date;
+}
+
+/**
+ * Строго разбирает DD/MM/YYYY в интервал UTC-суток.
+ * Дата вроде 32/01/2030 не переносится на соседний день.
+ * @param date Строка даты
+ * @returns Начало и конец дня либо null
+ */
+const parseStudioDay = (date: unknown): StudioDayBounds | null => {
+    if (typeof date !== 'string' || date.length === 0) {
+        return null;
+    }
+    const parsed = moment.utc(date, 'DD/MM/YYYY', true);
+    if (!parsed.isValid()) {
+        return null;
+    }
+    const start = parsed.clone().startOf('day');
+    return {
+        start: start.toDate(),
+        end: start.clone().endOf('day').toDate(),
+    };
+};
+
+/**
+ * Условие поиска документа дня: любая метка внутри UTC-суток.
+ * @param bounds Границы дня
+ * @returns Фильтр MongoDB
+ */
+const dayFilter = (bounds: StudioDayBounds) => ({
+    date: { $gte: bounds.start, $lte: bounds.end },
+});
+
+/**
+ * Готовит legacy-слоты к записи в bookedHourSchema.
+ * @param slots Нормализованные слоты
+ * @returns Массив для поля hours
+ */
+const toStoredHours = (slots: NormalizedLegacySlot[]) => slots.map((slot) => ({
+    hour: slot.hour,
+    userId: slot.userId ?? '',
+    username: slot.username,
+    band_name: slot.band_name,
+    userPhotoUrl: slot.userPhotoUrl,
+    rehearsalType: slot.rehearsalType || 'rehearsal',
+}));
+
+/**
+ * Ошибка уникального индекса MongoDB.
+ * @param err Пойманная ошибка
+ * @returns true для кода 11000
+ */
+const isDuplicateKey = (err: unknown): boolean => (
+    typeof err === 'object'
+    && err !== null
+    && 'code' in err
+    && (err as { code?: unknown }).code === 11000
+);
+
+/**
+ * Переписывает объектный legacy-hours в массив, не стирая занятые слоты.
+ * Тип поля читается из BSON: Mongoose иногда показывает такой объект как массив.
+ * @param doc Документ дня
+ * @returns Документ с массивом hours
+ */
+const ensureHoursArray = async (doc: RehearsalDocument): Promise<RehearsalDocument | null> => {
+    // Mongoose может отдать объектный legacy как массив. Тип смотрим в BSON.
+    const raw = await Rehearsal.collection.findOne(
+        { _id: doc._id },
+        { projection: { hours: 1 } },
+    );
+    const rawHours = raw?.hours;
+    if (!rawHours || typeof rawHours !== 'object' || Array.isArray(rawHours)) {
+        return doc;
+    }
+
+    await Rehearsal.updateOne(
+        { _id: doc._id },
+        { $set: { hours: toStoredHours(normalizeHoursData(rawHours)) } },
+    );
+    return Rehearsal.findById(doc._id);
+};
+
 /**
  * Загружает и нормализует слоты дня (UTC-окно как у GET /api/hours).
  * Общий day-read для HTTP и бота; PII режет вызывающий код.
- * @param {string} date - DD/MM/YYYY
- * @returns {Promise<{ valid: boolean, hours: Array<object> }>}
+ * @param date Дата DD/MM/YYYY
+ * @returns valid: false, если дата не разобрана
  */
-const loadNormalizedDayHours = async (date) => {
-    const dateMoment = moment.utc(date, 'DD/MM/YYYY');
-    if (!date || !dateMoment.isValid()) {
+const loadNormalizedDayHours = async (date: unknown) => {
+    const bounds = parseStudioDay(date);
+    if (!bounds) {
         return { valid: false, hours: [] };
     }
 
-    const startOfDay = dateMoment.startOf('day').toDate();
-    const endOfDay = dateMoment.endOf('day').toDate();
-
-    const rehearsalRecord = await Rehearsal.findOne({
-        date: {
-            $gte: startOfDay,
-            $lte: endOfDay,
-        },
-    });
-
+    const rehearsalRecord = await Rehearsal.findOne(dayFilter(bounds));
     if (!rehearsalRecord) {
         return { valid: true, hours: [] };
     }
 
+    const ready = await ensureHoursArray(rehearsalRecord);
     return {
         valid: true,
-        hours: normalizeHoursData(rehearsalRecord.hours),
+        hours: normalizeHoursData(ready?.hours),
     };
 };
 
@@ -213,11 +305,37 @@ const loadNormalizedDayHours = async (date) => {
  * @param {Function} [deps.notifyUser] - Уведомление пользователя по telegram_id
  * @returns {{ book: Function, cancel: Function, getDayHours: Function, getMonthDates: Function }}
  */
+/** Ответ book/cancel/day/month для HTTP-адаптера. */
+interface BookingHttpResult {
+    status: number;
+    body: {
+        error?: string;
+        message?: string;
+        hours?: unknown;
+        invalidHours?: unknown;
+        pastHours?: unknown;
+        conflictingHours?: unknown;
+        canceledHours?: string[];
+        rehearsal?: unknown;
+        result?: string[];
+    };
+    afterResponse?: () => Promise<unknown>;
+}
+
+interface BookingDeps {
+    /** Публикация WebSocket-событий. */
+    broadcastUpdate?: (event: string, payload: unknown) => void;
+    /** Уведомление админов в Telegram. */
+    notifyAdmins?: (message: string) => Promise<unknown> | unknown;
+    /** Уведомление пользователя по telegram_id. */
+    notifyUser?: (telegramId: number, message: string) => Promise<unknown> | unknown;
+}
+
 const createBooking = ({
-    broadcastUpdate = (..._args: any[]) => {},
-    notifyAdmins = async (..._args: any[]) => {},
-    notifyUser = async (..._args: any[]) => {},
-}: any = {}) => {
+    broadcastUpdate = () => {},
+    notifyAdmins = async () => {},
+    notifyUser = async () => {},
+}: BookingDeps = {}) => {
     /**
      * Создаёт бронирование слотов на дату.
      * @param {object} input
@@ -240,7 +358,7 @@ const createBooking = ({
         hours?: unknown;
         band_name?: unknown;
         rehearsalType?: unknown;
-    }) => {
+    }): Promise<BookingHttpResult> => {
         const username = dbUser.username || dbUser.first_name;
         const userId = dbUser._id;
         const userPhotoUrl = dbUser.photo_url;
@@ -258,8 +376,8 @@ const createBooking = ({
             return { status: 400, body: { error: 'Duplicate hours in booking request.' } };
         }
 
-        const dateMoment = moment.utc(date, 'DD/MM/YYYY', true);
-        if (!dateMoment.isValid()) {
+        const bounds = parseStudioDay(date);
+        if (!bounds) {
             return { status: 400, body: { error: 'Invalid date format. Please use DD/MM/YYYY.' } };
         }
 
@@ -285,16 +403,9 @@ const createBooking = ({
             };
         }
 
-        const bookingDate = dateMoment.startOf('day').toDate();
-
-        let rehearsalDoc = await Rehearsal.findOne({ date: bookingDate });
-
-        if (rehearsalDoc && !Array.isArray(rehearsalDoc.hours)) {
-            await Rehearsal.updateOne(
-                { _id: rehearsalDoc._id },
-                { $set: { hours: [] } },
-            );
-            rehearsalDoc = await Rehearsal.findOne({ date: bookingDate });
+        let rehearsalDoc = await Rehearsal.findOne(dayFilter(bounds));
+        if (rehearsalDoc) {
+            rehearsalDoc = await ensureHoursArray(rehearsalDoc);
         }
 
         const newBookings = uniqueHours.map((hour) => ({
@@ -309,12 +420,13 @@ const createBooking = ({
         }));
 
         /**
-         * Условный $push: только если ни один из часов ещё не занят.
-         * @returns {Promise<object|null>}
+         * Условный $push в уже найденный документ: только если ни один из часов не занят.
+         * @param docId Документ дня
+         * @returns Обновлённый документ или null, если слот уже занят
          */
-        const tryPushHours = () => Rehearsal.findOneAndUpdate(
+        const pushOnto = (docId: RehearsalDocument['_id']) => Rehearsal.findOneAndUpdate(
             {
-                date: bookingDate,
+                _id: docId,
                 'hours.hour': { $nin: uniqueHours },
             },
             { $push: { hours: { $each: newBookings } } },
@@ -323,30 +435,40 @@ const createBooking = ({
 
         /**
          * Собирает список уже занятых часов для ответа 409.
-         * @returns {Promise<string[]>}
+         * @returns Часы из запроса, которые уже есть в документе дня
          */
         const loadConflictingHours = async () => {
-            const current = await Rehearsal.findOne({ date: bookingDate });
-            if (!current || !Array.isArray(current.hours)) {
+            const current = await Rehearsal.findOne(dayFilter(bounds));
+            if (!current) {
                 return uniqueHours;
             }
-            const booked = new Set(current.hours.map((slot) => slot.hour));
+            const ready = await ensureHoursArray(current);
+            if (!ready || !Array.isArray(ready.hours)) {
+                return uniqueHours;
+            }
+            const booked = new Set(ready.hours.map((slot) => slot.hour));
             return uniqueHours.filter((hour) => booked.has(hour));
         };
 
-        let updatedRehearsal = await tryPushHours();
+        let updatedRehearsal = rehearsalDoc ? await pushOnto(rehearsalDoc._id) : null;
 
         if (!updatedRehearsal && !rehearsalDoc) {
             try {
                 updatedRehearsal = await Rehearsal.create({
-                    date: bookingDate,
+                    date: bounds.start,
                     hours: newBookings,
                 });
             } catch (createErr) {
-                if (createErr?.code !== 11000) {
+                if (!isDuplicateKey(createErr)) {
                     throw createErr;
                 }
-                updatedRehearsal = await tryPushHours();
+                const winner = await Rehearsal.findOne(dayFilter(bounds));
+                if (winner) {
+                    const ready = await ensureHoursArray(winner);
+                    if (ready) {
+                        updatedRehearsal = await pushOnto(ready._id);
+                    }
+                }
             }
         }
 
@@ -380,7 +502,7 @@ const createBooking = ({
         return {
             status: 201,
             body: updatedRehearsal,
-            afterResponse: () => notifyAdmins(BOOK_MESSAGE),
+            afterResponse: () => Promise.resolve(notifyAdmins(BOOK_MESSAGE)),
         };
     };
 
@@ -400,7 +522,7 @@ const createBooking = ({
         dbUser: UserDocument;
         date?: unknown;
         hours?: unknown;
-    }) => {
+    }): Promise<BookingHttpResult> => {
         const username = dbUser.username || dbUser.first_name;
         const userId = dbUser._id;
         const isAdmin = isAdminLike(dbUser.role);
@@ -409,41 +531,38 @@ const createBooking = ({
             return { status: 400, body: { error: 'Missing or invalid cancellation data.' } };
         }
 
-        const dateMoment = moment.utc(date, 'DD/MM/YYYY');
-        if (!dateMoment.isValid()) {
+        const bounds = parseStudioDay(date);
+        if (!bounds) {
             return { status: 400, body: { error: 'Invalid date format. Expected DD/MM/YYYY.' } };
         }
 
-        const startOfDay = dateMoment.startOf('day').toDate();
-        const endOfDay = dateMoment.endOf('day').toDate();
+        const requestedHours = [...new Set(
+            hours.filter((hour): hour is string => typeof hour === 'string'),
+        )];
+        if (requestedHours.length !== hours.length) {
+            return { status: 400, body: { error: 'Missing or invalid cancellation data.' } };
+        }
 
-        const rehearsalDoc = await Rehearsal.findOne({
-            date: {
-                $gte: startOfDay,
-                $lte: endOfDay,
-            },
-        });
-
-        if (!rehearsalDoc) {
+        const found = await Rehearsal.findOne(dayFilter(bounds));
+        if (!found) {
             return { status: 404, body: { error: 'No bookings found for this day.' } };
         }
 
-        if (!Array.isArray(rehearsalDoc.hours)) {
-            await Rehearsal.updateOne(
-                { _id: rehearsalDoc._id },
-                { $set: { hours: [] } },
-            );
+        const rehearsalDoc = await ensureHoursArray(found);
+        if (!rehearsalDoc || rehearsalDoc.hours.length === 0) {
             return { status: 404, body: { error: 'No bookings found for this day.' } };
         }
 
-        const hoursToCancel = hours.filter((hour) => {
-            const booking = rehearsalDoc.hours.find((h) => h.hour === hour);
-            return booking && (isAdmin || String(booking.userId) === String(userId));
-        });
+        const targets = rehearsalDoc.hours.filter((booking) => (
+            requestedHours.includes(booking.hour)
+            && (isAdmin || String(booking.userId) === String(userId))
+        ));
 
-        if (hoursToCancel.length === 0) {
-            console.log(`Cancel failed for user ${userId}. Requested: ${hours.join(',')}. Found docs matching user:`,
-                rehearsalDoc.hours.filter((h) => hours.includes(h.hour)).map((h) => ({ h: h.hour, u: h.userId })),
+        if (targets.length === 0) {
+            console.log(`Cancel failed for user ${userId}. Requested: ${requestedHours.join(',')}. Found docs matching user:`,
+                rehearsalDoc.hours
+                    .filter((slot) => requestedHours.includes(slot.hour))
+                    .map((slot) => ({ h: slot.hour, u: slot.userId })),
             );
             return {
                 status: 403,
@@ -453,18 +572,50 @@ const createBooking = ({
             };
         }
 
+        // Снимаем пару hour+userId, прочитанную выше. Чужая новая бронь того же часа остаётся.
         const updatedRehearsal = await Rehearsal.findOneAndUpdate(
             { _id: rehearsalDoc._id },
-            {
-                $pull: {
-                    hours: {
-                        hour: { $in: hoursToCancel },
-                        ...(isAdmin ? {} : { userId: userId }),
+            [
+                {
+                    $set: {
+                        hours: {
+                            $filter: {
+                                input: { $ifNull: ['$hours', []] },
+                                as: 'slot',
+                                cond: {
+                                    $not: {
+                                        $or: targets.map((booking) => ({
+                                            $and: [
+                                                { $eq: ['$$slot.hour', booking.hour] },
+                                                { $eq: ['$$slot.userId', String(booking.userId)] },
+                                            ],
+                                        })),
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
-            },
+            ],
             { new: true },
         );
+
+        if (!updatedRehearsal) {
+            return { status: 404, body: { error: 'Booking not found or already canceled.' } };
+        }
+
+        const canceledHours = [...new Set(
+            targets
+                .filter((target) => !updatedRehearsal.hours.some((slot) => slot.hour === target.hour))
+                .map((target) => target.hour),
+        )];
+
+        if (canceledHours.length === 0) {
+            return {
+                status: 409,
+                body: { error: 'Selected bookings changed. Refresh and try again.' },
+            };
+        }
 
         const CANCEL_MESSAGE_ADMIN = `
 **ОТМЕНА**
@@ -472,26 +623,27 @@ const createBooking = ({
 👨‍💻 @${username}
 
 📅 ${date.replaceAll('/', '.')} 
-🕓 ${formatHoursRange(hoursToCancel)}
+🕓 ${formatHoursRange(canceledHours)}
         `;
         const CANCEL_MESSAGE_USER = `
 **ОТМЕНА**
     
 📅 ${date.replaceAll('/', '.')}
-🕓 ${formatHoursRange(hoursToCancel)}
+🕓 ${formatHoursRange(canceledHours)}
 
 Репетиция была отменена администратором
         `;
 
         /**
          * Фоновые Telegram-уведомления после ответа клиенту.
-         * @returns {Promise<void>}
+         * Пишет только про слоты, которые $pull действительно снял.
+         * @returns Promise уведомлений
          */
         const sendCancelNotifications = async () => {
             if (isAdmin) {
                 const affectedUserIds = [...new Set(rehearsalDoc.hours
-                    .filter((h) => hoursToCancel.includes(h.hour))
-                    .map((h) => h.userId))];
+                    .filter((slot) => canceledHours.includes(slot.hour))
+                    .map((slot) => slot.userId))];
 
                 await Promise.allSettled(
                     affectedUserIds.map(async (affectedUserId) => {
@@ -501,9 +653,10 @@ const createBooking = ({
                                 await notifyUser(affectedUser.telegram_id, CANCEL_MESSAGE_USER);
                             }
                         } catch (e) {
+                            const detail = e instanceof Error ? e.message : e;
                             console.error(
                                 `Failed to notify user ${affectedUserId} about cancellation:`,
-                                e?.code || e?.message || e,
+                                detail,
                             );
                         }
                     }),
@@ -513,7 +666,7 @@ const createBooking = ({
             }
         };
 
-        if (updatedRehearsal && updatedRehearsal.hours.length === 0) {
+        if (updatedRehearsal.hours.length === 0) {
             await Rehearsal.deleteOne({ _id: updatedRehearsal._id });
 
             broadcastUpdate('booking_cancel', {
@@ -523,13 +676,12 @@ const createBooking = ({
 
             return {
                 status: 200,
-                body: { message: 'All bookings for this day canceled, document deleted.' },
+                body: {
+                    message: 'All bookings for this day canceled, document deleted.',
+                    canceledHours,
+                },
                 afterResponse: () => sendCancelNotifications(),
             };
-        }
-
-        if (!updatedRehearsal) {
-            return { status: 404, body: { error: 'Booking not found or already canceled.' } };
         }
 
         // Push: только занятость дня (без PII). Имена/группа — у getDayHours по роли зрителя.
@@ -542,6 +694,7 @@ const createBooking = ({
             status: 200,
             body: {
                 message: 'Bookings canceled successfully.',
+                canceledHours,
                 rehearsal: updatedRehearsal,
             },
             afterResponse: () => sendCancelNotifications(),
@@ -561,7 +714,7 @@ const createBooking = ({
     }: {
         date?: unknown;
         dbUser?: UserDocument | null;
-    }) => {
+    }): Promise<BookingHttpResult> => {
         if (!date) {
             return { status: 400, body: { message: 'Date query parameter is required.' } };
         }
@@ -583,27 +736,30 @@ const createBooking = ({
      * @param {string} input.date - Любая дата месяца в DD/MM/YYYY
      * @returns {Promise<{ status: number, body: object }>}
      */
-    const getMonthDates = async ({ date }) => {
-        if (!date) {
+    const getMonthDates = async ({ date }: { date?: unknown }): Promise<BookingHttpResult> => {
+        if (typeof date !== 'string' || date.length === 0) {
             return { status: 400, body: { error: 'Missing or invalid booking date.' } };
         }
-        const dateMoment = moment(date, 'DD/MM/YYYY');
-        if (!dateMoment.isValid()) {
+        const bounds = parseStudioDay(date);
+        if (!bounds) {
             return { status: 400, body: { error: 'Invalid date format. Please use DD/MM/YYYY.' } };
         }
 
-        const dateFrom = dateMoment.startOf('month').toDate();
-        const dateTo = dateMoment.endOf('month').toDate();
+        const monthStart = moment.utc(bounds.start).startOf('month').toDate();
+        const monthEnd = moment.utc(bounds.start).endOf('month').toDate();
 
         const searchResults = await Rehearsal.find({
             date: {
-                $gte: dateFrom,
-                $lte: dateTo,
+                $gte: monthStart,
+                $lte: monthEnd,
             },
-            hours: { $ne: [] },
+            $or: [
+                { 'hours.0': { $exists: true } },
+                { hours: { $type: 'object' } },
+            ],
         });
 
-        const datesToHighlight = searchResults.map((doc) => moment(doc.date).format('DD/MM/YYYY'));
+        const datesToHighlight = searchResults.map((doc) => moment.utc(doc.date).format('DD/MM/YYYY'));
 
         return { status: 200, body: { result: datesToHighlight } };
     };

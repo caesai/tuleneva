@@ -9,7 +9,8 @@ export const UserIdentitySchema = z.object({
     verifiedAt: z.coerce.date().optional(),
 });
 
-export const UserSchema = z.object({
+/** Пользователь в ответе auth. Поля документа вне схемы сохраняются. */
+export const UserSchema = z.looseObject({
     _id: z.string().optional(),
     telegram_id: z.number().optional().nullable(),
     first_name: z.string(),
@@ -20,11 +21,11 @@ export const UserSchema = z.object({
     identities: z.array(UserIdentitySchema).optional(),
     emailLogin: z.string().nullable().optional(),
     isRegistered: z.boolean().optional(),
-}).passthrough();
+});
 
 /** Запрос привязки или входа по почте (passwordHash в ответах не бывает). */
 export const EmailCredentialsRequestSchema = z.object({
-    email: z.string().email(),
+    email: z.email(),
     password: z.string().min(8),
     /** Обязателен при смене, если пароль уже задан. */
     currentPassword: z.string().min(8).optional(),
@@ -37,7 +38,7 @@ export const EmailConfirmRequestSchema = z.object({
 
 /** Запрос письма со сбросом пароля. */
 export const EmailForgotRequestSchema = z.object({
-    email: z.string().email(),
+    email: z.email(),
 });
 
 /** Ответ forgot — без раскрытия, есть ли аккаунт. */
