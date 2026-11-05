@@ -8,7 +8,7 @@ import User from '../models/User';
  * @param {string} jwtSecret - Секрет для верификации JWT.
  * @returns {import('express').RequestHandler}
  */
-const createOptionalAuth = (jwtSecret) => async (req, res, next) => {
+const createOptionalAuth = (jwtSecret: string): import('express').RequestHandler => async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 

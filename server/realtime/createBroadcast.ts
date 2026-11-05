@@ -8,16 +8,29 @@ import { WebSocketServer } from 'ws';
 const HEARTBEAT_MS = 25000;
 
 /**
- * Клиент для publish: send + readyState (+ ping для heartbeat).
- * @typedef {{ send: Function, readyState: number, ping?: Function }} BroadcastClient
+ * Клиент рассылки: send и readyState, ping опционален для heartbeat.
  */
+interface BroadcastClient {
+    send: (data: string) => void;
+    readyState: number;
+    ping?: () => void;
+}
+
+/**
+ * Публикация событий, регистрация клиентов и привязка WebSocket к HTTP-серверу.
+ */
+interface Broadcast {
+    publish: (type: string, data: object) => void;
+    addClient: (client: BroadcastClient) => () => void;
+    attach: (httpServer: import('http').Server) => () => void;
+}
 
 /**
  * Создаёт модуль публикации обновлений по WebSocket.
- * @returns {{ publish: Function, addClient: Function, attach: Function }}
+ * @returns {Broadcast} publish, addClient и attach
  */
-const createBroadcast = () => {
-    const clients = new Set<any>();
+const createBroadcast = (): Broadcast => {
+    const clients = new Set<BroadcastClient>();
 
     /**
      * Рассылает событие всем открытым клиентам.
@@ -26,7 +39,7 @@ const createBroadcast = () => {
      * @param {object} data - Полезная нагрузка
      * @returns {void}
      */
-    const publish = (type, data) => {
+    const publish = (type: string, data: object): void => {
         const message = JSON.stringify({ type, data, timestamp: Date.now() });
         clients.forEach((client) => {
             if (client.readyState === 1) {
@@ -41,7 +54,7 @@ const createBroadcast = () => {
      * @param {BroadcastClient} client
      * @returns {() => void} Функция снятия клиента
      */
-    const addClient = (client) => {
+    const addClient = (client: BroadcastClient): () => void => {
         clients.add(client);
         return () => {
             clients.delete(client);
@@ -53,7 +66,7 @@ const createBroadcast = () => {
      * @param {import('http').Server} httpServer
      * @returns {() => void} stop — heartbeat + закрытие сокетов и WSS
      */
-    const attach = (httpServer) => {
+    const attach = (httpServer: import('http').Server): () => void => {
         const wss = new WebSocketServer({
             server: httpServer,
             path: '/ws',
@@ -89,7 +102,7 @@ const createBroadcast = () => {
          * Останавливает heartbeat и закрывает WebSocket-сервер.
          * @returns {void}
          */
-        const stop = () => {
+        const stop = (): void => {
             clearInterval(heartbeat);
             try {
                 wss.clients.forEach((ws) => {

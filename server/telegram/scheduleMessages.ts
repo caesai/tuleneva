@@ -13,36 +13,41 @@ import {
  * @param {string} hour
  * @returns {number}
  */
-const getHourNumber = (hour) => parseInt(String(hour).split(':')[0], 10);
+const getHourNumber = (hour: string): number => parseInt(String(hour).split(':')[0], 10);
 
 /**
  * Конец слота: следующий час. «23:00» → «00:00», как на карточке.
  * @param {string} hour
  * @returns {string}
  */
-const calculateEndTime = (hour) => {
+const calculateEndTime = (hour: string): string => {
     const nextHour = (getHourNumber(hour) + 1) % 24;
     return `${String(nextHour).padStart(2, '0')}:00`;
 };
 
+/** Слот расписания. Текстам бота нужен час «HH:00». */
+interface HourSlot {
+    hour: string;
+}
+
 /**
  * Соседние часы подряд, без учёта того, кто бронировал.
- * @param {object} previous
- * @param {object} current
+ * @param {HourSlot} previous
+ * @param {HourSlot} current
  * @returns {boolean}
  */
-const isNextHour = (previous, current) =>
+const isNextHour = (previous: HourSlot, current: HourSlot): boolean =>
     getHourNumber(current.hour) === getHourNumber(previous.hour) + 1;
 
 /**
  * Склеивает подряд идущие занятые часы в интервалы.
  * «14:00»+«15:00»+«16:00» → «14:00 - 17:00». Имя и коллектив не участвуют.
- * @param {Array<object>} hours
+ * @param {Array<Partial<HourSlot> | null | undefined>} hours
  * @returns {Array<{ range: string }>}
  */
-const groupBookedHours = (hours: Array<{ hour?: string } | null | undefined>) => {
+const groupBookedHours = (hours: Array<Partial<HourSlot> | null | undefined>): Array<{ range: string; }> => {
     const sorted = [...(hours || [])]
-        .filter((slot): slot is { hour: string } => Boolean(slot && slot.hour))
+        .filter((slot): slot is HourSlot => Boolean(slot && slot.hour))
         .sort((a, b) => getHourNumber(a.hour) - getHourNumber(b.hour));
 
     if (sorted.length === 0) {
@@ -74,11 +79,15 @@ const groupBookedHours = (hours: Array<{ hour?: string } | null | undefined>) =>
 /**
  * Занятость дня для общего чата: только интервалы, без того, кто забронировал.
  * @param {string} dateDdMmYyyy
- * @param {Array<object>} hours - Слоты из Rehearsal.hours
+ * @param {Array<Partial<HourSlot> | null | undefined>} hours - Слоты из Rehearsal.hours
  * @param {string} [title] - Заголовок («Сегодня», «Завтра»)
  * @returns {string}
  */
-const formatDayBookings = (dateDdMmYyyy, hours, title = 'Расписание') => {
+const formatDayBookings = <T extends Partial<HourSlot>>(
+    dateDdMmYyyy: string,
+    hours: Array<T | null | undefined>,
+    title: string = 'Расписание',
+): string => {
     const groups = groupBookedHours(hours);
 
     if (groups.length === 0) {
@@ -92,10 +101,13 @@ const formatDayBookings = (dateDdMmYyyy, hours, title = 'Расписание') 
 /**
  * Текст свободных слотов на день.
  * @param {string} dateDdMmYyyy
- * @param {Array<object>} hours
+ * @param {Array<Partial<HourSlot>>} hours
  * @returns {string}
  */
-const formatFreeSlots = (dateDdMmYyyy, hours) => {
+const formatFreeSlots = <T extends Partial<HourSlot>>(
+    dateDdMmYyyy: string,
+    hours: Array<T>,
+): string => {
     const taken = new Set((hours || []).map((h) => h.hour));
     const free = AVAILABLE_HOURS.filter((h) => !taken.has(h));
     if (free.length === 0) {
@@ -117,8 +129,8 @@ const formatMyBookings = (
         hours?: Array<{ userId?: string; hour?: string; band_name?: string }>;
     }>,
     userId: string,
-    limit = 10,
-) => {
+    limit: number = 10,
+): string => {
     const uid = String(userId);
     const rows: Array<{ dateStr: string; hour: string; band: string }> = [];
 
@@ -162,7 +174,7 @@ const formatMyBookings = (
  * @param {Date} [now]
  * @returns {{ today: string, tomorrow: string }}
  */
-const moscowTodayTomorrow = (now = new Date()) => ({
+const moscowTodayTomorrow = (now: Date = new Date()): { today: string; tomorrow: string; } => ({
     today: addMoscowDaysDdMmYyyy(0, now),
     tomorrow: addMoscowDaysDdMmYyyy(1, now),
 });

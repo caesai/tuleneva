@@ -1,11 +1,29 @@
-import InviteCode from '../models/InviteCode';
+import InviteCode, { type InviteCodeDoc, type InviteCodeDocument } from '../models/InviteCode';
+
+/**
+ * Инвайт в ответе API: ObjectId заменены строками, флаги всегда заданы.
+ */
+interface SerializedInvite {
+    code: string;
+    purpose: InviteCodeDoc['purpose'];
+    initialRole: InviteCodeDoc['initialRole'];
+    allowedProviders: string[];
+    multiUse: boolean;
+    useCount: number;
+    createdBy: string | null;
+    usedBy: string | null;
+    createdAt?: Date;
+    expiresAt: Date;
+    usedAt: Date | null;
+    revokedAt: Date | null;
+}
 
 /**
  * Условие «код ещё действует»: не истёк и не закрыт админом.
  * @param {string} code
  * @returns {object}
  */
-const activeInviteFilter = (code) => ({
+const activeInviteFilter = (code: string): object => ({
     code,
     expiresAt: { $gt: new Date() },
     revokedAt: { $exists: false },
@@ -14,9 +32,9 @@ const activeInviteFilter = (code) => ({
 /**
  * Ищет действующий инвайт: одноразовый ещё не использован, многоразовый — пока не закрыт.
  * @param {string} code
- * @returns {Promise<import('mongoose').Document|null>}
+ * @returns {Promise<InviteCodeDocument|null>}
  */
-const findValidInvite = async (code) => {
+const findValidInvite = async (code: string): Promise<InviteCodeDocument | null> => {
     return InviteCode.findOne({
         ...activeInviteFilter(code),
         $or: [
@@ -30,9 +48,9 @@ const findValidInvite = async (code) => {
  * Списывает одноразовый инвайт или отмечает ещё одно применение многоразового.
  * @param {string} code
  * @param {import('mongoose').Types.ObjectId} usedBy
- * @returns {Promise<import('mongoose').Document|null>} Документ или null, если код уже нельзя применить.
+ * @returns {Promise<InviteCodeDocument|null>} Документ или null, если код уже нельзя применить.
  */
-const consumeInvite = async (code, usedBy) => {
+const consumeInvite = async (code: string, usedBy: import('mongoose').Types.ObjectId): Promise<InviteCodeDocument | null> => {
     const now = new Date();
     const once = await InviteCode.findOneAndUpdate(
         {
@@ -66,9 +84,9 @@ const consumeInvite = async (code, usedBy) => {
  * Закрывает инвайт: новые применения перестают проходить сразу.
  * Повторный вызов для уже закрытого кода возвращает тот же документ.
  * @param {string} code
- * @returns {Promise<import('mongoose').Document|null>}
+ * @returns {Promise<InviteCodeDocument|null>}
  */
-const revokeInvite = async (code) => {
+const revokeInvite = async (code: string): Promise<InviteCodeDocument | null> => {
     const existing = await InviteCode.findOne({ code });
     if (!existing) {
         return null;
@@ -85,10 +103,10 @@ const revokeInvite = async (code) => {
 
 /**
  * Сериализует документ инвайта для API.
- * @param {object} doc - Lean-документ InviteCode
- * @returns {object}
+ * @param {InviteCodeDoc} doc - Lean-документ InviteCode
+ * @returns {SerializedInvite}
  */
-const serializeInvite = (doc) => ({
+const serializeInvite = (doc: InviteCodeDoc): SerializedInvite => ({
     code: doc.code,
     purpose: doc.purpose,
     initialRole: doc.initialRole,
@@ -105,20 +123,20 @@ const serializeInvite = (doc) => ({
 
 /**
  * Живой инвайт: не истёк, не отозван, одноразовый ещё не использован.
- * @param {object} doc
+ * @param {InviteCodeDoc} doc
  * @param {Date} now
  * @returns {boolean}
  */
-const isLiveInvite = (doc, now) =>
-    doc.expiresAt > now &&
+const isLiveInvite = (doc: InviteCodeDoc, now: Date): boolean =>
+    doc.expiresAt.getTime() > now.getTime() &&
     !doc.revokedAt &&
     (doc.multiUse === true || !doc.usedAt);
 
 /**
  * Список живых инвайтов и истории (used/revoked, пока TTL не стёр документ).
- * @returns {Promise<{ live: object[], history: object[] }>}
+ * @returns {Promise<{ live: SerializedInvite[], history: SerializedInvite[] }>}
  */
-const listInviteHistory = async () => {
+const listInviteHistory = async (): Promise<{ live: SerializedInvite[]; history: SerializedInvite[]; }> => {
     const now = new Date();
     const docs = await InviteCode.find({})
         .sort({ createdAt: -1 })

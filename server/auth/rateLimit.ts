@@ -10,16 +10,16 @@ const createRateLimiter = ({
     windowMs = 60_000,
     max = 30,
     message = 'Too many requests',
-} : any = {}) => {
+} : any = {}): import('express').RequestHandler & { reset: () => void; } => {
     /** @type {Map<string, { count: number, resetAt: number }>} */
-    const hits = new Map();
+    const hits: Map<string, { count: number; resetAt: number; }> = new Map();
 
     /**
      * @param {import('express').Request} req
      * @param {import('express').Response} res
      * @param {import('express').NextFunction} next
      */
-    const middleware = (req, res, next) => {
+    const middleware = (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
         const ip =
             req.ip
             || req.socket?.remoteAddress
@@ -44,7 +44,7 @@ const createRateLimiter = ({
      * Сбрасывает счётчики (для тестов).
      * @returns {void}
      */
-    middleware.reset = () => {
+    middleware.reset = (): void => {
         hits.clear();
     };
 

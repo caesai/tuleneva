@@ -9,9 +9,9 @@ const INIT_DATA_CLOCK_SKEW_SECONDS = 60;
 /**
  * Парсит строку запроса init data Telegram.
  * @param {string} queryString
- * @returns {object}
+ * @returns {Record<string, any>}
  */
-const parseQueryToNestedJson = (queryString) => {
+const parseQueryToNestedJson = (queryString: string): Record<string, any> => {
     const params = new URLSearchParams(queryString);
     const result: Record<string, any> = {};
 
@@ -37,7 +37,7 @@ const parseQueryToNestedJson = (queryString) => {
  * @param {string} b
  * @returns {boolean}
  */
-const safeEqualHex = (a, b) => {
+const safeEqualHex = (a: string, b: string): boolean => {
     if (typeof a !== 'string' || typeof b !== 'string') return false;
     const bufA = Buffer.from(a, 'utf8');
     const bufB = Buffer.from(b, 'utf8');
@@ -51,7 +51,7 @@ const safeEqualHex = (a, b) => {
  * @param {string} botToken - Токен бота
  * @returns {boolean}
  */
-const verifyTelegramInitData = (initDataRaw, botToken) => {
+const verifyTelegramInitData = (initDataRaw: string, botToken: string): boolean => {
     const data = new URLSearchParams(initDataRaw);
     const hash = data.get('hash');
     data.delete('hash');
@@ -64,15 +64,16 @@ const verifyTelegramInitData = (initDataRaw, botToken) => {
     const secret = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
     const calculatedHash = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
 
+    if (hash == null) return false;
     return safeEqualHex(calculatedHash, hash);
 };
 
 /**
  * Проверяет наличие и свежесть auth_date в init data.
- * @param {object} tg - Распарсенные поля init data
+ * @param {Record<string, any>} tg - Распарсенные поля init data
  * @throws {Error}
  */
-const assertFreshAuthDate = (tg) => {
+const assertFreshAuthDate = (tg: Record<string, any>) => {
     const authDateRaw = tg.auth_date;
     if (authDateRaw == null || authDateRaw === '') {
         throw new Error('Missing Telegram auth_date');
