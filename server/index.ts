@@ -161,7 +161,7 @@ const notifyAdmins = createNotifyAdmins({
  * @param {object} [extra]
  * @returns {Promise<unknown>}
  */
-const notifyUser = (chatId: string | number, text: string, extra: object): Promise<unknown> =>
+const notifyUser = (chatId: string | number, text: string, extra?: object): Promise<unknown> =>
     sendTelegramMessage(bot, chatId, text, extra, TELEGRAM_NOTIFY_TIMEOUT_MS);
 
 const { publish, attach } = createBroadcast();

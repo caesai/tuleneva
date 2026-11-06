@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import User, { type UserDocument } from '../models/User';
+import type { FilterQuery, Types } from 'mongoose';
+import User, { type UserDoc, type UserDocument } from '../models/User';
 import { findUserByIdentity, ensureIdentity } from './identityService';
 
 const BCRYPT_ROUNDS = 12;
@@ -20,6 +21,22 @@ interface OutboundMail {
 
 /** Отправка письма. Реализация может быть синхронной или возвращать промис. */
 type SendMail = (message: OutboundMail) => Promise<void> | void;
+
+/** Параметры привязки почты. Письмо нужно только если адрес меняется. */
+interface LinkEmailOptions {
+    /** Обязателен, если пароль уже задан и это не админская установка. */
+    currentPassword?: string;
+    /** Админ ставит пароль без проверки текущего. */
+    skipCurrentPassword?: boolean;
+    webAppBaseUrl?: string;
+    sendMail?: SendMail | null;
+}
+
+/** Параметры письма со ссылкой сброса пароля. */
+interface PasswordResetRequestOptions {
+    webAppBaseUrl?: string;
+    sendMail?: SendMail | null;
+}
 
 /** @type {Map<string, { count: number, resetAt: number }>} */
 const loginAttempts: Map<string, { count: number; resetAt: number; }> = new Map();
@@ -195,15 +212,15 @@ const mapDuplicateEmailError = (err: unknown) => {
  * Ищет пользователя, у которого занята эта почта (не тот же _id).
  * Учитывает подтверждённый emailLogin и pendingEmail.
  * @param {string} email
- * @param {import('mongoose').Types.ObjectId|string} [excludeUserId]
+ * @param {Types.ObjectId|string|null} [excludeUserId]
  * @returns {Promise<UserDocument|null>}
  */
 const findUserByEmailLogin = async (
     email: string,
-    excludeUserId: import('mongoose').Types.ObjectId | string | null = null,
+    excludeUserId: Types.ObjectId | string | null = null,
 ): Promise<UserDocument | null> => {
     const normalized = normalizeEmail(email);
-    const query = {
+    const query: FilterQuery<UserDoc> = {
         $or: [
             { emailLogin: normalized },
             { pendingEmail: normalized },
@@ -215,7 +232,7 @@ const findUserByEmailLogin = async (
         ],
     };
     if (excludeUserId) {
-        (query as any)._id = { $ne: excludeUserId };
+        query._id = { $ne: excludeUserId };
     }
     return User.findOne(query).select('+pendingEmail');
 };
@@ -249,7 +266,7 @@ const clearPendingEmail = (user: UserDocument) => {
  * @param {string} options.email
  * @param {string} options.passwordHash
  * @param {string} options.webAppBaseUrl
- * @param {SendMail} options.sendMail
+ * @param {SendMail|null} [options.sendMail]
  * @returns {Promise<{ user: UserDocument, pendingConfirmation: true }>}
  */
 const startEmailConfirmation = async ({
@@ -263,7 +280,7 @@ const startEmailConfirmation = async ({
     email: string;
     passwordHash: string;
     webAppBaseUrl: string;
-    sendMail: SendMail;
+    sendMail?: SendMail | null;
 }): Promise<{ user: UserDocument; pendingConfirmation: true; }> => {
     if (typeof sendMail !== 'function') {
         throw emailAuthError('Email delivery is not configured', 503);
@@ -303,11 +320,16 @@ const startEmailConfirmation = async ({
  * @param {object} [options]
  * @param {string} [options.currentPassword] - Обязателен, если у пользователя уже есть passwordHash
  * @param {boolean} [options.skipCurrentPassword=false] - Админская установка
- * @param {string} options.webAppBaseUrl
- * @param {Function} options.sendMail
+ * @param {string} [options.webAppBaseUrl]
+ * @param {SendMail|null} [options.sendMail]
  * @returns {Promise<{ user: UserDocument, pendingConfirmation: boolean }>}
  */
-const linkEmailCredentials = async (user: UserDocument, email: string, password: string, options: any = {}): Promise<{ user: UserDocument; pendingConfirmation: boolean; }> => {
+const linkEmailCredentials = async (
+    user: UserDocument,
+    email: string,
+    password: string,
+    options: LinkEmailOptions = {},
+): Promise<{ user: UserDocument; pendingConfirmation: boolean; }> => {
     const {
         currentPassword,
         skipCurrentPassword = false,
@@ -355,7 +377,7 @@ const linkEmailCredentials = async (user: UserDocument, email: string, password:
         user: fullUser,
         email: normalized,
         passwordHash: newHash,
-        webAppBaseUrl,
+        webAppBaseUrl: webAppBaseUrl ?? '',
         sendMail,
     });
 };
@@ -455,12 +477,13 @@ const resetLoginAttemptsForTests = () => {
 /**
  * Запрашивает сброс пароля: всегда «успех» снаружи; письмо только при подтверждённой почте.
  * @param {string} email
- * @param {object} options
- * @param {string} options.webAppBaseUrl
- * @param {Function} options.sendMail
+ * @param {PasswordResetRequestOptions} [options]
  * @returns {Promise<{ sent: boolean }>}
  */
-const requestPasswordReset = async (email: string, options: any = {}): Promise<{ sent: boolean; }> => {
+const requestPasswordReset = async (
+    email: string,
+    options: PasswordResetRequestOptions = {},
+): Promise<{ sent: boolean; }> => {
     const { webAppBaseUrl, sendMail } = options;
     const normalized = normalizeEmail(email);
     if (!normalized) {
