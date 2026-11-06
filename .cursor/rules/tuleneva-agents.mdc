@@ -32,7 +32,7 @@ cd server && npm run test:all
 - Новая логика ролей/инвайтов → unit + `roleMatrix`
 - Заметный UI-поток → тест в `src/test/unit`
 - Не сбрасывать моки через `vi.clearAllMocks()` без восстановления `mockResolvedValue`
-- Локальный Vite ходит в боевую Mongo: не писать из двух агентов сразу; worktree вместо `git switch` в общем checkout
+- Локальный Vite по умолчанию ходит на `http://127.0.0.1:3000`, не в боевую Mongo. Не задавать `VITE_API_PROXY_TARGET` на прод ради проверки. Worktree вместо `git switch` в общем checkout
 
 ## Практики
 

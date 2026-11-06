@@ -34,6 +34,7 @@ sushkazzlo@*/
 **/*@*.*.*/
 .env
 server/.env
+server/.media/
 
 # CI/deploy SSH keys (never commit)
 tuleneva-deploy

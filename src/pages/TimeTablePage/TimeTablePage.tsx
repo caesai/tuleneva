@@ -1,6 +1,6 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
 import React, { useState, useEffect, Suspense, type JSX } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading.ts';
@@ -309,6 +309,10 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
             )}
 
             <TimeTableEmailDialogs auth={emailAuth} />
+
+            <nav className={css.studioNav} aria-label="Разделы студии">
+                <Link to="/music">Музыка</Link>
+            </nav>
 
             <div className={css.card}>
                 {(emailAuth.showEmailLinkForm || isAdmin) && (

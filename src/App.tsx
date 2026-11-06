@@ -26,6 +26,14 @@ const AdminPage = lazy(() =>
     import('@/pages/AdminPage/AdminPage.tsx').then((m) => ({ default: m.AdminPage })),
 );
 
+const MusicPage = lazy(() =>
+    import('@/pages/MusicPage/MusicPage.tsx').then((m) => ({ default: m.MusicPage })),
+);
+
+const AdminMusicPage = lazy(() =>
+    import('@/pages/AdminMusicPage/AdminMusicPage.tsx').then((m) => ({ default: m.AdminMusicPage })),
+);
+
 const IndexPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLinkEmailOpen, setIsLinkEmailOpen] = useState(false);
@@ -243,11 +251,20 @@ const App: React.FC = () => {
                             <Routes>
                                 <Route path="/" element={<IndexPage />} />
                                 <Route path="/app" element={<TimeTablePage />} />
+                                <Route path="/music/:trackId?" element={<MusicPage />} />
                                 <Route
                                     path="/admin"
                                     element={
                                         <AdminRoute>
                                             <AdminPage />
+                                        </AdminRoute>
+                                    }
+                                />
+                                <Route
+                                    path="/admin/music"
+                                    element={
+                                        <AdminRoute>
+                                            <AdminMusicPage />
                                         </AdminRoute>
                                     }
                                 />

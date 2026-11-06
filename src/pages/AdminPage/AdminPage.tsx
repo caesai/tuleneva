@@ -9,29 +9,21 @@ import {
     APIGetUserRoleLog,
     APISetUserEmailLogin,
 } from '@/api/user.api.ts';
-import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import type { IUser, TRole } from '@/types/user.types.ts';
 import type { TAuthProvider } from '@/types/auth.types.ts';
 import { DelayedLoader } from '@/components/Loader/DelayedLoader.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import css from './AdminPage.module.css';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
     canAssignRole,
     canDeleteUser,
-    getAssignableRoles,
     isAdminLike,
+    isSuperAdmin,
 } from '@/utils/rolePermissions.ts';
+import { ROLE_LABELS, UserCard, type IRoleLogEntry } from './UserCard.tsx';
 import { useWebSocket, type WebSocketMessage } from '@/hooks/useWebSocket.ts';
-import { EMAIL_AUTH_UI_ENABLED } from '@/config/emailAuthUi.ts';
-
-const ROLE_LABELS: Record<TRole, string> = {
-    guest: 'Гость',
-    user: 'Пользователь',
-    admin: 'Администратор',
-    super_admin: 'Супер администратор',
-};
 
 /** Краткая запись инвайта из GET /api/auth/invite/history. */
 interface IInviteHistoryItem {
@@ -42,14 +34,6 @@ interface IInviteHistoryItem {
     usedAt: string | null;
     revokedAt: string | null;
     allowedProviders?: string[];
-}
-
-/** Запись журнала смен ролей. */
-interface IRoleLogEntry {
-    id: string;
-    fromRole: TRole;
-    toRole: TRole;
-    createdAt: string;
 }
 
 /**
@@ -87,6 +71,20 @@ export const AdminPage: React.FC = () => {
     const [roleLogUserId, setRoleLogUserId] = useState<string | null>(null);
     const [roleLogEntries, setRoleLogEntries] = useState<IRoleLogEntry[]>([]);
     const [roleLogLoading, setRoleLogLoading] = useState(false);
+    const [query, setQuery] = useState('');
+    const [roleFilter, setRoleFilter] = useState<'all' | TRole>('all');
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const [roleConfirm, setRoleConfirm] = useState<{
+        id: string;
+        name: string;
+        from: TRole;
+        to: TRole;
+    } | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<{
+        id: string;
+        name: string;
+        role: TRole;
+    } | null>(null);
     const { user } = useAuth();
     const navigate = useNavigate();
     const userId = user?._id;
@@ -292,8 +290,6 @@ export const AdminPage: React.FC = () => {
             return;
         }
 
-        if (!confirm('Are you sure you want to delete this user?')) return;
-
         try {
             const response = await APIDeleteUser(userId || '');
             if (response.ok) {
@@ -416,13 +412,38 @@ export const AdminPage: React.FC = () => {
     }
     if (error) return <div className={css.error}>{error}</div>;
 
+    const visibleUsers = users.filter((person) => {
+        if (roleFilter !== 'all' && person.role !== roleFilter) {
+            return false;
+        }
+        const needle = query.trim().toLowerCase();
+        if (!needle) {
+            return true;
+        }
+        const haystack = [
+            person.first_name,
+            person.last_name,
+            person.username,
+            person.bandName,
+            person.emailLogin,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(needle);
+    });
+
+    const personName = (person: IUser) =>
+        [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || 'Без имени';
+
     return (
         <div className={css.adminPage}>
+            <div className={css.shell}>
             <div className={css.header}>
                 <button className={css.backButton} onClick={() => navigate('/app')}>
                     Назад
                 </button>
-                <h2 style={{ fontSize: '16px' }}>Управление пользователями</h2>
+                <h2>Управление пользователями</h2>
+                {user && isSuperAdmin(user.role) ? (
+                    <Link className={css.musicAdminLink} to="/admin/music">Музыка</Link>
+                ) : null}
             </div>
             <div className={css.inviteSection}>
                 <button
@@ -577,151 +598,133 @@ export const AdminPage: React.FC = () => {
                 </div>
             </ModalPopup>
 
-            <div className={css.tableContainer}>
-                <table className={css.table}>
-                    <thead>
-                        <tr>
-                            <th>Имя</th>
-                            <th>Username</th>
-                            <th>Почта</th>
-                            <th>Роль</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {users.map(u => {
-                            const allowedRoles = user
-                                ? getAssignableRoles(user.role, u.role)
-                                : [];
-                            const assignableRoles =
-                                allowedRoles.length > 0 ? allowedRoles : [u.role];
-                            const roleSelectDisabled =
-                                u._id === user?._id || allowedRoles.length === 0;
-                            const deleteDisabled =
-                                !user ||
-                                !canDeleteUser(user.role, u.role, u._id === user._id);
-                            const canEditEmail =
-                                EMAIL_AUTH_UI_ENABLED &&
-                                !!user &&
-                                canAssignRole(user.role, u.role, u.role);
-                            const showEmailForm = emailLoginUserId === u._id;
-                            const showRoleLog = roleLogUserId === u._id;
+            <div className={css.filters}>
+                <input
+                    className={css.search}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Имя, username, коллектив"
+                    aria-label="Поиск пользователей"
+                />
+                <select
+                    className={css.roleSelect}
+                    aria-label="Фильтр по роли"
+                    value={roleFilter}
+                    onChange={(event) => setRoleFilter(event.target.value as 'all' | TRole)}
+                >
+                    <option value="all">Все роли</option>
+                    {(Object.keys(ROLE_LABELS) as TRole[]).map((role) => (
+                        <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+                    ))}
+                </select>
+            </div>
 
-                            return (
-                                <React.Fragment key={u._id}>
-                                    <tr>
-                                        <td>{u.first_name} {u.last_name}</td>
-                                        <td>{u.username ? `@${u.username}` : '-'}</td>
-                                        <td>{u.emailLogin || '—'}</td>
-                                        <td>
-                                            <select
-                                                className={css.roleSelect}
-                                                value={u.role}
-                                                onChange={(e) =>
-                                                    handleRoleChange(
-                                                        u._id || '',
-                                                        e.target.value as TRole,
-                                                        u.role,
-                                                    )
-                                                }
-                                                disabled={roleSelectDisabled}
-                                            >
-                                                {assignableRoles.map(role => (
-                                                    <option key={role} value={role}>
-                                                        {ROLE_LABELS[role]}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </td>
-                                        <td>
-                                            {canEditEmail && (
-                                                <button
-                                                    className={css.inviteButton}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setEmailLoginUserId(
-                                                            showEmailForm ? null : (u._id || null),
-                                                        )
-                                                    }
-                                                    style={{ marginRight: 8 }}
-                                                >
-                                                    {showEmailForm ? 'Скрыть' : 'Почта'}
-                                                </button>
-                                            )}
-                                            <button
-                                                className={css.inviteButton}
-                                                type="button"
-                                                onClick={() => toggleRoleLog(u._id || '')}
-                                                style={{ marginRight: 8 }}
-                                            >
-                                                {showRoleLog ? 'Скрыть журнал' : 'Журнал'}
-                                            </button>
-                                            <button
-                                                className={css.deleteButton}
-                                                onClick={() => handleDeleteUser(u._id || '', u.role)}
-                                                disabled={deleteDisabled}
-                                            >
-                                                Удалить
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {showEmailForm && canEditEmail && (
-                                        <tr>
-                                            <td colSpan={5}>
-                                                <EmailAuthForm
-                                                    mode="link"
-                                                    compact
-                                                    submitLabel="Отправить ссылку на почту"
-                                                    defaultEmail={u.emailLogin || ''}
-                                                    loading={emailLoginLoading}
-                                                    onSubmit={({ email, password }) => {
-                                                        if (!email || !password) {
-                                                            return;
-                                                        }
-                                                        return handleSetEmailLogin(
-                                                            u._id || '',
-                                                            u.role,
-                                                            email,
-                                                            password,
-                                                        );
-                                                    }}
-                                                />
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {showRoleLog && (
-                                        <tr>
-                                            <td colSpan={5}>
-                                                <div className={css.inviteHistory}>
-                                                    <p className={css.inviteHistoryTitle}>
-                                                        Смены ролей
-                                                    </p>
-                                                    {roleLogLoading ? (
-                                                        <p className={css.inviteDescription}>Загрузка…</p>
-                                                    ) : roleLogEntries.length === 0 ? (
-                                                        <p className={css.inviteDescription}>Записей нет</p>
-                                                    ) : (
-                                                        <ul className={css.inviteHistoryList}>
-                                                            {roleLogEntries.map((entry) => (
-                                                                <li key={entry.id}>
-                                                                    {ROLE_LABELS[entry.fromRole]}
-                                                                    {' → '}
-                                                                    {ROLE_LABELS[entry.toRole]}
-                                                                    {' · '}
-                                                                    {new Date(entry.createdAt).toLocaleString('ru-RU')}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </React.Fragment>
-                            );
-                        })}
-                    </tbody>
-                </table>
+            {!user ? null : visibleUsers.length === 0 ? (
+                <p className={css.inviteDescription}>Никого не нашли.</p>
+            ) : (
+                <div className={css.userGrid}>
+                    {visibleUsers.map((person) => (
+                        <UserCard
+                            key={person._id}
+                            person={person}
+                            actor={user}
+                            menuOpen={openMenuId === person._id}
+                            roleLogOpen={roleLogUserId === person._id}
+                            roleLogLoading={roleLogLoading && roleLogUserId === person._id}
+                            roleLogEntries={roleLogUserId === person._id ? roleLogEntries : []}
+                            emailFormOpen={emailLoginUserId === person._id}
+                            emailLoading={emailLoginLoading}
+                            onToggleMenu={() => {
+                                setOpenMenuId((current) => (current === person._id ? null : person._id || null));
+                            }}
+                            onToggleRoleLog={() => toggleRoleLog(person._id || '')}
+                            onToggleEmail={() => {
+                                setEmailLoginUserId((current) => (
+                                    current === person._id ? null : person._id || null
+                                ));
+                            }}
+                            onRolePick={(nextRole) => {
+                                if (!person._id || nextRole === person.role) {
+                                    return;
+                                }
+                                setRoleConfirm({
+                                    id: person._id,
+                                    name: personName(person),
+                                    from: person.role,
+                                    to: nextRole,
+                                });
+                            }}
+                            onAskDelete={() => {
+                                if (!person._id) {
+                                    return;
+                                }
+                                setDeleteConfirm({
+                                    id: person._id,
+                                    name: personName(person),
+                                    role: person.role,
+                                });
+                            }}
+                            onSubmitEmail={(email, password) => handleSetEmailLogin(
+                                person._id || '',
+                                person.role,
+                                email,
+                                password,
+                            )}
+                        />
+                    ))}
+                </div>
+            )}
+
+            <ModalPopup isOpen={roleConfirm !== null} onClose={() => setRoleConfirm(null)}>
+                {roleConfirm ? (
+                    <div role="dialog" aria-modal="true" aria-labelledby="role-confirm-title">
+                        <h3 id="role-confirm-title">
+                            Назначить роль «{ROLE_LABELS[roleConfirm.to]}» пользователю {roleConfirm.name}?
+                        </h3>
+                        <div className={css.confirmActions}>
+                            <button
+                                type="button"
+                                className={css.copyButton}
+                                onClick={() => {
+                                    const pending = roleConfirm;
+                                    setRoleConfirm(null);
+                                    void handleRoleChange(pending.id, pending.to, pending.from);
+                                }}
+                            >
+                                Назначить
+                            </button>
+                            <button type="button" className={css.closeModalButton} onClick={() => setRoleConfirm(null)}>
+                                Отмена
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+            </ModalPopup>
+
+            <ModalPopup isOpen={deleteConfirm !== null} onClose={() => setDeleteConfirm(null)}>
+                {deleteConfirm ? (
+                    <div role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+                        <h3 id="delete-confirm-title">Удалить пользователя {deleteConfirm.name}?</h3>
+                        <p className={css.inviteDescription}>Это нельзя отменить.</p>
+                        <div className={css.confirmActions}>
+                            <button
+                                type="button"
+                                className={css.deleteButton}
+                                onClick={() => {
+                                    const pending = deleteConfirm;
+                                    setDeleteConfirm(null);
+                                    void handleDeleteUser(pending.id, pending.role);
+                                }}
+                            >
+                                Удалить
+                            </button>
+                            <button type="button" className={css.closeModalButton} onClick={() => setDeleteConfirm(null)}>
+                                Отмена
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+            </ModalPopup>
             </div>
         </div>
     );

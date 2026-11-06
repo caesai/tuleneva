@@ -26,6 +26,7 @@ import {
     stopBotSafely,
 } from './telegram/createBot';
 import { createBroadcast } from './realtime/createBroadcast';
+import { createObjectStorageFromEnv } from './storage/createObjectStorage';
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -166,6 +167,13 @@ const notifyUser = (chatId: string | number, text: string, extra?: object): Prom
 
 const { publish, attach } = createBroadcast();
 
+const objectStorage = createObjectStorageFromEnv();
+if (!objectStorage) {
+    console.warn(
+        'Object storage is not configured. Music upload and media responses return 503 until OBJECT_STORAGE_DRIVER is set.',
+    );
+}
+
 const app = createApp({
     jwtSecret: JWT_SECRET,
     botToken: BOT_TOKEN,
@@ -176,6 +184,7 @@ const app = createApp({
     broadcastUpdate: publish,
     telegramBot: TELEGRAM_WEBHOOK_SECRET ? bot : null,
     telegramWebhookSecret: TELEGRAM_WEBHOOK_SECRET,
+    objectStorage,
 });
 
 const server = http.createServer(app);

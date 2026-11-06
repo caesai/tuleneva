@@ -1,0 +1,170 @@
+.page {
+    width: min(440px, 100%);
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+    box-sizing: border-box;
+    color: #111;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: inherit;
+    text-decoration: none;
+    font-weight: 650;
+}
+
+.nav a {
+    color: #111;
+    font-size: 14px;
+}
+
+.title {
+    margin: 0 0 8px;
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 650;
+}
+
+.lead,
+.empty {
+    margin: 0 0 20px;
+    color: #444;
+    line-height: 1.45;
+}
+
+.list {
+    list-style: none;
+    margin: 0 0 16px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.item,
+.itemCurrent {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    border: 1px solid #e6e6e6;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.itemCurrent {
+    border-color: #111;
+}
+
+.itemMain {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+
+.itemMain:focus-visible,
+.rowPlay:focus-visible,
+.share:focus-visible,
+.retry:focus-visible,
+.nav a:focus-visible,
+.brand:focus-visible {
+    outline: 2px solid #111;
+    outline-offset: 2px;
+}
+
+.thumb,
+.thumbEmpty {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.thumb {
+    object-fit: cover;
+    background: #f3f3f3;
+}
+
+.thumbEmpty {
+    background:
+        radial-gradient(circle at center, #fff 0 5px, transparent 6px),
+        #111;
+}
+
+.itemText {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.itemTitle,
+.itemCredits {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.itemTitle {
+    font-weight: 650;
+}
+
+.itemCredits {
+    color: #555;
+    font-size: 13px;
+}
+
+.rowPlay,
+.retry {
+    min-height: 40px;
+    border: none;
+    border-radius: 999px;
+    background: #111;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    padding: 0 12px;
+    cursor: pointer;
+}
+
+.share {
+    color: #111;
+    font-size: 13px;
+}
+
+.status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+@media (max-width: 380px) {
+    .item,
+    .itemCurrent {
+        grid-template-columns: 1fr auto;
+    }
+
+    .share {
+        grid-column: 2;
+    }
+}

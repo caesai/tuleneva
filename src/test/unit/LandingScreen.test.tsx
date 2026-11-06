@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { LandingScreen } from '@/components/LandingScreen/LandingScreen.tsx';
 
 vi.mock('@/hooks/usePageMeta.ts', () => ({
@@ -10,7 +11,11 @@ vi.mock('@/hooks/usePageMeta.ts', () => ({
 describe('LandingScreen', () => {
     it('переключает соцсети по клику на логотип', async () => {
         const user = userEvent.setup();
-        render(<LandingScreen />);
+        render(
+            <MemoryRouter>
+                <LandingScreen />
+            </MemoryRouter>,
+        );
 
         const showButton = screen.getByRole('button', { name: 'Показать соцсети студии' });
 

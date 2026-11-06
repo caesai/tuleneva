@@ -27,3 +27,16 @@
     height: var(--hero-logo-size);
     padding: var(--hero-logo-padding);
 }
+
+.musicLink {
+    margin-top: 8px;
+    color: #111;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+}
+
+.musicLink:focus-visible {
+    outline: 2px solid #111;
+    outline-offset: 3px;
+}
