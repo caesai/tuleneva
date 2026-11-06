@@ -31,6 +31,9 @@ import {
 import { createSmtpSendMail } from './auth/mailer';
 import { safeNotify } from './notifications/telegramNotify';
 import { createBooking } from './booking/createBooking';
+import { latestBandNamesByUser } from './booking/latestBandNames';
+import { createMusicRouter } from './music/musicRoutes';
+import type { ObjectStorage } from './storage/objectStorage';
 
 /**
  * Запускает Telegram-уведомление после уже отправленного ответа.
@@ -59,6 +62,7 @@ const notifyAfterResponse = (afterResponse) => {
  * @param {Function|null} [options.sendMail] - Отправка писем; по умолчанию SMTP из env
  * @param {import('telegraf').Telegraf|null} [options.telegramBot] - Бот для webhook
  * @param {string|null} [options.telegramWebhookSecret] - X-Telegram-Bot-Api-Secret-Token
+ * @param {import('./storage/objectStorage').ObjectStorage|null} [options.objectStorage] - Медиа музыки. null: загрузка отвечает 503
  */
 const createApp = ({
     jwtSecret,
@@ -71,6 +75,7 @@ const createApp = ({
     sendMail = undefined,
     telegramBot = null,
     telegramWebhookSecret = null,
+    objectStorage = null,
 }: any) => {
     const mailSender = sendMail === undefined ? createSmtpSendMail() : sendMail;
     const booking = createBooking({ broadcastUpdate, notifyAdmins, notifyUser });
@@ -175,6 +180,13 @@ const verifyUserExists = async (req, res, next) => {
     }
 };
 
+app.use('/api/music', createMusicRouter({
+    authenticateToken,
+    verifyUserExists,
+    optionalAuthenticate,
+    objectStorage: objectStorage as ObjectStorage | null,
+}));
+
 app.use('/api/auth', createAuthRouter({
     jwtSecret: jwtSecret,
     botToken: botToken,
@@ -244,7 +256,11 @@ app.post('/api/users/register', async (req, res) => {
 app.get('/api/users', authenticateToken, verifyUserExists, requireAdmin, async (req, res) => {
     try {
         const users = await User.find();
-        res.json(users.map((u) => toPublicUser(u)));
+        const bands = await latestBandNamesByUser();
+        res.json(users.map((u) => ({
+            ...toPublicUser(u),
+            bandName: bands.get(String(u._id)) ?? null,
+        })));
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

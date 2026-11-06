@@ -1,0 +1,157 @@
+.page {
+    width: min(720px, 100%);
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+    box-sizing: border-box;
+    color: #111;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.header h1,
+.form h2,
+.cardTitle {
+    margin: 0;
+}
+
+.header a,
+.page > a {
+    color: #111;
+}
+
+.lead,
+.cardCredits {
+    color: #444;
+    line-height: 1.45;
+}
+
+.form,
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 16px 0;
+    padding: 14px;
+    border: 1px solid #e6e6e6;
+    border-radius: 16px;
+    background: #fff;
+}
+
+.form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.form input,
+.form textarea {
+    font: inherit;
+    font-weight: 400;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.filePicker {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+}
+
+.fileInput {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.fileButton {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    font-weight: 400;
+}
+
+.fileName {
+    min-width: 0;
+    overflow: hidden;
+    color: #444;
+    font-weight: 400;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.formActions,
+.cardActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.form button,
+.cardActions button {
+    min-height: 40px;
+    border: none;
+    border-radius: 999px;
+    background: #111;
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    padding: 0 14px;
+    cursor: pointer;
+}
+
+.quiet {
+    background: #f2f2f2 !important;
+    color: #111 !important;
+}
+
+.danger {
+    background: #9b1c1c !important;
+}
+
+.list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.draft,
+.published {
+    margin: 4px 0 0;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.draft {
+    color: #8a5a00;
+}
+
+.published {
+    color: #0b6b2f;
+}
+
+.error {
+    color: #9b1c1c;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid #111;
+    outline-offset: 2px;
+}

@@ -27,9 +27,9 @@
 
 ### Прокси в разработке и параллельные агенты
 
-Vite (`vite.config.ts`) проксирует `/api` и `/ws` на **боевой** backend. Клиент ходит на относительные пути `/api/...`. Запись через локальный `npm run dev` попадает в прод-Mongo.
+Vite (`vite.config.ts`) проксирует `/api` и `/ws` на локальный API `http://127.0.0.1:3000`, если не задан `VITE_API_PROXY_TARGET`. Клиент ходит на относительные пути `/api/...`. Боевой адрес в прокси по умолчанию не подставляется.
 
-- Не гонять сценарии, которые пишут в боевую Mongo, из двух агентов одновременно.
+- Не направлять `VITE_API_PROXY_TARGET` на боевую Mongo ради проверки. Тесты ходят в memory Mongo и локальное хранилище объектов.
 - Не делать `git switch` / `git checkout` в общем checkout, пока в нём работает другой агент: используйте отдельные git worktree.
 - Тяжёлые команды (`npm run check`, полный `test:all`) не запускать параллельно без нужды — делят CPU и MongoMemoryServer.
 
@@ -176,7 +176,7 @@ cd server && npm run test:all
 npm run check                     # lint + typecheck:all + клиентские и серверные тесты
 npm run typecheck                 # только клиент (tsc -b)
 npm run typecheck:all             # клиент + server
-npm run dev                       # клиент (HTTPS, proxy /api на прод)
+npm run dev                       # клиент (HTTPS, proxy /api на локальный API)
 npm run build && npm run lint
 npm test
 

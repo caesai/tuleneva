@@ -19,6 +19,8 @@ export interface IUser {
     identities?: IUserIdentity[];
     /** Почта для входа в браузере (без passwordHash). */
     emailLogin?: string | null;
+    /** Последний коллектив из броней, если он известен. Только список админки. */
+    bandName?: string | null;
     createdAt?: string;
     updatedAt?: string;
     isRegistered?: boolean;

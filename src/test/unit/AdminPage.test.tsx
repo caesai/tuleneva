@@ -12,7 +12,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminPage } from '@/pages/AdminPage/AdminPage.tsx';
-import { APIGenerateInvite, APIGetUsers, APIRevokeInvite } from '@/api/user.api.ts';
+import { APIGenerateInvite, APIGetUsers, APIRevokeInvite, APIUpdateUserRole } from '@/api/user.api.ts';
 
 const mockNavigate = vi.fn();
 
@@ -48,7 +48,10 @@ vi.mock('@/api/user.api.ts', () => ({
             { _id: 'sa1', first_name: 'Super', role: 'super_admin' },
         ],
     }),
-    APIUpdateUserRole: vi.fn(),
+    APIUpdateUserRole: vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+    }),
     APIDeleteUser: vi.fn(),
     APIGenerateInvite: vi.fn().mockImplementation(async (body: { allowedProviders: string[]; multiUse?: boolean }) => ({
         ok: true,
@@ -101,11 +104,26 @@ describe('AdminPage', () => {
         );
 
         expect(await screen.findByText('Guest')).toBeInTheDocument();
-        const row = screen.getByText('Guest').closest('tr');
-        expect(row).toBeTruthy();
-        const select = within(row!).getByRole('combobox');
+        await userEvent.click(screen.getByRole('button', { name: 'Действия Guest' }));
+        const select = screen.getByRole('combobox', { name: 'Роль Guest' });
         const options = within(select).getAllByRole('option').map((o) => o.textContent);
         expect(options).not.toContain('Супер администратор');
+    });
+
+    it('asks before changing a role', async () => {
+        const user = userEvent.setup();
+        render(
+            <MemoryRouter>
+                <AdminPage />
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByText('Guest')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Действия Guest' }));
+        await user.selectOptions(screen.getByRole('combobox', { name: 'Роль Guest' }), 'user');
+        expect(APIUpdateUserRole).not.toHaveBeenCalled();
+        await user.click(screen.getByRole('button', { name: 'Назначить' }));
+        expect(APIUpdateUserRole).toHaveBeenCalledWith('g1', 'user');
     });
 
     it('shows web invite link only when web is in allowedProviders', async () => {

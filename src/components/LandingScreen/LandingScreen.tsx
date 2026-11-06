@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { SocialLinks } from '@/components/SocialLinks/SocialLinks.tsx';
 import { LANDING_PAGE_META } from '@/config/siteMeta.ts';
@@ -23,6 +24,7 @@ export const LandingScreen: React.FC = () => {
                 />
                 {socialLinksOpen ? <SocialLinks layout="y" /> : null}
             </div>
+            <Link className={css.musicLink} to="/music">Слушать</Link>
         </div>
     );
 };

@@ -8,6 +8,24 @@
     gap: 12px;
 }
 
+.studioNav {
+    width: 360px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 8px 4px 0;
+}
+
+.studioNav a {
+    color: #111;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.studioNav a:focus-visible {
+    outline: 2px solid #111;
+    outline-offset: 2px;
+}
+
 .title {
     text-align: center;
     margin-bottom: 1em;

@@ -61,6 +61,8 @@ export interface IAuthCapabilities {
     canViewUserDetails: boolean;
     isAdmin: boolean;
     isGuest: boolean;
+    /** Роль super_admin и живая сессия. Обычный admin сюда не входит. */
+    isSuperAdmin: boolean;
 }
 
 export const buildAuthCapabilities = (
@@ -76,6 +78,7 @@ export const buildAuthCapabilities = (
         canViewUserDetails: canManageBookings,
         isAdmin,
         isGuest: !!isGuest,
+        isSuperAdmin: isAuthenticated && user?.role === 'super_admin',
     };
 };
 

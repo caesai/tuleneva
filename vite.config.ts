@@ -3,8 +3,11 @@ import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import fs from 'fs';
 import { indexHtmlMetaPlugin } from './vite-plugins/indexHtmlMetaPlugin.ts';
+import { readApiProxy } from './vite-plugins/apiProxy.ts';
 // https://vite.dev/config/
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command }) => {
+    const apiProxy = readApiProxy();
+    return ({
         base: '/',
         plugins: [
             indexHtmlMetaPlugin(),
@@ -41,19 +44,16 @@ export default defineConfig(({ command }) => ({
                 port: 443,
             },
             proxy: {
-                // Proxy requests from your Vite server to your backend
-                // Прод по IP: HTTP (порт 80) отдаёт 404 для /api — API проксируется только по HTTPS.
                 '/api': {
-                    target: 'https://51.250.16.74',
+                    target: apiProxy.http,
                     changeOrigin: true,
-                    secure: false,
+                    secure: apiProxy.secure,
                 },
-                // WebSocket proxy for real-time updates
                 '/ws': {
-                    target: 'wss://51.250.16.74',
+                    target: apiProxy.ws,
                     ws: true,
                     changeOrigin: true,
-                    secure: false,
+                    secure: apiProxy.secure,
                 },
             },
             https: command === 'build' ? {} : {
@@ -61,5 +61,5 @@ export default defineConfig(({ command }) => ({
                 cert: fs.readFileSync('./.cert/localhost.pem'),
             },
         },
-    }),
-);
+    });
+});

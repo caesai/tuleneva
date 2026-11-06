@@ -80,6 +80,25 @@ export const LANDING_PAGE_META: IPageMeta = {
  * Метаданные страницы расписания (`/app`).
  * В статическом `index.html` остаётся лендинг; при открытии SPA хук обновляет head под маршрут.
  */
+/**
+ * Метаданные страницы музыки (`/music`).
+ * Конкретная запись подменяет title в рантайме, канонический каркас — здесь.
+ */
+export const MUSIC_PAGE_META: IPageMeta = {
+    title: 'Музыка — Тюленева 25',
+    description: 'Записи музыкальной студии «Тюленева 25». Можно слушать без входа.',
+    canonicalPath: '/music',
+    ogImagePath: '/og-image.jpg',
+    ogImageWidth: 1024,
+    ogImageHeight: 1467,
+    ogImageAlt: 'Тюленева 25 — музыка',
+    ogType: 'website',
+    locale: 'ru_RU',
+    siteName: 'Тюленева 25',
+    robots: 'index, follow',
+    twitterCard: 'summary_large_image',
+};
+
 export const APP_PAGE_META: IPageMeta = {
     title: 'Расписание — Тюленева 25',
     description:
