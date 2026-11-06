@@ -14,12 +14,16 @@ import {
 
 /**
  * Может ли actor удалить targetUser (по _id и роли).
- * @param {string} actorRole
- * @param {{ _id: unknown, role: string }} targetUser
- * @param {unknown} actorId
- * @returns {boolean}
+ * @param actorRole Роль действующего пользователя
+ * @param targetUser Цель удаления
+ * @param actorId Id действующего пользователя
+ * @returns Разрешено ли удаление
  */
-const canDeleteUser = (actorRole, targetUser, actorId) => {
+const canDeleteUser = (
+    actorRole: string,
+    targetUser: { _id: unknown; role: string },
+    actorId: unknown,
+): boolean => {
     const isSelf = String(targetUser._id) === String(actorId);
     return canDeleteByRole(actorRole, targetUser.role, isSelf);
 };

@@ -1,32 +1,42 @@
 /**
  * Фильтрация персональных данных в слотах расписания (/api/hours, WebSocket).
  */
+import type { UserDoc } from '../models/User';
 
 /**
  * Может ли зритель видеть имя, группу и аватар в слотах (аналог canViewUserDetails на клиенте).
- * @param {import('../models/User')|null|undefined} dbUser - Пользователь из БД после опциональной auth.
+ * @param {Pick<UserDoc, 'role'>|null|undefined} dbUser - Пользователь из БД после опциональной auth.
  * @returns {boolean}
  */
-const canViewBookingUserDetails = (dbUser) => {
+const canViewBookingUserDetails = (dbUser: Pick<UserDoc, 'role'> | null | undefined): boolean => {
     if (!dbUser) {
         return false;
     }
     return dbUser.role !== 'guest';
 };
 
+/** Публичные поля слота: час и тип репетиции. */
+interface PublicHour {
+    hour?: string;
+    rehearsalType?: string;
+}
+
 /**
  * Возвращает слоты с PII или только публичные поля (час + тип репетиции).
- * @param {Array<object>} hours - Нормализованные слоты (bookedHourSchema).
+ * @param {Array<PublicHour>} hours - Нормализованные слоты (bookedHourSchema).
  * @param {boolean} canViewDetails - Разрешён ли просмотр персональных данных.
- * @returns {Array<object>}
+ * @returns {Array<PublicHour>}
  */
-const sanitizeHoursForViewer = (hours, canViewDetails) => {
+const sanitizeHoursForViewer = <T extends PublicHour>(
+    hours: T[],
+    canViewDetails: boolean,
+): T[] | PublicHour[] => {
     if (canViewDetails) {
         return hours;
     }
 
     return hours.map((slot) => {
-        const entry: Record<string, any> = { hour: slot.hour };
+        const entry: PublicHour = { hour: slot.hour };
         if (slot.rehearsalType) {
             entry.rehearsalType = slot.rehearsalType;
         }

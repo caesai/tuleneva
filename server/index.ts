@@ -161,7 +161,7 @@ const notifyAdmins = createNotifyAdmins({
  * @param {object} [extra]
  * @returns {Promise<unknown>}
  */
-const notifyUser = (chatId, text, extra) =>
+const notifyUser = (chatId: string | number, text: string, extra: object): Promise<unknown> =>
     sendTelegramMessage(bot, chatId, text, extra, TELEGRAM_NOTIFY_TIMEOUT_MS);
 
 const { publish, attach } = createBroadcast();
@@ -187,7 +187,7 @@ let shuttingDown = false;
  * Закрывает HTTP, WebSocket, Mongo и бота по сигналу systemd.
  * @param {string} signal
  */
-const gracefulShutdown = (signal) => {
+const gracefulShutdown = (signal: string) => {
     if (shuttingDown) {
         return;
     }

@@ -10,8 +10,19 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const EMAIL_CONFIRM_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
+/** Письмо подтверждения почты или сброса пароля. */
+interface OutboundMail {
+    to: string;
+    subject: string;
+    text: string;
+    html?: string;
+}
+
+/** Отправка письма. Реализация может быть синхронной или возвращать промис. */
+type SendMail = (message: OutboundMail) => Promise<void> | void;
+
 /** @type {Map<string, { count: number, resetAt: number }>} */
-const loginAttempts = new Map();
+const loginAttempts: Map<string, { count: number; resetAt: number; }> = new Map();
 
 /**
  * Ошибка email-провайдера с HTTP-статусом (без `as any` на Error).
@@ -58,10 +69,10 @@ const getEmailErrorStatus = (err: unknown): number | undefined => {
 
 /**
  * Нормализует адрес почты для хранения и поиска.
- * @param {string} email
+ * @param {string} [email]
  * @returns {string}
  */
-const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeEmail = (email?: string | null): string => String(email || '').trim().toLowerCase();
 
 /**
  * Проверяет формат почты и длину пароля.
@@ -69,7 +80,7 @@ const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
  * @param {string} password
  * @throws {Error}
  */
-const validateEmailCredentials = (email, password) => {
+const validateEmailCredentials = (email: string, password: string) => {
     const normalized = normalizeEmail(email);
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
         throw new Error('Invalid email');
@@ -85,17 +96,17 @@ const validateEmailCredentials = (email, password) => {
  * @param {string} password
  * @returns {Promise<string>}
  */
-const hashPassword = async (password) => {
+const hashPassword = async (password: string): Promise<string> => {
     return bcrypt.hash(String(password), BCRYPT_ROUNDS);
 };
 
 /**
  * Сравнивает пароль с хешем.
  * @param {string} password
- * @param {string} passwordHash
+ * @param {string} [passwordHash]
  * @returns {Promise<boolean>}
  */
-const verifyPassword = async (password, passwordHash) => {
+const verifyPassword = async (password: string, passwordHash?: string): Promise<boolean> => {
     if (!passwordHash) return false;
     return bcrypt.compare(String(password), passwordHash);
 };
@@ -105,7 +116,7 @@ const verifyPassword = async (password, passwordHash) => {
  * @param {string} token
  * @returns {string}
  */
-const hashConfirmToken = (token) => {
+const hashConfirmToken = (token: string): string => {
     return crypto.createHash('sha256').update(String(token)).digest('hex');
 };
 
@@ -126,7 +137,7 @@ const pruneExpiredLoginAttempts = () => {
  * @param {string} email
  * @returns {boolean} true если вход ещё разрешён
  */
-const allowLoginAttempt = (email) => {
+const allowLoginAttempt = (email: string): boolean => {
     pruneExpiredLoginAttempts();
     const key = normalizeEmail(email);
     const now = Date.now();
@@ -142,7 +153,7 @@ const allowLoginAttempt = (email) => {
  * Регистрирует неудачную попытку входа.
  * @param {string} email
  */
-const recordFailedLogin = (email) => {
+const recordFailedLogin = (email: string) => {
     pruneExpiredLoginAttempts();
     const key = normalizeEmail(email);
     const now = Date.now();
@@ -156,9 +167,9 @@ const recordFailedLogin = (email) => {
 
 /**
  * Сбрасывает счётчик после успешного входа.
- * @param {string} email
+ * @param {string} [email]
  */
-const clearLoginAttempts = (email) => {
+const clearLoginAttempts = (email?: string | null) => {
     loginAttempts.delete(normalizeEmail(email));
 };
 
@@ -185,12 +196,12 @@ const mapDuplicateEmailError = (err: unknown) => {
  * Учитывает подтверждённый emailLogin и pendingEmail.
  * @param {string} email
  * @param {import('mongoose').Types.ObjectId|string} [excludeUserId]
- * @returns {Promise<import('mongoose').Document|null>}
+ * @returns {Promise<UserDocument|null>}
  */
 const findUserByEmailLogin = async (
     email: string,
     excludeUserId: import('mongoose').Types.ObjectId | string | null = null,
-) => {
+): Promise<UserDocument | null> => {
     const normalized = normalizeEmail(email);
     const query = {
         $or: [
@@ -212,9 +223,9 @@ const findUserByEmailLogin = async (
 /**
  * Загружает пользователя с полями пароля и подтверждения почты.
  * @param {import('mongoose').Types.ObjectId|string} userId
- * @returns {Promise<import('mongoose').Document|null>}
+ * @returns {Promise<UserDocument|null>}
  */
-const loadUserWithEmailSecrets = async (userId) => {
+const loadUserWithEmailSecrets = async (userId: import('mongoose').Types.ObjectId | string): Promise<UserDocument | null> => {
     return User.findById(userId).select(
         '+passwordHash +pendingEmail +pendingPasswordHash +emailConfirmTokenHash +emailConfirmExpires',
     );
@@ -222,9 +233,9 @@ const loadUserWithEmailSecrets = async (userId) => {
 
 /**
  * Очищает pending-поля подтверждения почты.
- * @param {import('mongoose').Document} user
+ * @param {UserDocument} user
  */
-const clearPendingEmail = (user) => {
+const clearPendingEmail = (user: UserDocument) => {
     user.pendingEmail = undefined;
     user.pendingPasswordHash = undefined;
     user.emailConfirmTokenHash = undefined;
@@ -234,12 +245,12 @@ const clearPendingEmail = (user) => {
 /**
  * Сохраняет pending-данные и отправляет письмо со ссылкой подтверждения.
  * @param {object} options
- * @param {import('mongoose').Document} options.user
+ * @param {UserDocument} options.user
  * @param {string} options.email
  * @param {string} options.passwordHash
  * @param {string} options.webAppBaseUrl
- * @param {Function} options.sendMail
- * @returns {Promise<{ user: import('mongoose').Document, pendingConfirmation: true }>}
+ * @param {SendMail} options.sendMail
+ * @returns {Promise<{ user: UserDocument, pendingConfirmation: true }>}
  */
 const startEmailConfirmation = async ({
     user,
@@ -247,7 +258,13 @@ const startEmailConfirmation = async ({
     passwordHash,
     webAppBaseUrl,
     sendMail,
-}) => {
+}: {
+    user: UserDocument;
+    email: string;
+    passwordHash: string;
+    webAppBaseUrl: string;
+    sendMail: SendMail;
+}): Promise<{ user: UserDocument; pendingConfirmation: true; }> => {
     if (typeof sendMail !== 'function') {
         throw emailAuthError('Email delivery is not configured', 503);
     }
@@ -288,9 +305,9 @@ const startEmailConfirmation = async ({
  * @param {boolean} [options.skipCurrentPassword=false] - Админская установка
  * @param {string} options.webAppBaseUrl
  * @param {Function} options.sendMail
- * @returns {Promise<{ user: import('mongoose').Document, pendingConfirmation: boolean }>}
+ * @returns {Promise<{ user: UserDocument, pendingConfirmation: boolean }>}
  */
-const linkEmailCredentials = async (user: UserDocument, email, password, options: any = {}) => {
+const linkEmailCredentials = async (user: UserDocument, email: string, password: string, options: any = {}): Promise<{ user: UserDocument; pendingConfirmation: boolean; }> => {
     const {
         currentPassword,
         skipCurrentPassword = false,
@@ -346,9 +363,9 @@ const linkEmailCredentials = async (user: UserDocument, email, password, options
 /**
  * Подтверждает почту по одноразовому токену из письма.
  * @param {string} rawToken
- * @returns {Promise<import('mongoose').Document>}
+ * @returns {Promise<UserDocument>}
  */
-const confirmEmailToken = async (rawToken) => {
+const confirmEmailToken = async (rawToken: string): Promise<UserDocument> => {
     const token = String(rawToken || '').trim();
     if (!token) {
         throw emailAuthError('Invalid or expired confirmation token', 400);
@@ -396,9 +413,9 @@ const confirmEmailToken = async (rawToken) => {
  * Находит пользователя по подтверждённой почте с passwordHash и проверяет пароль.
  * @param {string} email
  * @param {string} password
- * @returns {Promise<import('mongoose').Document|null>}
+ * @returns {Promise<UserDocument|null>}
  */
-const authenticateEmailPassword = async (email, password) => {
+const authenticateEmailPassword = async (email: string, password: string): Promise<UserDocument | null> => {
     const normalized = normalizeEmail(email);
     if (!normalized || !password) {
         return null;
@@ -443,7 +460,7 @@ const resetLoginAttemptsForTests = () => {
  * @param {Function} options.sendMail
  * @returns {Promise<{ sent: boolean }>}
  */
-const requestPasswordReset = async (email, options: any = {}) => {
+const requestPasswordReset = async (email: string, options: any = {}): Promise<{ sent: boolean; }> => {
     const { webAppBaseUrl, sendMail } = options;
     const normalized = normalizeEmail(email);
     if (!normalized) {
@@ -482,9 +499,9 @@ const requestPasswordReset = async (email, options: any = {}) => {
  * Задаёт новый пароль по токену из письма сброса.
  * @param {string} rawToken
  * @param {string} newPassword
- * @returns {Promise<import('mongoose').Document>}
+ * @returns {Promise<UserDocument>}
  */
-const resetPasswordWithToken = async (rawToken, newPassword) => {
+const resetPasswordWithToken = async (rawToken: string, newPassword: string): Promise<UserDocument> => {
     const token = String(rawToken || '').trim();
     if (!token) {
         throw emailAuthError('Invalid or expired reset token', 400);
