@@ -50,7 +50,69 @@
     <div><img src="https://mc.yandex.ru/watch/98668551" style="position:absolute; left:-9999px;" alt="" /></div>
   </noscript>
   <!-- /Yandex.Metrika counter -->
-  <main id="root"></main>
+  <style>
+    @keyframes tuleneva-boot-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #root img[data-boot-logo] { animation: none !important; }
+    }
+  </style>
+  <main id="root">
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;">
+      <img data-boot-logo src="/logo_main512.svg" alt="Загрузка" width="96" height="96" style="animation:tuleneva-boot-spin 1.2s linear infinite;" />
+    </div>
+  </main>
+  <!--
+    Входной модуль ещё не исполняется. Если Telegram отдал старый index.html,
+    а /assets/*.js уже удалены деплоем, здесь один раз перезагружаем страницу.
+    Ключ совпадает с CHUNK_RELOAD_KEY в src/boot/chunkReload.ts.
+  -->
+  <script>
+    (function () {
+      var KEY = 'tuleneva:chunk-reload';
+      var started = false;
+      function reloadOnce() {
+        if (started) return true;
+        try {
+          if (sessionStorage.getItem(KEY) === '1') return false;
+          sessionStorage.setItem(KEY, '1');
+        } catch (e) {
+          return false;
+        }
+        started = true;
+        location.reload();
+        return true;
+      }
+      function showError() {
+        var root = document.getElementById('root');
+        if (!root) return;
+        root.textContent = '';
+        var box = document.createElement('div');
+        box.setAttribute('role', 'alert');
+        box.style.cssText = 'min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;box-sizing:border-box;background:#fff;color:#111;text-align:center;font:16px/1.4 system-ui,sans-serif;';
+        var text = document.createElement('p');
+        text.style.margin = '0';
+        text.textContent = 'Не удалось открыть приложение.';
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'Обновить';
+        button.style.cssText = 'min-height:44px;min-width:44px;padding:0 20px;border:1px solid #111;border-radius:8px;background:#111;color:#fff;font:16px/1 system-ui,sans-serif;';
+        button.addEventListener('click', function () { location.reload(); });
+        box.appendChild(text);
+        box.appendChild(button);
+        root.appendChild(box);
+      }
+      window.addEventListener('error', function (event) {
+        var target = event.target;
+        if (!target || target.tagName !== 'SCRIPT') return;
+        var src = target.src || '';
+        if (src.indexOf('/assets/') === -1 && src.indexOf('/src/') === -1) return;
+        if (!reloadOnce()) showError();
+      }, true);
+    })();
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

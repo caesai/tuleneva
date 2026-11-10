@@ -63,12 +63,9 @@ export function init(): boolean {
     try {
         retrieveLaunchParams();
     } catch (error) {
-        if (isLaunchParamsRetrieveError(error)) {
-            console.warn('Telegram launch params missing after init:', error);
-            setTelegramEnvironment(false);
-            return false;
-        }
-        throw error;
+        console.warn('Telegram launch params missing after init:', error);
+        setTelegramEnvironment(false);
+        return false;
     }
 
     mountTelegramComponents();

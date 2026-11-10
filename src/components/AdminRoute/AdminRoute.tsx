@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
+import { Loader } from '@/components/Loader/Loader.tsx';
 
 interface AdminRouteProps {
     children: ReactNode;
@@ -10,7 +10,7 @@ interface AdminRouteProps {
 /**
  * Защищённый маршрут: рендерит children только для admin / super_admin
  * с уже установленной сессией. Пока auth ещё читает токен или ждёт init data,
- * показывает лоадер и не уводит на главную.
+ * сразу показывает логотип и не уводит на главную.
  * Неавторизованных и остальных ролей перенаправляет на главную.
  */
 export const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
@@ -18,7 +18,7 @@ export const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
     const location = useLocation();
 
     if (authStatus === 'loading') {
-        return <SuspenseLoaderFallback fullScreen />;
+        return <Loader fullScreen />;
     }
 
     if (!capabilities.isAdmin) {

@@ -231,6 +231,36 @@ sudo certbot --nginx -d tuleneva25.ru
 
 После смены `root` на `current/dist` Nginx reload один раз; дальше CD только переключает symlink и не перезагружает Nginx.
 
+### Кэш: index.html и /assets/
+
+Без этих заголовков iOS/Telegram оставляет старый `index.html`. После деплоя `current` указывает на новый `dist`, старых файлов `/assets/*-<hash>.js` по URL уже нет, а `try_files` подставляет вместо них HTML. Ленивый чанк админки не исполняется, React не монтируется, экран белый. Обновление страницы запрашивает свежий HTML и всё оживает.
+
+Certbot уже создал блок `listen 443`. Не затирайте весь сайт шаблоном, если в нём есть `ssl_certificate`: вставьте те же `location` в живой server (и 80, и 443).
+
+```nginx
+location = /index.html {
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+}
+
+location /assets/ {
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+}
+
+location / {
+    try_files $uri $uri/ /index.html;
+}
+```
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+# проверка снаружи:
+curl -sI https://tuleneva25.ru/ | grep -i cache-control
+curl -sI https://tuleneva25.ru/assets/ | head -n 1
+```
+
+У `/` в ответе должен быть `no-cache` (внутренний редирект на `index.html`). Несуществующий файл в `/assets/` должен быть `404`, не `200` с HTML.
+
 В BotFather укажите Web App URL на `https://tuleneva25.ru/app` (или ваш актуальный путь мини-приложения).
 
 ## 8. Бэкапы MongoDB
