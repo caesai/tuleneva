@@ -26,8 +26,18 @@ import { useTimeTableEmailAuth } from '@/hooks/useTimeTableEmailAuth.ts';
 import { studioTodayMoment } from '@/lib/studioToday.ts';
 import type { TRehearsalType } from '@/types/timetable.types';
 import { formatDdMmYyyyMoscow, isStudioDayBeforeToday } from '../../../shared/studioHours.ts';
-import { APP_PAGE_META } from '@/config/siteMeta.ts';
+import { APP_PAGE_META, type IPageMeta } from '@/config/siteMeta.ts';
+import { canSeeStudioCalendar } from '@/auth/calendarAuth.ts';
+import { StudioClosedScreen } from '@/components/StudioClosedScreen/StudioClosedScreen.tsx';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
+
+/** Head /app, пока календарь закрыт. Без слотов и часов. */
+const CLOSED_PAGE_META: IPageMeta = {
+    title: 'Запись по приглашению — Тюленева 25',
+    description: 'Доступ открывает администратор студии.',
+    canonicalPath: '/app',
+    robots: 'noindex, nofollow',
+};
 
 
 /**
@@ -44,13 +54,50 @@ import { usePageMeta } from '@/hooks/usePageMeta.ts';
  * - Обрабатывает взаимодействие с API для бронирования и отмены.
  * - Управляет состоянием выбранной даты, часов для бронирования и часов для отмены.
  * - Привязка почты и вход в админку — плавающая колонка у правого нижнего края, календарь не сдвигается.
+ * - В стелс-режиме человек без записи в users видит только «Запись по приглашению».
  *
  * @returns {JSX.Element} Отрисованный компонент TimeTablePage.
  */
 export const TimeTablePage: React.FC = (): JSX.Element => {
-    usePageMeta(APP_PAGE_META);
-
     const navigate = useNavigate();
+    const {
+        user,
+        capabilities,
+        isAuthenticated,
+        isLoading: authLoading,
+        isInTelegram,
+        telegramStartParam,
+        registerWithInvite,
+    } = useAuth();
+    const [stealthMode, setStealthMode] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetch('/api/config')
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error('config');
+                }
+                return response.json() as Promise<{ stealthMode?: boolean }>;
+            })
+            .then((data) => {
+                if (!cancelled) {
+                    setStealthMode(data.stealthMode !== false);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setStealthMode(true);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const accessReady = !authLoading && stealthMode !== null;
+    const showCalendar = accessReady && canSeeStudioCalendar(Boolean(stealthMode), user);
+    usePageMeta(showCalendar ? APP_PAGE_META : CLOSED_PAGE_META);
     // Календарный день студии (Москва), а не «сегодня» в поясе браузера.
     const [selectedDate, setSelectedDate] = useState<Moment | null>(() => studioTodayMoment());
     // Месяц, для которого грузится подсветка. Та же точка отсчёта, что у выбранного дня.
@@ -65,7 +112,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const { toasts, showToast, removeToast } = useToast();
     // Пользовательский хук для получения данных расписания (подсвеченные даты, забронированные часы)
     const { highlightedDates, bookedHours, loading, hoursLoading, error, fetchBookedHours, refetch } =
-        useTimeTableData(viewDate, selectedDate, isOnline);
+        useTimeTableData(viewDate, selectedDate, isOnline, showCalendar);
     /** Лоадер месяца: minVisibleMs после ответа API */
     const showPageLoading = useDelayedLoading(loading);
     const showHoursLoading = useDelayedLoading(hoursLoading);
@@ -137,15 +184,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     };
     const closeBookingModal = () => setIsBookingModalOpen(false);
 
-    const {
-        user,
-        capabilities,
-        isAuthenticated,
-        isLoading: authLoading,
-        isInTelegram,
-        telegramStartParam,
-        registerWithInvite,
-    } = useAuth();
     const { isAdmin, isGuest, canManageBookings, canViewUserDetails } = capabilities;
     const currentUserId = user?._id ? String(user._id) : '';
     const emailAuth = useTimeTableEmailAuth({
@@ -170,6 +208,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         telegramStartParam,
         registerWithInvite,
         showToast,
+        suspended: stealthMode !== false,
     });
 
     const bandNames = readSavedBandNames();
@@ -284,6 +323,23 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     const handleScheduleModeChange = (_event: React.SyntheticEvent, value: string) => {
         setIsScheduleMode(value === 'schedule');
     };
+
+    if (!accessReady) {
+        return (
+            <div className={css.timetable}>
+                <Loader fullScreen={false} />
+            </div>
+        );
+    }
+
+    if (!showCalendar) {
+        return (
+            <div className={css.timetable}>
+                <StudioClosedScreen />
+            </div>
+        );
+    }
+
     return (
         <div className={css.timetable}>
             {/* Toast-уведомления */}

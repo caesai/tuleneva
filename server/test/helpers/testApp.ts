@@ -40,6 +40,7 @@ const createTestApp = (overrides: any = {}) => {
         notifyAdmins,
         notifyUser,
         broadcastUpdate: () => {},
+        stealthMode: false,
         ...overrides,
     });
 };

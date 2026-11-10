@@ -26,6 +26,8 @@ import {
     stopBotSafely,
 } from './telegram/createBot';
 import { createBroadcast } from './realtime/createBroadcast';
+import { isStealthMode } from './config/stealthMode';
+import { authorizeListedSocket } from './auth/calendarAccess';
 import { createObjectStorageFromEnv } from './storage/createObjectStorage';
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
@@ -165,7 +167,13 @@ const notifyAdmins = createNotifyAdmins({
 const notifyUser = (chatId: string | number, text: string, extra?: object): Promise<unknown> =>
     sendTelegramMessage(bot, chatId, text, extra, TELEGRAM_NOTIFY_TIMEOUT_MS);
 
-const { publish, attach } = createBroadcast();
+const stealthMode = isStealthMode();
+const { publish, attach } = createBroadcast(stealthMode ? {
+    authorize: (raw) => authorizeListedSocket(raw, {
+        jwtSecret: JWT_SECRET || '',
+        botToken: BOT_TOKEN || '',
+    }),
+} : {});
 
 const objectStorage = createObjectStorageFromEnv();
 if (!objectStorage) {

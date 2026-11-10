@@ -19,6 +19,14 @@ interface BroadcastClient {
 /**
  * Публикация событий, регистрация клиентов и привязка WebSocket к HTTP-серверу.
  */
+interface BroadcastOptions {
+    /**
+     * Если задан, сокет получает booking_* только после первого кадра,
+     * для которого функция вернула true. Тело кадра не логировать.
+     */
+    authorize?: (raw: string) => Promise<boolean>;
+}
+
 interface Broadcast {
     publish: (type: string, data: object) => void;
     addClient: (client: BroadcastClient) => () => void;
@@ -27,9 +35,10 @@ interface Broadcast {
 
 /**
  * Создаёт модуль публикации обновлений по WebSocket.
+ * @param {BroadcastOptions} [options] - authorize закрывает рассылку броней в стелс-режиме
  * @returns {Broadcast} publish, addClient и attach
  */
-const createBroadcast = (): Broadcast => {
+const createBroadcast = (options: BroadcastOptions = {}): Broadcast => {
     const clients = new Set<BroadcastClient>();
 
     /**
@@ -76,7 +85,36 @@ const createBroadcast = (): Broadcast => {
 
         wss.on('connection', (ws) => {
             console.log('WebSocket client connected');
-            const remove = addClient(ws);
+            let remove = () => {};
+
+            if (!options.authorize) {
+                remove = addClient(ws);
+            } else {
+                const authTimer = setTimeout(() => {
+                    try {
+                        ws.close();
+                    } catch {
+                        // Сокет уже закрыт.
+                    }
+                }, 8000);
+                ws.once('message', (data) => {
+                    clearTimeout(authTimer);
+                    const raw = typeof data === 'string' ? data : data.toString();
+                    Promise.resolve()
+                        .then(() => options.authorize?.(raw) ?? false)
+                        .then((allowed) => {
+                            if (!allowed) {
+                                ws.close();
+                                return;
+                            }
+                            remove = addClient(ws);
+                        })
+                        .catch((err) => {
+                            console.error('WebSocket auth failed:', err?.message || err);
+                            ws.close();
+                        });
+                });
+            }
 
             ws.on('close', () => {
                 console.log('WebSocket client disconnected');
@@ -84,7 +122,7 @@ const createBroadcast = (): Broadcast => {
             });
 
             ws.on('error', (err) => {
-                console.error('WebSocket error:', err);
+                console.error('WebSocket error:', err?.message || err);
                 remove();
             });
         });

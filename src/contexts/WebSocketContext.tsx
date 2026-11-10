@@ -9,6 +9,7 @@ import React, {
     type ReactNode,
 } from 'react';
 import { getWebSocketUrl } from '@/api/base.api';
+import { getTelegramInitData } from '@/auth/calendarAuth.ts';
 import type {
     WebSocketCallback,
     WebSocketMessage,
@@ -63,6 +64,15 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
                 console.log('WebSocket connected');
                 setIsConnected(true);
                 reconnectAttemptsRef.current = 0;
+                const token = localStorage.getItem('authToken');
+                const initData = getTelegramInitData();
+                const auth: { type: 'auth'; token?: string; initData?: string } = { type: 'auth' };
+                if (token) {
+                    auth.token = token;
+                } else if (initData) {
+                    auth.initData = initData;
+                }
+                ws.send(JSON.stringify(auth));
             };
 
             ws.onmessage = (event) => {

@@ -1,5 +1,22 @@
 import type { TRehearsalType } from '@/types/timetable.types.ts';
+import { getTelegramInitData } from '@/auth/calendarAuth.ts';
 import { BOOK_URL, CANCEL_URL, HOURS_URL, TIMETABLE_URL, getAuthHeaders } from './base.api.ts';
+
+/**
+ * Заголовки календаря. Без JWT прикладывает init data, чтобы гость из списка
+ * подтвердил личность. Строка init data в консоль не пишется.
+ * @returns Заголовки fetch
+ */
+const calendarHeaders = (): HeadersInit => {
+    const headers = getAuthHeaders() as Record<string, string>;
+    if (!headers.Authorization) {
+        const initData = getTelegramInitData();
+        if (initData) {
+            headers['X-Telegram-Init-Data'] = initData;
+        }
+    }
+    return headers;
+};
 
 /**
  * Получает расписание (список дат с бронированиями) на указанную дату (месяц).
@@ -9,7 +26,7 @@ import { BOOK_URL, CANCEL_URL, HOURS_URL, TIMETABLE_URL, getAuthHeaders } from '
 export const APIGetTimeTable = async (date: string) => {
     return await fetch(TIMETABLE_URL + '?date=' + date, {
         method: 'GET',
-        headers: getAuthHeaders(),
+        headers: calendarHeaders(),
     });
 };
 
@@ -22,7 +39,7 @@ export const APIGetTimeTable = async (date: string) => {
 export const APIGetHours = async (date: string): Promise<Response> => {
     return await fetch(HOURS_URL + '?date=' + date, {
         method: 'GET',
-        headers: getAuthHeaders(),
+        headers: calendarHeaders(),
     });
 };
 
