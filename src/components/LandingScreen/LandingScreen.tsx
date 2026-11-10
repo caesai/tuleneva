@@ -3,9 +3,17 @@ import { Link } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { MusicNoteIcon } from '@/components/LandingScreen/MusicNoteIcon.tsx';
 import { SocialLinks } from '@/components/SocialLinks/SocialLinks.tsx';
+import socialCss from '@/components/SocialLinks/SocialLinks.module.css';
 import { LANDING_PAGE_META } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import css from '@/components/LandingScreen/LandingScreen.module.css';
+
+/** Левый нижний угол той же орбиты, что у иконок соцсетей. */
+const MUSIC_NOTE_ORBIT = {
+    '--y-x-mult': -0.78,
+    '--y-y-mult': 0.72,
+    '--y-delay': '0.42s',
+} as React.CSSProperties;
 
 /**
  * Главный экран: крупный логотип по центру; по нажатию вокруг него
@@ -27,8 +35,14 @@ export const LandingScreen: React.FC = () => {
                 {socialLinksOpen ? (
                     <>
                         <SocialLinks layout="y" />
-                        <Link className={css.musicNote} to="/music" aria-label="Музыка" title="Музыка">
-                            <MusicNoteIcon className={css.musicNoteIcon} />
+                        <Link
+                            className={socialCss.linkY}
+                            to="/music"
+                            aria-label="Музыка"
+                            title="Музыка"
+                            style={MUSIC_NOTE_ORBIT}
+                        >
+                            <MusicNoteIcon className={`${socialCss.iconY} ${css.musicNoteIcon}`} />
                         </Link>
                     </>
                 ) : null}

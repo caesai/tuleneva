@@ -17,7 +17,6 @@
     --hero-logo-padding: 3em;
     --y-arm-x: calc(var(--hero-logo-size) / 2 + var(--hero-logo-padding) + 0.25rem);
     --y-arm-y: calc(var(--hero-logo-size) / 2 + var(--hero-logo-padding) + 3.5rem);
-    --note-offset: calc(var(--hero-logo-size) / 2 + 2.15rem);
     width: calc(var(--y-arm-x) * 2 + 4rem);
     height: calc(
         var(--hero-logo-size) + var(--hero-logo-padding) * 2 + var(--y-arm-y) * 0.42 + var(--y-arm-y)
@@ -29,65 +28,10 @@
     padding: var(--hero-logo-padding);
 }
 
-.musicNote {
-    position: absolute;
-    z-index: 2;
-    left: 50%;
-    top: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 3.25rem;
-    height: 3.25rem;
-    cursor: pointer;
-    margin: 0;
-    color: #9e9e9e;
-    text-decoration: none;
-    border-radius: 50%;
-    opacity: 0;
-    transform: translate(-50%, -50%) translateY(var(--note-offset));
-    animation: note-appear 0.48s ease-out forwards;
-    animation-delay: 0.16s;
-    transition: color 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-}
-
+/* Та же орбита, что у соцсетей; глиф ноты чуть крупнее квадрата 4rem, чтобы читался одного размера. */
 .musicNoteIcon {
-    width: 2.5rem;
-    height: 2.5rem;
-    filter: invert(1);
-    transition: filter 0.2s ease;
-}
-
-.musicNote:hover,
-.musicNote:focus-visible,
-.musicNote:active {
-    color: #000;
-}
-
-.musicNote:hover .musicNoteIcon,
-.musicNote:focus-visible .musicNoteIcon,
-.musicNote:active .musicNoteIcon {
-    filter: invert(0);
-}
-
-.musicNote:focus-visible {
-    outline: 2px solid #000;
-    outline-offset: 4px;
-}
-
-@keyframes note-appear {
-    0% {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(0.4);
-    }
-
-    100% {
-        opacity: 1;
-        transform: translate(-50%, -50%)
-            translateY(var(--note-offset))
-            scale(1);
-    }
+    width: 4.75rem;
+    height: 4.75rem;
 }
 
 .musicLink {
@@ -103,26 +47,3 @@
     outline-offset: 3px;
 }
 
-@media (max-width: 380px) {
-    .hero {
-        --note-offset: calc(var(--hero-logo-size) / 2 + 1.5rem);
-    }
-
-    .musicNote {
-        width: 2.75rem;
-        height: 2.75rem;
-    }
-
-    .musicNoteIcon {
-        width: 2rem;
-        height: 2rem;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .musicNote {
-        opacity: 1;
-        animation: none;
-        transform: translate(-50%, -50%) translateY(var(--note-offset));
-    }
-}

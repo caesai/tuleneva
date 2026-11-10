@@ -11,9 +11,17 @@ interface MusicNoteIconProps {
  */
 export const MusicNoteIcon: React.FC<MusicNoteIconProps> = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+        <ellipse
+            cx="8.4"
+            cy="17.2"
+            rx="7.5"
+            ry="6.1"
+            fill="currentColor"
+            transform="rotate(-22 8.4 17.2)"
+        />
         <path
             fill="currentColor"
-            d="M9.2 17.6a2.35 2.35 0 1 1-2.15-2.34V6.15l9.3-1.85v8.55a2.35 2.35 0 1 1-2.15-2.33V6.55L9.2 8.05v7.2a2.4 2.4 0 0 1 0 2.35z"
+            d="M14.6 1.1h3.5v16.2h-3.5zM18.1 1.1c5.2 1.4 5.6 6.4 3.6 9.2-2.2-2.4-4.4-3.4-3.6-3.6V1.1z"
         />
     </svg>
 );
