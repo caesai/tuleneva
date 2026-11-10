@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { fetchPublishedTracks, trackAudioUrl, trackCoverUrl } from '@/api/music.api.ts';
+import { PauseIcon, PlayIcon } from '@/components/TrackPlayer/PlayerIcons.tsx';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, type IPageMeta } from '@/config/siteMeta.ts';
@@ -24,6 +25,8 @@ export const MusicPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [reloadKey, setReloadKey] = useState(0);
     const [playRequest, setPlayRequest] = useState(0);
+    const [pauseRequest, setPauseRequest] = useState(0);
+    const [playing, setPlaying] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -79,6 +82,26 @@ export const MusicPage: React.FC = () => {
     const playTrack = (id: string) => {
         navigate(`/music/${id}`);
         setPlayRequest((value) => value + 1);
+    };
+
+    /**
+     * Кнопка в строке: пауза, если эта запись уже звучит, иначе старт.
+     * @param id Идентификатор
+     */
+    const pressRow = (id: string) => {
+        if (id === trackId && playing) {
+            setPauseRequest((value) => value + 1);
+            return;
+        }
+        playTrack(id);
+    };
+
+    const selectedIndex = tracks.findIndex((track) => track.id === trackId);
+    const playAt = (index: number) => {
+        const track = tracks[index];
+        if (track) {
+            playTrack(track.id);
+        }
     };
 
     return (
@@ -142,10 +165,12 @@ export const MusicPage: React.FC = () => {
                                 <button
                                     type="button"
                                     className={css.rowPlay}
-                                    onClick={() => playTrack(track.id)}
-                                    aria-label={`Слушать: ${track.title}`}
+                                    onClick={() => pressRow(track.id)}
+                                    aria-label={current && playing ? `Пауза: ${track.title}` : `Слушать: ${track.title}`}
                                 >
-                                    Слушать
+                                    {current && playing
+                                        ? <PauseIcon className={css.rowIcon} />
+                                        : <PlayIcon className={css.rowIcon} />}
                                 </button>
                                 <Link className={css.share} to={`/music/${track.id}`}>
                                     Ссылка
@@ -168,6 +193,12 @@ export const MusicPage: React.FC = () => {
                     coverUrl={selected.hasCover ? trackCoverUrl(selected.id) : null}
                     src={trackAudioUrl(selected.id)}
                     playRequest={playRequest}
+                    pauseRequest={pauseRequest}
+                    hasPrevious={selectedIndex > 0}
+                    hasNext={selectedIndex >= 0 && selectedIndex < tracks.length - 1}
+                    onPlayingChange={setPlaying}
+                    onPrevious={() => playAt(selectedIndex - 1)}
+                    onNext={() => playAt(selectedIndex + 1)}
                 />
             ) : null}
         </main>

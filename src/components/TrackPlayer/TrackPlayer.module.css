@@ -64,26 +64,61 @@
     line-height: 1.4;
 }
 
+.controls,
+.volumeRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.volumeRow {
+    justify-content: flex-start;
+}
+
+.iconButton,
 .play {
+    display: grid;
+    place-items: center;
     flex-shrink: 0;
-    min-height: 44px;
-    padding: 0 14px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
     border: none;
-    border-radius: 999px;
-    background: #111;
-    color: #fff;
-    font: inherit;
-    font-size: 14px;
+    border-radius: 50%;
+    background: transparent;
+    color: #111;
     cursor: pointer;
 }
 
+.play {
+    width: 52px;
+    height: 52px;
+    background: #111;
+    color: #fff;
+}
+
+.iconButton:disabled,
 .play:disabled {
-    opacity: 0.4;
+    opacity: 0.35;
     cursor: not-allowed;
 }
 
+.glyph {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.play .glyph {
+    width: 26px;
+    height: 26px;
+}
+
+.iconButton:focus-visible,
 .play:focus-visible,
-.seek:focus-visible {
+.seek:focus-visible,
+.volume:focus-visible {
     outline: 2px solid #111;
     outline-offset: 2px;
 }
@@ -94,10 +129,58 @@
     gap: 8px;
 }
 
-.seek {
+.seek,
+.volume {
     flex: 1;
     min-width: 0;
+    height: 44px;
+    margin: 0;
+    background: transparent;
     accent-color: #111;
+    appearance: none;
+}
+
+.seek::-webkit-slider-runnable-track,
+.volume::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(
+        to right,
+        #111 var(--fill, 0%),
+        #d5d5d5 var(--fill, 0%)
+    );
+}
+
+.seek::-webkit-slider-thumb,
+.volume::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border: none;
+    border-radius: 50%;
+    background: #111;
+}
+
+.seek::-moz-range-track,
+.volume::-moz-range-track {
+    height: 4px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(
+        to right,
+        #111 var(--fill, 0%),
+        #d5d5d5 var(--fill, 0%)
+    );
+}
+
+.seek::-moz-range-thumb,
+.volume::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border: none;
+    border-radius: 50%;
+    background: #111;
 }
 
 .time {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { MusicNoteIcon } from '@/components/LandingScreen/MusicNoteIcon.tsx';
@@ -16,12 +16,30 @@ const MUSIC_NOTE_ORBIT = {
 } as React.CSSProperties;
 
 /**
- * Главный экран: крупный логотип по центру; по нажатию вокруг него
- * раскрываются соцсети и нота — единственная ссылка на публичную музыку.
+ * Главный экран: логотип по центру видимой области, без прокрутки.
+ * По нажатию вокруг него раскрываются соцсети и нота — ссылка на музыку.
  */
 export const LandingScreen: React.FC = () => {
     usePageMeta(LANDING_PAGE_META);
     const [socialLinksOpen, setSocialLinksOpen] = useState(false);
+
+    useEffect(() => {
+        const html = document.documentElement;
+        const body = document.body;
+        const previous = {
+            htmlOverflow: html.style.overflow,
+            bodyOverflow: body.style.overflow,
+            bodyMinHeight: body.style.minHeight,
+        };
+        html.style.overflow = 'hidden';
+        body.style.overflow = 'hidden';
+        body.style.minHeight = '0px';
+        return () => {
+            html.style.overflow = previous.htmlOverflow;
+            body.style.overflow = previous.bodyOverflow;
+            body.style.minHeight = previous.bodyMinHeight;
+        };
+    }, []);
 
     return (
         <div className={css.screen}>

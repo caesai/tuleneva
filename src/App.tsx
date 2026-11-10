@@ -1,5 +1,6 @@
 import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { ScrollToTop } from '@/navigation/ScrollToTop.tsx';
 import { swipeBehavior } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
 import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
@@ -247,6 +248,7 @@ const App: React.FC = () => {
             <NetworkProvider>
                 <WebSocketProvider>
                     <BrowserRouter>
+                        <ScrollToTop />
                         <Suspense fallback={<SuspenseLoaderFallback fullScreen />}>
                             <Routes>
                                 <Route path="/" element={<IndexPage />} />

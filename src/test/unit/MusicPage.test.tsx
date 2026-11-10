@@ -91,6 +91,12 @@ describe('MusicPage', () => {
         await user.click(screen.getByRole('button', { name: 'Слушать: День' }));
         expect(audio?.getAttribute('src')).toContain('/api/music/tracks/b/audio');
         expect(screen.getByLabelText('Позиция воспроизведения')).toBeInTheDocument();
+        expect(screen.getByLabelText('Громкость')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Предыдущая запись' }));
+        expect(audio?.getAttribute('src')).toContain('/api/music/tracks/a/audio');
+        expect(screen.getByRole('button', { name: 'Предыдущая запись' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Следующая запись' })).toBeEnabled();
     });
 
     it('не считает обрыв play ошибкой и показывает настоящий отказ', async () => {
