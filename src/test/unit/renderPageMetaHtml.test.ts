@@ -9,7 +9,9 @@ describe('renderPageMetaHtml', () => {
         expect(html).toContain('<title>');
         expect(html).toContain(LANDING_PAGE_META.title);
         expect(html).toContain(`href="${SITE_ORIGIN}/"`);
-        expect(html).toContain(`${SITE_ORIGIN}/og-image.jpg`);
+        expect(html).toContain(`${SITE_ORIGIN}/og-share.jpg`);
+        expect(html).toContain('content="1200"');
+        expect(html).toContain('content="630"');
         expect(html).toContain('property="og:title"');
         expect(html).toContain('application/ld+json');
     });

@@ -247,6 +247,14 @@ location /assets/ {
     add_header Cache-Control "public, max-age=31536000, immutable" always;
 }
 
+# Open Graph для /music собирает Node. Без этого блока Nginx отдаёт один и тот же index.html.
+location /music {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+
 location / {
     try_files $uri $uri/ /index.html;
 }

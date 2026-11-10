@@ -11,6 +11,7 @@ import { audioObjectKey, coverObjectKey } from '../storage/objectKey';
 import { detachTrack, placeTrackInAlbum, requireAlbum } from './collectionMembership';
 import { registerCollectionRoutes } from './collectionRoutes';
 import { AUDIO_MAX_BYTES } from './musicLimits';
+import { sendShareJpeg } from '../seo/shareImage';
 import { parseRangeHeader, sendStoredObject } from './musicMedia';
 import {
     loadAlbumIndex,
@@ -480,6 +481,43 @@ export const createMusicRouter = ({
      * @description Обложка. Черновик — только super_admin.
      */
     router.get('/tracks/:id/cover', optionalAuthenticate, sendMedia('cover'));
+
+    /**
+     * @route GET /api/music/tracks/:id/og.jpg
+     * @description JPEG 1200×630 для og:image записи. Только опубликованная запись с обложкой.
+     */
+    router.get('/tracks/:id/og.jpg', async (req, res) => {
+        if (!mongoose.Types.ObjectId.isValid(routeParam(req.params.id))) {
+            res.status(404).json({ message: 'Запись не найдена.' });
+            return;
+        }
+        const track = await MusicTrack.findById(routeParam(req.params.id));
+        if (!track || track.status !== 'published' || !track.coverKey) {
+            res.status(404).json({ message: 'Файл не найден.' });
+            return;
+        }
+        if (!objectStorage) {
+            rejectIfNoStorage(res);
+            return;
+        }
+        try {
+            const updated = track.updatedAt ? track.updatedAt.getTime() : 0;
+            const sent = await sendShareJpeg(
+                res,
+                objectStorage,
+                track.coverKey,
+                `${track.coverKey}:${updated}`,
+            );
+            if (!sent && !res.headersSent) {
+                res.status(404).json({ message: 'Файл не найден.' });
+            }
+        } catch (err) {
+            console.error('Track share image failed:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ message: 'Не удалось собрать превью.' });
+            }
+        }
+    });
 
     registerCollectionRoutes(router, {
         superAdmin,
