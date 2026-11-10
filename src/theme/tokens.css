@@ -1,0 +1,75 @@
+/**
+ * @file Общие токены публичных страниц: белый фон, чернила #111, приглушённый #767676.
+ * Админка и расписание берут те же значения, что главная и /music.
+ */
+:root {
+    --ink: #111111;
+    --muted: #767676;
+    --line: #e6e6e6;
+    --paper: #ffffff;
+    --danger: #8f2d2d;
+    --heading: 22px;
+    --subheading: 16px;
+    --body: 15px;
+    --radius: 12px;
+    color-scheme: light;
+    color: var(--ink);
+    background-color: var(--paper);
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+}
+
+html,
+body,
+#root {
+    background: var(--paper);
+    color: var(--ink);
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+}
+
+a {
+    color: var(--ink);
+    text-decoration: none;
+}
+
+h1 {
+    font-size: var(--heading);
+    font-weight: 650;
+    line-height: 1.2;
+}
+
+button {
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    font-family: inherit;
+    font-size: var(--body);
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

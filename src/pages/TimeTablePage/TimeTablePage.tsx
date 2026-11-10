@@ -1,5 +1,6 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
 import React, { useState, useEffect, Suspense, type JSX } from 'react';
+import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
 import { MailIcon, ShieldIcon } from '@/components/Icons/Icons.tsx';
 import { useNavigate } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
@@ -341,7 +342,31 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
 
     return (
         <div className={css.timetable}>
-            {/* Toast-уведомления */}
+            <AppHeader title="Расписание">
+                {emailAuth.showEmailLinkForm && (
+                    <button
+                        type="button"
+                        className={css.headerButton}
+                        onClick={emailAuth.openEmailLink}
+                        aria-label="Вход в браузере"
+                        title="Вход в браузере"
+                    >
+                        <MailIcon className={css.headerIcon} />
+                    </button>
+                )}
+                {isAdmin && (
+                    <button
+                        type="button"
+                        className={css.headerButton}
+                        onClick={() => navigate('/admin')}
+                        aria-label="Админ-панель"
+                        title="Админ-панель"
+                    >
+                        <ShieldIcon className={css.headerIcon} />
+                    </button>
+                )}
+            </AppHeader>
+
             <ToastContainer toasts={toasts} onRemove={removeToast} />
 
             {canManageSelectedDate && isBookingModalOpen && (
@@ -365,33 +390,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
             )}
 
             <TimeTableEmailDialogs auth={emailAuth} />
-
-            {(emailAuth.showEmailLinkForm || isAdmin) && (
-                    <div className={css.edgeActions}>
-                        {emailAuth.showEmailLinkForm && (
-                            <button
-                                type="button"
-                                className={css.edgeButton}
-                                onClick={emailAuth.openEmailLink}
-                                aria-label="Вход в браузере"
-                                title="Вход в браузере"
-                            >
-                                <MailIcon className={css.edgeIcon} />
-                            </button>
-                        )}
-                        {isAdmin && (
-                            <button
-                                type="button"
-                                className={css.edgeButton}
-                                onClick={() => navigate('/admin')}
-                                aria-label="Админ-панель"
-                                title="Админ-панель"
-                            >
-                                <ShieldIcon className={css.edgeIcon} />
-                            </button>
-                        )}
-                    </div>
-            )}
 
             <div className={css.schedule}>
             <div className={css.card}>

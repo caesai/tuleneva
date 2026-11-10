@@ -3,6 +3,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
 import {
     createCollection,
     createMusicDraft,
@@ -314,10 +315,8 @@ export const AdminMusicPage: React.FC = () => {
 
     return (
         <main className={css.page}>
-            <header className={css.header}>
-                <Link to="/admin">Назад</Link>
-                <h1>Музыка</h1>
-            </header>
+            <AppHeader title="Музыка" backTo="/admin" backLabel="Назад" />
+            <div className={css.body}>
             <p className={css.lead}>
                 Черновик слышите вы. Гости увидят запись только после «Опубликовать».
                 Файлы уходят в объектное хранилище, не в базу.
@@ -507,16 +506,17 @@ export const AdminMusicPage: React.FC = () => {
                                 : 'Гости перестанут видеть запись. Черновик останется у вас.'}
                         </p>
                         <div className={css.formActions}>
-                            <button type="button" className={css.danger} onClick={() => void confirmPending()}>
-                                {pending.action === 'delete' ? 'Удалить' : 'Снять'}
-                            </button>
                             <button type="button" className={css.quiet} onClick={() => setPending(null)}>
                                 Отмена
+                            </button>
+                            <button type="button" className={css.danger} onClick={() => void confirmPending()}>
+                                {pending.action === 'delete' ? 'Удалить' : 'Снять'}
                             </button>
                         </div>
                     </div>
                 ) : null}
             </ModalPopup>
+            </div>
         </main>
     );
 };

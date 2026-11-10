@@ -108,64 +108,66 @@ export const EmailAuthForm: React.FC<IEmailAuthFormProps> = ({
             noValidate
         >
             {needsEmail && (
-                <input
-                    className={css.input}
-                    type="email"
-                    name="email"
-                    autoComplete="username"
-                    placeholder="Почта"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                    aria-label="Почта"
-                />
+                <label className={css.label}>
+                    Почта
+                    <input
+                        className={css.input}
+                        type="email"
+                        name="email"
+                        inputMode="email"
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={loading}
+                    />
+                </label>
             )}
             {mode === 'link' && requireCurrentPassword && (
-                <input
-                    className={css.input}
-                    type="password"
-                    name="currentPassword"
-                    autoComplete="current-password"
-                    placeholder="Текущий пароль"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    disabled={loading}
-                    aria-label="Текущий пароль"
-                />
+                <label className={css.label}>
+                    Текущий пароль
+                    <input
+                        className={css.input}
+                        type="password"
+                        name="currentPassword"
+                        autoComplete="current-password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        disabled={loading}
+                    />
+                </label>
             )}
             {needsPassword && (
-                <input
-                    className={css.input}
-                    type="password"
-                    name="password"
-                    autoComplete={
-                        mode === 'reset' || (mode === 'link' && requireCurrentPassword)
-                            ? 'new-password'
-                            : 'current-password'
-                    }
-                    placeholder={
-                        mode === 'reset' || (mode === 'link' && requireCurrentPassword)
-                            ? 'Новый пароль (мин. 8)'
-                            : 'Пароль (мин. 8)'
-                    }
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
-                    aria-label={mode === 'reset' ? 'Новый пароль' : 'Пароль'}
-                />
+                <label className={css.label}>
+                    {mode === 'reset' ? 'Новый пароль' : 'Пароль'}
+                    <input
+                        className={css.input}
+                        type="password"
+                        name="password"
+                        autoComplete={
+                            mode === 'reset' || (mode === 'link' && requireCurrentPassword)
+                                ? 'new-password'
+                                : 'current-password'
+                        }
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={loading}
+                    />
+                </label>
             )}
             {needsRepeat && (
-                <input
-                    className={css.input}
-                    type="password"
-                    name="passwordRepeat"
-                    autoComplete="new-password"
-                    placeholder="Повторите пароль"
-                    value={passwordRepeat}
-                    onChange={(e) => setPasswordRepeat(e.target.value)}
-                    disabled={loading}
-                    aria-label="Повторите пароль"
-                />
+                <label className={css.label}>
+                    Повторите пароль
+                    <input
+                        className={css.input}
+                        type="password"
+                        name="passwordRepeat"
+                        autoComplete="new-password"
+                        value={passwordRepeat}
+                        onChange={(e) => setPasswordRepeat(e.target.value)}
+                        disabled={loading}
+                    />
+                </label>
             )}
             {localError && (
                 <p className={css.error} role="alert">{localError}</p>

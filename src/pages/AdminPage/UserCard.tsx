@@ -96,15 +96,13 @@ export const UserCard: React.FC<UserCardProps> = ({
                     sx={{ width: 44, height: 44, fontSize: 16 }}
                 />
                 <div className={css.userIdentity}>
-                    <div className={css.userTitleRow}>
-                        <p className={css.userName}>{name}</p>
-                        <span className={css.rolePill}>{ROLE_LABELS[person.role]}</span>
-                    </div>
+                    <p className={css.userName}>{name}</p>
                     <p className={css.userHandle}>
                         {person.username ? `@${person.username}` : 'без username'}
                     </p>
                     {person.bandName ? <p className={css.userBand}>{person.bandName}</p> : null}
                     {person.emailLogin ? <p className={css.userMail}>{person.emailLogin}</p> : null}
+                    <span className={css.rolePill}>{ROLE_LABELS[person.role]}</span>
                 </div>
             </div>
             <div className={css.userActions}>

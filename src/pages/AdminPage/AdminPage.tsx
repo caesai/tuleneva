@@ -15,7 +15,9 @@ import { DelayedLoader } from '@/components/Loader/DelayedLoader.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import css from './AdminPage.module.css';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
+import ui from '@/theme/ui.module.css';
 import {
     canAssignRole,
     canDeleteUser,
@@ -90,7 +92,6 @@ export const AdminPage: React.FC = () => {
         role: TRole;
     } | null>(null);
     const { user, authStatus } = useAuth();
-    const navigate = useNavigate();
     const userId = user?._id;
     const userRole = user?.role;
 
@@ -443,16 +444,12 @@ export const AdminPage: React.FC = () => {
 
     return (
         <div className={css.adminPage}>
-            <div className={css.shell}>
-            <div className={css.header}>
-                <button className={css.backButton} onClick={() => navigate('/app')}>
-                    Назад
-                </button>
-                <h2>Управление пользователями</h2>
+            <AppHeader title="Управление пользователями" backTo="/app" backLabel="Назад">
                 {user && isSuperAdmin(user.role) ? (
                     <Link className={css.musicAdminLink} to="/admin/music">Музыка</Link>
                 ) : null}
-            </div>
+            </AppHeader>
+            <div className={css.shell}>
             <div className={css.inviteSection}>
                 <button
                     className={css.inviteButton}
@@ -501,9 +498,8 @@ export const AdminPage: React.FC = () => {
                 )}
             </div>
 
-            <ModalPopup isOpen={isInviteOptionsOpen} onClose={() => setIsInviteOptionsOpen(false)}>
+            <ModalPopup isOpen={isInviteOptionsOpen} onClose={() => setIsInviteOptionsOpen(false)} title="Настройки приглашения">
                 <div className={css.inviteModal}>
-                    <h3>Настройки приглашения</h3>
                     <label className={css.inviteLabel}>Начальная роль</label>
                     <select
                         className={css.roleSelect}
@@ -552,9 +548,8 @@ export const AdminPage: React.FC = () => {
                 </div>
             </ModalPopup>
 
-            <ModalPopup isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)}>
+            <ModalPopup isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} title="Пригласить пользователя">
                 <div className={css.inviteModal}>
-                    <h3>Пригласить пользователя</h3>
                     <p className={css.inviteDescription}>
                         {inviteMultiUse
                             ? 'Ссылку можно отправить в общий чат. По ней пройдёт несколько человек, пока вы её не закроете. Сама она погаснет через 7 дней.'
@@ -683,41 +678,46 @@ export const AdminPage: React.FC = () => {
                 </div>
             )}
 
-            <ModalPopup isOpen={roleConfirm !== null} onClose={() => setRoleConfirm(null)}>
+            <ModalPopup
+                isOpen={roleConfirm !== null}
+                onClose={() => setRoleConfirm(null)}
+                title={roleConfirm ? `Назначить роль «${ROLE_LABELS[roleConfirm.to]}» пользователю ${roleConfirm.name}?` : undefined}
+            >
                 {roleConfirm ? (
-                    <div role="dialog" aria-modal="true" aria-labelledby="role-confirm-title">
-                        <h3 id="role-confirm-title">
-                            Назначить роль «{ROLE_LABELS[roleConfirm.to]}» пользователю {roleConfirm.name}?
-                        </h3>
-                        <div className={css.confirmActions}>
-                            <button
-                                type="button"
-                                className={css.copyButton}
-                                onClick={() => {
-                                    const pending = roleConfirm;
-                                    setRoleConfirm(null);
-                                    void handleRoleChange(pending.id, pending.to, pending.from);
-                                }}
-                            >
-                                Назначить
-                            </button>
-                            <button type="button" className={css.closeModalButton} onClick={() => setRoleConfirm(null)}>
-                                Отмена
-                            </button>
-                        </div>
+                    <div className={ui.actions}>
+                        <button type="button" className={ui.secondary} onClick={() => setRoleConfirm(null)}>
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            className={ui.primary}
+                            onClick={() => {
+                                const pending = roleConfirm;
+                                setRoleConfirm(null);
+                                void handleRoleChange(pending.id, pending.to, pending.from);
+                            }}
+                        >
+                            Назначить
+                        </button>
                     </div>
                 ) : null}
             </ModalPopup>
 
-            <ModalPopup isOpen={deleteConfirm !== null} onClose={() => setDeleteConfirm(null)}>
+            <ModalPopup
+                isOpen={deleteConfirm !== null}
+                onClose={() => setDeleteConfirm(null)}
+                title={deleteConfirm ? `Удалить пользователя ${deleteConfirm.name}?` : undefined}
+            >
                 {deleteConfirm ? (
-                    <div role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
-                        <h3 id="delete-confirm-title">Удалить пользователя {deleteConfirm.name}?</h3>
-                        <p className={css.inviteDescription}>Это нельзя отменить.</p>
-                        <div className={css.confirmActions}>
+                    <div className={ui.stack}>
+                        <p className={ui.lead}>Это нельзя отменить.</p>
+                        <div className={ui.actions}>
+                            <button type="button" className={ui.secondary} onClick={() => setDeleteConfirm(null)}>
+                                Отмена
+                            </button>
                             <button
                                 type="button"
-                                className={css.deleteButton}
+                                className={ui.danger}
                                 onClick={() => {
                                     const pending = deleteConfirm;
                                     setDeleteConfirm(null);
@@ -725,9 +725,6 @@ export const AdminPage: React.FC = () => {
                                 }}
                             >
                                 Удалить
-                            </button>
-                            <button type="button" className={css.closeModalButton} onClick={() => setDeleteConfirm(null)}>
-                                Отмена
                             </button>
                         </div>
                     </div>

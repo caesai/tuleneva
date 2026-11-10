@@ -1,0 +1,107 @@
+/**
+ * @file Тема MUI для расписания и админки.
+ * Палитра и радиус совпадают с публичными страницами: один залитый акцент — чёрный.
+ */
+import { createTheme } from '@mui/material/styles';
+
+const ink = '#111111';
+const muted = '#767676';
+const line = '#e6e6e6';
+
+/**
+ * Светлая тема без синих акцентов MUI по умолчанию.
+ * @returns Тема для ThemeProvider
+ */
+export const appTheme = createTheme({
+    palette: {
+        mode: 'light',
+        primary: { main: ink, contrastText: '#ffffff' },
+        error: { main: '#8f2d2d' },
+        text: { primary: ink, secondary: muted },
+        divider: line,
+        background: { default: '#ffffff', paper: '#ffffff' },
+    },
+    shape: { borderRadius: 12 },
+    typography: {
+        fontFamily: 'system-ui, Avenir, Helvetica, Arial, sans-serif',
+        h1: { fontSize: 22, fontWeight: 650, lineHeight: 1.2 },
+        h2: { fontSize: 16, fontWeight: 650, lineHeight: 1.3 },
+        h3: { fontSize: 16, fontWeight: 650, lineHeight: 1.3 },
+        body1: { fontSize: 15, lineHeight: 1.45 },
+        body2: { fontSize: 15, lineHeight: 1.45, color: muted },
+        button: { fontSize: 15, fontWeight: 650, textTransform: 'none' },
+    },
+    components: {
+        MuiButton: {
+            styleOverrides: {
+                root: { minHeight: 44, borderRadius: 12, textTransform: 'none' },
+            },
+        },
+        MuiCard: {
+            styleOverrides: {
+                root: {
+                    boxShadow: 'none',
+                    border: `1px solid ${line}`,
+                    borderRadius: 12,
+                    background: '#fff',
+                },
+            },
+        },
+        MuiChip: {
+            styleOverrides: {
+                root: {
+                    height: 28,
+                    borderRadius: 999,
+                    fontWeight: 650,
+                    background: '#fff',
+                    border: `1px solid ${line}`,
+                    color: muted,
+                },
+            },
+        },
+        MuiOutlinedInput: {
+            styleOverrides: {
+                root: {
+                    borderRadius: 12,
+                    minHeight: 44,
+                    fontSize: 16,
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: ink,
+                        borderWidth: 1,
+                    },
+                },
+                notchedOutline: { borderColor: line },
+            },
+        },
+        MuiInputLabel: {
+            styleOverrides: {
+                root: {
+                    color: muted,
+                    '&.Mui-focused': { color: ink },
+                },
+            },
+        },
+        MuiTab: {
+            styleOverrides: {
+                root: {
+                    minHeight: 44,
+                    textTransform: 'none',
+                    fontWeight: 650,
+                    fontSize: 15,
+                    color: muted,
+                    '&.Mui-selected': { color: ink },
+                },
+            },
+        },
+        MuiTabs: {
+            styleOverrides: {
+                indicator: { backgroundColor: ink, height: 1 },
+            },
+        },
+        MuiPaper: {
+            styleOverrides: {
+                root: { backgroundImage: 'none' },
+            },
+        },
+    },
+});

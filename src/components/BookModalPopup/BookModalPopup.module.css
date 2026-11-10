@@ -1,65 +1,35 @@
-
-.bookingModal {
+/**
+ * @file Форма брони: тип, коллектив, одна чёрная кнопка справа.
+ */
+.types {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-width: 300px;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
-.bookingModal h3 {
-    margin: 0;
-    text-align: center;
-}
-
-.inputGroup {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.input {
-    padding: 8px;
-    border: 1px solid var(--tg-theme-hint-color);
-    border-radius: 4px;
-    background-color: var(--tg-theme-bg-color);
-    color: var(--tg-theme-text-color);
-}
-
-.input:disabled {
-    opacity: 0.7;
-}
-
-.modalButtons {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: 10px;
-}
-
-.confirmButton,
-.cancelButton {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 8px;
+.type,
+.typeOn {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
     cursor: pointer;
-    font-weight: bold;
-    flex: 1;
 }
 
-.confirmButton {
-    background-color: rgb(85, 193, 85);
-    color: white;
+.type {
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    color: #767676;
 }
 
-.cancelButton {
-    background-color: rgb(255, 174, 0);
-    color: white;
+.typeOn {
+    border: 1px solid #111;
+    background: #fff;
+    color: #111;
 }
 
-.rehearsalTypes {
-    display: flex;
-    flex-direction: row;
-    gap: 3px;
-    justify-content: start;
-    margin-bottom: 10px;
+.band {
+    width: 100%;
 }

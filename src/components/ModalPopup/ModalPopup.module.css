@@ -1,33 +1,76 @@
-.modalOverlay {
+/**
+ * @file Диалог: по центру на широком экране, снизу на узком и в Telegram.
+ */
+.overlay {
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+    background: rgba(17, 17, 17, 0.4);
+}
+
+.sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
+    max-height: min(92dvh, 100%);
+    box-sizing: border-box;
+    overflow: auto;
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    border-radius: 16px 16px 0 0;
+    background: #fff;
+    color: #111;
+}
+
+.head {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 44px;
+}
+
+.title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+.close {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
-    z-index: 1000;
-    color: black;
-}
-
-.modalContent {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    width: max-content;
-    position: relative;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
-
-.modalCloseButton {
-    position: absolute;
-    top: 5px;
-    right: 5px;
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+    padding: 0;
     border: none;
+    border-radius: 12px;
     background: transparent;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: black;
+    color: #111;
+    flex-shrink: 0;
+}
+
+.icon {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+@media (min-width: 720px) {
+    .overlay {
+        align-items: center;
+        padding: 24px;
+    }
+
+    .sheet {
+        width: min(420px, 100%);
+        border-radius: 16px;
+        padding: 8px 16px 16px;
+    }
 }

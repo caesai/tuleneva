@@ -1,35 +1,49 @@
+/**
+ * @file Слоты часа. Выбор — чёрная заливка, занятый слот — тихая рамка.
+ */
 .timeSlotContainer {
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 8px;
     justify-content: center;
     margin: 0 auto;
 }
 
 .timeSlot {
-    outline: none!important;
-    border: 1px solid rgb(218, 215, 215)!important;
-    background-color: transparent;
-    color: black;
     display: inline-flex;
+    align-items: center;
     justify-content: center;
-    width: 30%;
-    box-shadow: 1px 1px 1px rgb(218, 215, 215);
+    width: calc(33.33% - 8px);
+    min-height: 44px;
+    padding: 0;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    background: #fff;
+    color: #111;
+    box-shadow: none;
 }
 
 .timeSlot:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
 }
 
 .selected {
-    background-color: rgb(85, 193, 85);
-    color: white;
+    background: #111;
+    color: #fff;
+    border-color: #111;
 }
 
 .cancelSelected {
-    background-color: yellow!important;
+    background: #fff;
+    color: #8f2d2d;
+    border-color: #8f2d2d;
 }
 
 .booked {
-    border-color: red!important;
+    background: #fafafa;
+    border-color: #111;
+}
+
+.myBooking {
+    border-color: #111;
 }

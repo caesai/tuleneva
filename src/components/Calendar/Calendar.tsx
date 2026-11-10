@@ -65,7 +65,9 @@ const CalendarDay: React.FC<CalendarDayProps> = (props) => {
         <Badge
             key={day.toString()}
             overlap="circular"
-            badgeContent={isSelected ? "🎸" : undefined}
+            variant="dot"
+            invisible={!isSelected}
+            color="primary"
         >
             <PickersDay
                 {...other}
