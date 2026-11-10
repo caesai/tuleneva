@@ -6,24 +6,71 @@
     justify-content: flex-start;
     align-items: center;
     gap: 12px;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
 }
 
-.studioNav {
+.schedule {
     width: 360px;
     max-width: 100%;
-    box-sizing: border-box;
-    padding: 8px 4px 0;
+    display: flex;
+    flex-direction: column;
 }
 
-.studioNav a {
-    color: #111;
-    font-size: 14px;
-    text-decoration: none;
+/**
+ * Конверт над щитом: фиксированная «пилюля» в правом нижнем углу.
+ * Не в потоке, календарь остаётся по центру на всю прежнюю ширину.
+ * Низ и правый край учитывают вырез экрана и шапку Telegram.
+ */
+.edgeActions {
+    position: fixed;
+    z-index: 5;
+    right: calc(
+        10px
+        + max(env(safe-area-inset-right, 0px), var(--tg-viewport-safe-area-inset-right, 0px))
+        + var(--tg-viewport-content-safe-area-inset-right, 0px)
+    );
+    bottom: calc(
+        16px
+        + max(env(safe-area-inset-bottom, 0px), var(--tg-viewport-safe-area-inset-bottom, 0px))
+        + var(--tg-viewport-content-safe-area-inset-bottom, 0px)
+    );
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin: 0;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
-.studioNav a:focus-visible {
-    outline: 2px solid #111;
-    outline-offset: 2px;
+.edgeButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #444;
+    cursor: pointer;
+}
+
+.edgeButton:hover,
+.edgeButton:focus-visible {
+    color: #007aff;
+    background: rgba(0, 122, 255, 0.08);
+    outline: none;
+}
+
+.edgeIcon {
+    display: block;
 }
 
 .title {
@@ -39,43 +86,6 @@
     width: 360px;
     max-width: 100%;
     box-sizing: border-box;
-}
-
-/**
- * Иконки в правом верхнем углу карточки: почта, затем админка.
- */
-.cardCornerActions {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    z-index: 3;
-    display: flex;
-    gap: 2px;
-}
-
-.adminEntryButton {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #666;
-    cursor: pointer;
-}
-
-.adminEntryButton:hover,
-.adminEntryButton:focus-visible {
-    color: #007aff;
-    background: rgba(0, 122, 255, 0.08);
-    outline: none;
-}
-
-.adminEntryIcon {
-    display: block;
 }
 
 .cardLoader {

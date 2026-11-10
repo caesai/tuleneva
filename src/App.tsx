@@ -1,4 +1,9 @@
-import React, { useEffect, useState, Suspense, lazy } from 'react';
+/**
+ * @file Маршруты приложения. Ленивые страницы при битом чанке обновляются один раз.
+ */
+import React, { useEffect, useState, Suspense } from 'react';
+import { lazyWithRetry } from '@/boot/lazyWithRetry.ts';
+import { ChunkReloadReset } from '@/boot/ChunkReloadReset.tsx';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { ScrollToTop } from '@/navigation/ScrollToTop.tsx';
 import { swipeBehavior } from '@telegram-apps/sdk-react';
@@ -6,7 +11,7 @@ import { AppRoot } from '@telegram-apps/telegram-ui';
 import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
+import { Loader } from '@/components/Loader/Loader.tsx';
 import { LandingScreen } from '@/components/LandingScreen/LandingScreen.tsx';
 import { AdminRoute } from '@/components/AdminRoute/AdminRoute.tsx';
 import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
@@ -19,23 +24,23 @@ import { useLandingInvite } from '@/auth/useInviteEntry.ts';
 import { useEmailAuth } from '@/auth/useEmailAuth.ts';
 import { EMAIL_AUTH_UI_ENABLED } from '@/config/emailAuthUi.ts';
 
-const TimeTablePage = lazy(() =>
+const TimeTablePage = lazyWithRetry(() =>
     import('@/pages/TimeTablePage/TimeTablePage.tsx').then((m) => ({ default: m.TimeTablePage })),
 );
 
-const AdminPage = lazy(() =>
+const AdminPage = lazyWithRetry(() =>
     import('@/pages/AdminPage/AdminPage.tsx').then((m) => ({ default: m.AdminPage })),
 );
 
-const MusicPage = lazy(() =>
+const MusicPage = lazyWithRetry(() =>
     import('@/pages/MusicPage/MusicPage.tsx').then((m) => ({ default: m.MusicPage })),
 );
 
-const MusicCollectionPage = lazy(() =>
+const MusicCollectionPage = lazyWithRetry(() =>
     import('@/pages/MusicPage/MusicCollectionPage.tsx').then((m) => ({ default: m.MusicCollectionPage })),
 );
 
-const AdminMusicPage = lazy(() =>
+const AdminMusicPage = lazyWithRetry(() =>
     import('@/pages/AdminMusicPage/AdminMusicPage.tsx').then((m) => ({ default: m.AdminMusicPage })),
 );
 
@@ -253,7 +258,8 @@ const App: React.FC = () => {
                 <WebSocketProvider>
                     <BrowserRouter>
                         <ScrollToTop />
-                        <Suspense fallback={<SuspenseLoaderFallback fullScreen />}>
+                        <Suspense fallback={<Loader fullScreen />}>
+                            <ChunkReloadReset />
                             <Routes>
                                 <Route path="/" element={<IndexPage />} />
                                 <Route path="/app" element={<TimeTablePage />} />

@@ -60,10 +60,10 @@ const readSdkLaunch = (): { launchParams: object; rawInitData: string } | null =
         }
         return { launchParams, rawInitData };
     } catch (error) {
-        if (isLaunchParamsRetrieveError(error)) {
-            return null;
+        if (!isLaunchParamsRetrieveError(error)) {
+            console.warn('Telegram launch read failed:', error);
         }
-        throw error;
+        return null;
     }
 };
 

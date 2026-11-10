@@ -1,3 +1,8 @@
+/**
+ * @file Чтение launch params без падения рендера.
+ * Любая ошибка SDK на холодном старте Mini App считается «это не Telegram»,
+ * а не исключением из useMemo: иначе корень размонтируется в белый экран.
+ */
 import { useMemo } from 'react';
 import {
     isLaunchParamsRetrieveError,
@@ -16,10 +21,10 @@ export function getSafeLaunchParams(): SafeLaunchParams {
     try {
         return { launchParams: retrieveLaunchParams(), isTelegram: true };
     } catch (error) {
-        if (isLaunchParamsRetrieveError(error)) {
-            return { launchParams: WEB_FALLBACK_LAUNCH_PARAMS, isTelegram: false };
+        if (!isLaunchParamsRetrieveError(error)) {
+            console.warn('Telegram launch params unreadable:', error);
         }
-        throw error;
+        return { launchParams: WEB_FALLBACK_LAUNCH_PARAMS, isTelegram: false };
     }
 }
 
@@ -53,10 +58,10 @@ export function useSafeRawInitData(): string | undefined {
             const data = retrieveRawInitData();
             return data || undefined;
         } catch (error) {
-            if (isLaunchParamsRetrieveError(error)) {
-                return undefined;
+            if (!isLaunchParamsRetrieveError(error)) {
+                console.warn('Telegram init data unreadable:', error);
             }
-            throw error;
+            return undefined;
         }
     }, []);
 }
