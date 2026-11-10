@@ -17,19 +17,54 @@
     max-width: 100%;
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
 }
 
 /**
- * Конверт и щит над карточкой, у правого края.
- * Не лежат на стрелках месяца.
+ * На узком экране карточка не заходит под фиксированную колонку.
+ * Шире 480px колонка висит в пустом поле справа от карточки 360px.
+ */
+.scheduleWithEdge {
+    box-sizing: border-box;
+}
+
+@media (max-width: 480px) {
+    .scheduleWithEdge {
+        width: 100%;
+        padding-right: calc(
+            52px
+            + max(env(safe-area-inset-right, 0px), var(--tg-viewport-safe-area-inset-right, 0px))
+            + var(--tg-viewport-content-safe-area-inset-right, 0px)
+        );
+    }
+
+    .scheduleWithEdge :global(.MuiDateCalendar-root) {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+/**
+ * Конверт над щитом, вне потока: календарь остаётся у верхнего края.
+ * Сверху — вырез и шапка Telegram (content safe area), справа — вырез экрана.
  */
 .edgeActions {
+    position: fixed;
+    z-index: 5;
+    top: calc(
+        8px
+        + max(env(safe-area-inset-top, 0px), var(--tg-viewport-safe-area-inset-top, 0px))
+        + var(--tg-viewport-content-safe-area-inset-top, 0px)
+    );
+    right: calc(
+        4px
+        + max(env(safe-area-inset-right, 0px), var(--tg-viewport-safe-area-inset-right, 0px))
+        + var(--tg-viewport-content-safe-area-inset-right, 0px)
+    );
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
-    margin: 4px 4px 0 0;
+    margin: 0;
 }
 
 .edgeButton {
