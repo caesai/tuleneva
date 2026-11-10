@@ -1,5 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import InviteCode from '../models/InviteCode';
 import {
     INVITE_CODE_TTL_SECONDS,
@@ -98,18 +99,47 @@ const createAuthRouter = ({
         res.set('Pragma', 'no-cache');
     };
 
-    router.get('/session', authenticateToken, verifyUserExists, async (req, res) => {
+    /**
+     * @route GET /api/auth/session
+     * @description Проба сессии. Нет заголовка, битый или просроченный JWT — это
+     * не ошибка гостя: 200 и `{ valid: false }`, без 401/403 (браузер не пишет
+     * красную строку в консоль на каждой загрузке). Живой токен — обычная сессия.
+     * @returns AuthSessionResponse
+     */
+    router.get('/session', async (req, res) => {
         noCache(res);
-        try {
-            const user = requireDbUser(req, res);
-            if (!user) return;
-            const token = signAuthToken(user, jwtSecret);
-            const provider = user.identities?.[0]?.provider || (user.telegram_id ? 'telegram' : null);
+        const header = req.headers.authorization;
+        const token = typeof header === 'string' && header.startsWith('Bearer ')
+            ? header.slice('Bearer '.length).trim()
+            : '';
+        if (!token) {
+            return res.status(200).json({ valid: false });
+        }
 
-            res.status(200).json(buildAuthResponse(user, token, provider));
+        let userId: string | undefined;
+        try {
+            const decoded = jwt.verify(token, jwtSecret);
+            if (typeof decoded !== 'string') {
+                userId = decoded.userId ? String(decoded.userId) : undefined;
+            }
+        } catch {
+            return res.status(200).json({ valid: false });
+        }
+        if (!userId) {
+            return res.status(200).json({ valid: false });
+        }
+
+        try {
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(200).json({ valid: false });
+            }
+            const fresh = signAuthToken(user, jwtSecret);
+            const provider = user.identities?.[0]?.provider || (user.telegram_id ? 'telegram' : null);
+            return res.status(200).json(buildAuthResponse(user, fresh, provider));
         } catch (err) {
             console.error('Session error:', err);
-            res.status(500).json({ valid: false, message: 'Session error' });
+            return res.status(500).json({ valid: false, message: 'Session error' });
         }
     });
 

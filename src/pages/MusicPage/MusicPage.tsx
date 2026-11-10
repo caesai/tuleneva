@@ -13,6 +13,7 @@ import css from './MusicPage.module.css';
 
 /**
  * Каталог записей студии и одна панель плеера.
+ * Ссылки обратно в приложение расписания здесь нет.
  * @returns Страница /music и /music/:trackId
  */
 export const MusicPage: React.FC = () => {
@@ -87,9 +88,6 @@ export const MusicPage: React.FC = () => {
                     <img src="/logo_main512.svg" alt="" width={36} height={36} />
                     <span>Тюленева 25</span>
                 </Link>
-                <nav className={css.nav} aria-label="Разделы студии">
-                    <Link to="/app">Расписание</Link>
-                </nav>
             </header>
             <h1 className={css.title}>Музыка</h1>
             <p className={css.lead}>

@@ -35,8 +35,17 @@ describe('session integration', () => {
         expect(res.body.valid).toBe(true);
     });
 
-    it('missing token returns 401', async () => {
+    it('missing token is a quiet miss, not 401', async () => {
         const res = await request(app).get('/api/auth/session');
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ valid: false });
+    });
+
+    it('garbage token is a quiet miss, not 403', async () => {
+        const res = await request(app)
+            .get('/api/auth/session')
+            .set('Authorization', 'Bearer not-a-jwt');
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ valid: false });
     });
 });

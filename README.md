@@ -130,7 +130,7 @@ Node 20 (см. `.node-version`). Integration-тесты используют in-
 
 | Method | Path | Назначение |
 |--------|------|------------|
-| GET | `/api/auth/session` | Сессия по JWT |
+| GET | `/api/auth/session` | Сессия по JWT. Нет токена, битый или просроченный — `200 { valid: false }`, не 401/403 |
 | POST | `/api/auth/providers/telegram/login` | Вход Telegram |
 | POST | `/api/auth/providers/telegram/register` | Запрос доступа |
 | POST | `/api/auth/providers/email/login` | Вход по почте (API есть; кнопка и привязка скрыты, пока не задан `VITE_EMAIL_AUTH_UI=true`) |

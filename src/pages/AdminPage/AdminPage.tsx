@@ -24,6 +24,7 @@ import {
 } from '@/utils/rolePermissions.ts';
 import { ROLE_LABELS, UserCard, type IRoleLogEntry } from './UserCard.tsx';
 import { useWebSocket, type WebSocketMessage } from '@/hooks/useWebSocket.ts';
+import { retryOnceIfUnauthorized } from '@/api/retryUnauthorized.ts';
 
 /** Краткая запись инвайта из GET /api/auth/invite/history. */
 interface IInviteHistoryItem {
@@ -41,8 +42,11 @@ interface IInviteHistoryItem {
  * удаление, генерация инвайт-ссылок (Telegram Mini App / веб). Доступна только
  * пользователям с ролью admin или super_admin (проверка через {@link isAdminLike}).
  *
- * Эффект загрузки списка пользователей зависит от примитивных идентификаторов
- * текущего пользователя (`user?._id`, `user?.role`), чтобы исключить цикл
+ * Список грузится только после `authStatus === 'authenticated'`. Пока сессия
+ * не готова, на экране лоадер, а не ошибка и не редирект. 401/403 на первом
+ * запросе повторяются один раз — токен к этому моменту уже записан.
+ * Эффект зависит от примитивных идентификаторов текущего пользователя
+ * (`user?._id`, `user?.role`), чтобы исключить цикл
  * "новый объект user на каждый рендер → re-fetch → re-render → ...".
  * @returns {JSX.Element} Разметка страницы или прелоадер/сообщение об ошибке.
  */
@@ -85,7 +89,7 @@ export const AdminPage: React.FC = () => {
         name: string;
         role: TRole;
     } | null>(null);
-    const { user } = useAuth();
+    const { user, authStatus } = useAuth();
     const navigate = useNavigate();
     const userId = user?._id;
     const userRole = user?.role;
@@ -106,7 +110,7 @@ export const AdminPage: React.FC = () => {
             setLoading(true);
         }
         try {
-            const response = await APIGetUsers();
+            const response = await retryOnceIfUnauthorized(() => APIGetUsers());
             if (response.ok) {
                 const data = await response.json();
                 setUsers(data);
@@ -132,7 +136,7 @@ export const AdminPage: React.FC = () => {
      */
     const fetchInviteHistory = useCallback(async () => {
         try {
-            const response = await APIGetInviteHistory();
+            const response = await retryOnceIfUnauthorized(() => APIGetInviteHistory());
             if (!response.ok) {
                 return;
             }
@@ -148,12 +152,16 @@ export const AdminPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (!userRole || !isAdminLike(userRole)) {
+        if (authStatus === 'loading') {
+            return;
+        }
+        if (authStatus !== 'authenticated' || !userRole || !isAdminLike(userRole)) {
+            setLoading(false);
             return;
         }
         fetchUsers();
         void fetchInviteHistory();
-    }, [userId, userRole, fetchUsers, fetchInviteHistory]);
+    }, [authStatus, userId, userRole, fetchUsers, fetchInviteHistory]);
 
     /**
      * При регистрации/инвайте/смене роли без Telegram-уведомлений
@@ -403,7 +411,7 @@ export const AdminPage: React.FC = () => {
         }
     };
 
-    if (loading) {
+    if (authStatus === 'loading' || loading) {
         return (
             <div className={css.loading}>
                 <DelayedLoader active fullScreen={false} reserveSpace />

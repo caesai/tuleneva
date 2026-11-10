@@ -23,6 +23,9 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('@/hooks/useAuth.ts', () => ({
     useAuth: () => ({
+        authStatus: 'authenticated',
+        isAuthenticated: true,
+        isLoading: false,
         user: {
             _id: 'admin-1',
             first_name: 'Admin',
@@ -80,6 +83,31 @@ describe('AdminPage', () => {
     beforeEach(() => {
         mockNavigate.mockClear();
         vi.mocked(APIGetUsers).mockClear();
+    });
+
+    it('повторяет список пользователей один раз после 403', async () => {
+        vi.mocked(APIGetUsers)
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 403,
+                json: async () => ({ message: 'Access denied' }),
+            } as Response)
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => [
+                    { _id: 'g1', first_name: 'Guest', role: 'guest' },
+                ],
+            } as Response);
+
+        render(
+            <MemoryRouter>
+                <AdminPage />
+            </MemoryRouter>,
+        );
+
+        expect(await screen.findByText('Guest')).toBeInTheDocument();
+        expect(APIGetUsers).toHaveBeenCalledTimes(2);
     });
 
     it('does not refetch users on unstable useAuth identity (no render loop)', async () => {

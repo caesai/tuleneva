@@ -21,6 +21,7 @@ vi.mock('@/hooks/useAuth.ts', () => ({
             canViewUserDetails: true,
         },
         isLoading: auth.isLoading,
+        authStatus: auth.isLoading ? 'loading' : 'authenticated',
     }),
 }));
 
