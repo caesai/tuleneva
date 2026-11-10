@@ -19,6 +19,7 @@ describe('LandingScreen', () => {
 
         const showButton = screen.getByRole('button', { name: 'Показать соцсети студии' });
 
+        expect(screen.queryByRole('link', { name: 'Слушать' })).not.toBeInTheDocument();
         expect(screen.queryByRole('navigation', { name: 'Соцсети студии' })).not.toBeInTheDocument();
 
         await user.click(showButton);

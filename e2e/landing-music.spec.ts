@@ -1,5 +1,6 @@
 /**
  * @file Главная: нота по нажатию на логотип ведёт на /music.
+ * Текстовой ссылки «Слушать» на главной нет.
  * На публичной музыке нет ссылки в приложение расписания.
  */
 import { test, expect } from '@playwright/test';
@@ -9,6 +10,7 @@ test('logo tap shows a music note and music page has no app link', async ({ page
     await page.goto('/');
 
     await expect(page.getByRole('link', { name: 'Музыка' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Слушать' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Показать соцсети студии' }).click();
 
     const note = page.getByRole('link', { name: 'Музыка' });

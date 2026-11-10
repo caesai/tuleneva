@@ -17,7 +17,7 @@ const MUSIC_NOTE_ORBIT = {
 
 /**
  * Главный экран: крупный логотип по центру; по нажатию вокруг него
- * раскрываются соцсети и нота — ссылка на публичную музыку.
+ * раскрываются соцсети и нота — единственная ссылка на публичную музыку.
  */
 export const LandingScreen: React.FC = () => {
     usePageMeta(LANDING_PAGE_META);
@@ -47,7 +47,6 @@ export const LandingScreen: React.FC = () => {
                     </>
                 ) : null}
             </div>
-            <Link className={css.musicLink} to="/music">Слушать</Link>
         </div>
     );
 };
