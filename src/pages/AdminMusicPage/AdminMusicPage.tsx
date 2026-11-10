@@ -1,7 +1,7 @@
 /**
  * @file Публикация музыки. Сервер пускает только super_admin; страница повторяет эту границу.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     createMusicDraft,
@@ -18,6 +18,7 @@ import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
+import { prepareCoverFile } from '@/music/prepareCover.ts';
 import type { IMusicTrack } from '@/types/music.types.ts';
 import css from './AdminMusicPage.module.css';
 
@@ -32,6 +33,7 @@ interface PlayerSource {
 
 /**
  * Форма черновика, явная публикация и снятие с эфира.
+ * Обложка с телефона сжимается в JPEG до отправки: галерея отдаёт HEIC и снимки больше 2 МБ.
  * Список запрашивается после сессии; 401/403 на первом заходе повторяются один раз.
  * @returns Страница /admin/music
  */
@@ -45,6 +47,9 @@ export const AdminMusicPage: React.FC = () => {
     const [description, setDescription] = useState('');
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [coverFile, setCoverFile] = useState<File | null>(null);
+    const [coverBusy, setCoverBusy] = useState(false);
+    const coverInputRef = useRef<HTMLInputElement>(null);
+    const errorRef = useRef<HTMLParagraphElement>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [player, setPlayer] = useState<PlayerSource | null>(null);
@@ -81,6 +86,13 @@ export const AdminMusicPage: React.FC = () => {
         void load();
     }, [authStatus, capabilities.isSuperAdmin, isLoading, load]);
 
+    useEffect(() => {
+        const node = errorRef.current;
+        if (error && node && typeof node.scrollIntoView === 'function') {
+            node.scrollIntoView({ block: 'nearest' });
+        }
+    }, [error]);
+
     useEffect(() => () => {
         if (player?.revoke) {
             URL.revokeObjectURL(player.src);
@@ -115,6 +127,30 @@ export const AdminMusicPage: React.FC = () => {
             revoke: true,
         });
         setPlayRequest(0);
+    };
+
+    /**
+     * Сжимает фото из галереи сразу после выбора и показывает ошибку, не дожидаясь отправки.
+     * @param file Выбранный файл или null, если поле очистили
+     */
+    const onCoverPicked = async (file: File | null) => {
+        if (!file) {
+            setCoverFile(null);
+            return;
+        }
+        setCoverBusy(true);
+        setError(null);
+        try {
+            setCoverFile(await prepareCoverFile(file));
+        } catch (err) {
+            setCoverFile(null);
+            if (coverInputRef.current) {
+                coverInputRef.current.value = '';
+            }
+            setError(err instanceof Error ? err.message : 'Не удалось прочитать обложку.');
+        } finally {
+            setCoverBusy(false);
+        }
     };
 
     const onSubmit = async (event: React.FormEvent) => {
@@ -242,7 +278,7 @@ export const AdminMusicPage: React.FC = () => {
                 Файлы уходят в объектное хранилище, не в базу.
             </p>
 
-            {error ? <p className={css.error} role="alert">{error}</p> : null}
+            {error ? <p ref={errorRef} className={css.error} role="alert">{error}</p> : null}
 
             <form className={css.form} onSubmit={onSubmit}>
                 <h2>{editingId ? 'Правка' : 'Новая запись'}</h2>
@@ -281,18 +317,21 @@ export const AdminMusicPage: React.FC = () => {
                     Обложка
                     <span className={css.filePicker}>
                         <input
+                            ref={coverInputRef}
                             className={css.fileInput}
                             type="file"
-                            accept="image/jpeg,image/png,image/webp"
+                            accept="image/*,.heic,.heif"
                             aria-label="Обложка"
-                            onChange={(event) => setCoverFile(event.target.files?.[0] ?? null)}
+                            onChange={(event) => void onCoverPicked(event.target.files?.[0] ?? null)}
                         />
                         <span className={css.fileButton}>Выбрать обложку</span>
-                        <span className={css.fileName}>{coverFile ? coverFile.name : 'необязательно'}</span>
+                        <span className={css.fileName}>
+                            {coverBusy ? 'Сжимаем фото…' : coverFile ? coverFile.name : 'необязательно'}
+                        </span>
                     </span>
                 </label>
                 <div className={css.formActions}>
-                    <button type="submit" disabled={saving}>
+                    <button type="submit" disabled={saving || coverBusy}>
                         {saving ? 'Сохранение…' : editingId ? 'Сохранить' : 'Сохранить черновик'}
                     </button>
                     {editingId ? (

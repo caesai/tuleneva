@@ -9,7 +9,7 @@ import { requireSuperAdmin } from '../auth/requireSuperAdmin';
 import type { ByteRange, ObjectStorage } from '../storage/objectStorage';
 import { audioObjectKey, coverObjectKey } from '../storage/objectKey';
 import { AUDIO_MAX_BYTES } from './musicLimits';
-import { detectCover, isMp3, parseMusicText } from './musicValidation';
+import { isMp3, parseMusicText, readCover } from './musicValidation';
 import { parseMultipart } from './parseMultipart';
 
 interface MusicRouterOptions {
@@ -256,14 +256,14 @@ export const createMusicRouter = ({
             body: Buffer;
         } | null = null;
         if (parsed.files.cover) {
-            const kind = detectCover(parsed.files.cover.buffer);
-            if (!kind) {
-                res.status(400).json({ message: 'Обложка — JPEG, PNG или WebP до 2 МБ.' });
+            const checked = readCover(parsed.files.cover.buffer);
+            if (!checked.ok) {
+                res.status(400).json({ message: checked.message });
                 return;
             }
             cover = {
-                extension: kind.extension,
-                contentType: kind.contentType,
+                extension: checked.kind.extension,
+                contentType: checked.kind.contentType,
                 body: parsed.files.cover.buffer,
             };
         }
@@ -368,14 +368,14 @@ export const createMusicRouter = ({
         }
         let nextCover: { key: string; contentType: string; body: Buffer } | null = null;
         if (parsed.files.cover) {
-            const kind = detectCover(parsed.files.cover.buffer);
-            if (!kind) {
-                res.status(400).json({ message: 'Обложка — JPEG, PNG или WebP до 2 МБ.' });
+            const checked = readCover(parsed.files.cover.buffer);
+            if (!checked.ok) {
+                res.status(400).json({ message: checked.message });
                 return;
             }
             nextCover = {
-                key: coverObjectKey(String(track._id), kind.extension),
-                contentType: kind.contentType,
+                key: coverObjectKey(String(track._id), checked.kind.extension),
+                contentType: checked.kind.contentType,
                 body: parsed.files.cover.buffer,
             };
         }

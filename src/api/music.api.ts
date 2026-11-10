@@ -71,11 +71,15 @@ export const fetchTrackBlob = async (path: string): Promise<string> => {
 
 /**
  * Читает сообщение об ошибке API.
+ * 413 (прокси оборвал слишком большое тело) не содержит JSON — для него свой текст.
  * @param response Ответ
  * @param fallback Текст, если тела нет
  * @returns Сообщение
  */
 const readError = async (response: Response, fallback: string): Promise<string> => {
+    if (response.status === 413) {
+        return 'Файл слишком большой для загрузки. Выберите обложку ещё раз — страница сожмёт фото перед отправкой.';
+    }
     const data = await response.json().catch(() => ({})) as { message?: string };
     return data.message || fallback;
 };

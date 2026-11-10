@@ -102,6 +102,30 @@ describe('music API', () => {
         expect((await request(app).get('/api/music/tracks')).body.tracks).toEqual([]);
     });
 
+    it('отклоняет HEIC и обложку больше 2 МБ с понятным текстом', async () => {
+        const superAdmin = await seedUser({ role: 'super_admin' });
+        const heic = Buffer.from('not-a-jpeg-heic-photo!!');
+        const heicRes = await upload(superAdmin).attach('cover', heic, { filename: 'IMG.HEIC', contentType: 'image/heic' });
+        expect(heicRes.status).toBe(400);
+        expect(heicRes.body.message).toMatch(/JPEG, PNG или WebP/);
+
+        const huge = Buffer.alloc(2 * 1024 * 1024 + 8);
+        huge[0] = 0xff;
+        huge[1] = 0xd8;
+        huge[2] = 0xff;
+        const hugeRes = await upload(superAdmin).attach('cover', huge, { filename: 'photo.jpg', contentType: 'image/jpeg' });
+        expect(hugeRes.status).toBe(400);
+        expect(hugeRes.body.message).toMatch(/больше 2 МБ/);
+
+        const jpeg = Buffer.alloc(32);
+        jpeg[0] = 0xff;
+        jpeg[1] = 0xd8;
+        jpeg[2] = 0xff;
+        const ok = await upload(superAdmin).attach('cover', jpeg, { filename: 'photo.jpg', contentType: '' });
+        expect(ok.status).toBe(201);
+        expect(ok.body.track.hasCover).toBe(true);
+    });
+
     it('отклоняет не-MP3', async () => {
         const superAdmin = await seedUser({ role: 'super_admin' });
         const res = await request(app)

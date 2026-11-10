@@ -60,6 +60,31 @@ export const detectCover = (body: Buffer): CoverKind | null => {
     return null;
 };
 
+/** Слишком большой файл обложки. */
+export const COVER_TOO_BIG_MESSAGE = 'Обложка больше 2 МБ. Выберите фото ещё раз — страница сожмёт его, если браузер его откроет.';
+
+/** Файл не JPEG, PNG и не WebP. */
+export const COVER_BAD_TYPE_MESSAGE = 'Обложка должна быть фотографией JPEG, PNG или WebP.';
+
+/**
+ * Проверяет обложку и объясняет отказ по-русски.
+ * Размер проверяется отдельно от сигнатуры: телефон часто присылает HEIC или JPEG больше 2 МБ.
+ * @param body Байты файла
+ * @returns Формат или сообщение для клиента
+ */
+export const readCover = (
+    body: Buffer,
+): { ok: true; kind: CoverKind } | { ok: false; message: string } => {
+    if (body.length > COVER_MAX_BYTES) {
+        return { ok: false, message: COVER_TOO_BIG_MESSAGE };
+    }
+    const kind = detectCover(body);
+    if (!kind) {
+        return { ok: false, message: COVER_BAD_TYPE_MESSAGE };
+    }
+    return { ok: true, kind };
+};
+
 export interface MusicText {
     title: string;
     credits: string;
