@@ -33,6 +33,7 @@ import { safeNotify } from './notifications/telegramNotify';
 import { createBooking } from './booking/createBooking';
 import { latestBandNamesByUser } from './booking/latestBandNames';
 import { createMusicRouter } from './music/musicRoutes';
+import { registerMusicHtmlRoutes } from './seo/musicHtml';
 import type { ObjectStorage } from './storage/objectStorage';
 
 /**
@@ -63,6 +64,8 @@ const notifyAfterResponse = (afterResponse) => {
  * @param {import('telegraf').Telegraf|null} [options.telegramBot] - Бот для webhook
  * @param {string|null} [options.telegramWebhookSecret] - X-Telegram-Bot-Api-Secret-Token
  * @param {import('./storage/objectStorage').ObjectStorage|null} [options.objectStorage] - Медиа музыки. null: загрузка отвечает 503
+ * @param {string} [options.indexHtml] - Готовый index.html для /music. В проде читается dist/index.html
+ * @param {string} [options.indexHtmlPath] - Путь к dist/index.html, если он не рядом с cwd сервера
  */
 const createApp = ({
     jwtSecret,
@@ -76,6 +79,8 @@ const createApp = ({
     telegramBot = null,
     telegramWebhookSecret = null,
     objectStorage = null,
+    indexHtml = undefined,
+    indexHtmlPath = undefined,
 }: any) => {
     const mailSender = sendMail === undefined ? createSmtpSendMail() : sendMail;
     const booking = createBooking({ broadcastUpdate, notifyAdmins, notifyUser });
@@ -186,6 +191,12 @@ app.use('/api/music', createMusicRouter({
     optionalAuthenticate,
     objectStorage: objectStorage as ObjectStorage | null,
 }));
+
+registerMusicHtmlRoutes(app, {
+    webAppBaseUrl,
+    indexHtml,
+    indexHtmlPath,
+});
 
 app.use('/api/auth', createAuthRouter({
     jwtSecret: jwtSecret,

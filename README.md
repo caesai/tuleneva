@@ -100,7 +100,7 @@ npm run dev
 
 Для Telegram SDK локально приложение эмулирует среду Mini App в браузере.
 
-**SEO / Open Graph:** `index.html` собирается автоматически из `index.template.html` и `src/config/siteMeta.ts` при `npm run dev` и `npm run build`. Метатеги для шеринга и индексации править только в `siteMeta.ts`.
+**SEO / Open Graph:** `index.html` собирается автоматически из `index.template.html` и `src/config/siteMeta.ts` при `npm run dev` и `npm run build`. Метатеги главной править в `siteMeta.ts`. Краулеры не исполняют JS: Nginx отдаёт `/` из этого файла, а `/music` и `/music/*` проксирует на Express. Express подставляет title и og:* из Mongo и отдаёт тот же SPA. Превью подборки — `GET /api/music/collections/:id/og.jpg` (JPEG 1200×630).
 
 ## Тестирование
 
@@ -171,6 +171,7 @@ Node 20 (см. `.node-version`). Integration-тесты используют in-
 | GET | `/api/music/catalog` | Опубликованные альбомы и плейлисты и синглы без подборки |
 | GET | `/api/music/collections/:id` | Подборка и записи по порядку. Черновик — 404, кроме супер-админа |
 | GET | `/api/music/collections/:id/cover` | Обложка подборки |
+| GET | `/api/music/collections/:id/og.jpg` | JPEG 1200×630 для og:image. Только опубликованная подборка с обложкой, кэш сутки |
 | GET | `/api/music/admin/collections` | Все подборки, включая черновики |
 | POST | `/api/music/admin/collections` | Черновик: JSON `type` (`album` или `playlist`), `title`, `description` |
 | PATCH | `/api/music/admin/collections/:id` | Название, описание, файл `cover` |
@@ -182,6 +183,7 @@ Node 20 (см. `.node-version`). Integration-тесты используют in-
 | GET | `/api/music/tracks/:id` | Одна опубликованная; черновик только супер-админу |
 | GET | `/api/music/tracks/:id/audio` | MP3, заголовок `Range` |
 | GET | `/api/music/tracks/:id/cover` | Обложка, если есть |
+| GET | `/api/music/tracks/:id/og.jpg` | JPEG 1200×630 для og:image записи. Только опубликованная запись с обложкой |
 | GET | `/api/music/admin/tracks` | Все записи, включая черновики |
 | POST | `/api/music/tracks` | Черновик: поля `title`, `credits`, `description`, необязательный `albumId`, файл `audio`, необязательный `cover` |
 | PATCH | `/api/music/tracks/:id` | Правка текста, файлов и, если передано поле `albumId`, альбома |

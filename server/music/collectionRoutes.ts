@@ -10,6 +10,7 @@ import type { ObjectStorage } from '../storage/objectStorage';
 import { collectionCoverObjectKey } from '../storage/objectKey';
 import { replaceCollectionTracks } from './collectionMembership';
 import { COVER_MAX_BYTES } from './musicLimits';
+import { sendShareJpeg } from '../seo/shareImage';
 import { sendStoredObject } from './musicMedia';
 import {
     loadAlbumIndex,
@@ -423,6 +424,44 @@ export const registerCollectionRoutes = (
             console.error('Collection cover failed:', err);
             if (!res.headersSent) {
                 res.status(500).json({ message: 'Не удалось отдать файл.' });
+            }
+        }
+    });
+
+    /**
+     * @route GET /api/music/collections/:id/og.jpg
+     * @description JPEG 1200×630 для og:image. Только опубликованная подборка с обложкой.
+     * Краулер не авторизуется, черновик отвечает 404.
+     */
+    router.get('/collections/:id/og.jpg', async (req, res) => {
+        if (!mongoose.Types.ObjectId.isValid(routeParam(req.params.id))) {
+            res.status(404).json({ message: 'Подборка не найдена.' });
+            return;
+        }
+        const collection = await MusicCollection.findById(routeParam(req.params.id));
+        if (!collection || collection.status !== 'published' || !collection.coverKey) {
+            res.status(404).json({ message: 'Файл не найден.' });
+            return;
+        }
+        if (!objectStorage) {
+            rejectIfNoStorage(res);
+            return;
+        }
+        try {
+            const updated = collection.updatedAt ? collection.updatedAt.getTime() : 0;
+            const sent = await sendShareJpeg(
+                res,
+                objectStorage,
+                collection.coverKey,
+                `${collection.coverKey}:${updated}`,
+            );
+            if (!sent && !res.headersSent) {
+                res.status(404).json({ message: 'Файл не найден.' });
+            }
+        } catch (err) {
+            console.error('Collection share image failed:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ message: 'Не удалось собрать превью.' });
             }
         }
     });

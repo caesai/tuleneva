@@ -30,7 +30,8 @@
   "include": [
     "src",
     "shared/studioHours.ts",
-    "shared/roleLattice.ts"
+    "shared/roleLattice.ts",
+    "shared/pageMetaHtml.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",
