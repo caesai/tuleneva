@@ -2,7 +2,15 @@
  * @file Сигнатуры MP3 и обложки, границы текста.
  */
 import { describe, expect, it } from 'vitest';
-import { detectCover, isMp3, parseMusicText } from '../../music/musicValidation';
+import {
+    COVER_BAD_TYPE_MESSAGE,
+    COVER_TOO_BIG_MESSAGE,
+    detectCover,
+    isMp3,
+    parseMusicText,
+    readCover,
+} from '../../music/musicValidation';
+import { COVER_MAX_BYTES } from '../../music/musicLimits';
 import { parseRangeHeader } from '../../music/musicRoutes';
 
 describe('musicValidation', () => {
@@ -32,6 +40,18 @@ describe('musicValidation', () => {
         expect(detectCover(png)?.extension).toBe('png');
         expect(detectCover(webp)?.extension).toBe('webp');
         expect(detectCover(Buffer.from('ID3............'))).toBeNull();
+        const huge = Buffer.alloc(COVER_MAX_BYTES + 1);
+        huge[0] = 0xff;
+        huge[1] = 0xd8;
+        huge[2] = 0xff;
+        expect(detectCover(huge)).toBeNull();
+        expect(readCover(huge)).toEqual({ ok: false, message: COVER_TOO_BIG_MESSAGE });
+        expect(readCover(Buffer.from('ftypheic-not-a-photo'))).toEqual({
+            ok: false,
+            message: COVER_BAD_TYPE_MESSAGE,
+        });
+        const accepted = readCover(jpeg);
+        expect(accepted.ok).toBe(true);
     });
 
     it('требует название и авторов', () => {
