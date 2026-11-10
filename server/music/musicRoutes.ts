@@ -6,11 +6,22 @@ import mongoose from 'mongoose';
 import MusicTrack, { type MusicTrackDocument } from '../models/MusicTrack';
 import { isSuperAdmin } from '../auth/roleHelpers';
 import { requireSuperAdmin } from '../auth/requireSuperAdmin';
-import type { ByteRange, ObjectStorage } from '../storage/objectStorage';
+import type { ObjectStorage } from '../storage/objectStorage';
 import { audioObjectKey, coverObjectKey } from '../storage/objectKey';
+import { detachTrack, placeTrackInAlbum, requireAlbum } from './collectionMembership';
+import { registerCollectionRoutes } from './collectionRoutes';
 import { AUDIO_MAX_BYTES } from './musicLimits';
+import { parseRangeHeader, sendStoredObject } from './musicMedia';
+import {
+    loadAlbumIndex,
+    publicAlbumId,
+    toManageTrack,
+    toPublicTrack,
+} from './musicPresenter';
 import { isMp3, parseMusicText, readCover } from './musicValidation';
 import { parseMultipart } from './parseMultipart';
+
+export { parseRangeHeader };
 
 interface MusicRouterOptions {
     /** JWT обязателен. */
@@ -22,69 +33,6 @@ interface MusicRouterOptions {
     /** null, пока бакет не настроен. */
     objectStorage: ObjectStorage | null;
 }
-
-/**
- * Публичное представление без ключей хранилища и без статуса черновика.
- * @param track Документ
- * @returns Поля для гостя
- */
-const toPublicTrack = (track: MusicTrackDocument) => ({
-    id: String(track._id),
-    title: track.title,
-    credits: track.credits,
-    description: track.description ? track.description : null,
-    hasCover: Boolean(track.coverKey),
-    publishedAt: track.publishedAt ? track.publishedAt.toISOString() : null,
-});
-
-/**
- * Представление для супер-админа: статус и даты.
- * @param track Документ
- * @returns Поля админки
- */
-const toManageTrack = (track: MusicTrackDocument) => ({
-    ...toPublicTrack(track),
-    status: track.status,
-    createdAt: track.createdAt ? track.createdAt.toISOString() : null,
-    updatedAt: track.updatedAt ? track.updatedAt.toISOString() : null,
-});
-
-/**
- * Разбирает заголовок Range.
- * @param header Значение Range
- * @param total Размер объекта
- * @returns Диапазон, null если заголовка нет, либо отказ 416
- */
-export const parseRangeHeader = (
-    header: string | undefined,
-    total: number,
-): ByteRange | 'unsatisfiable' | null => {
-    if (!header) {
-        return null;
-    }
-    const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-    if (!match || total <= 0) {
-        return 'unsatisfiable';
-    }
-    const startRaw = match[1];
-    const endRaw = match[2];
-    if (startRaw === '' && endRaw === '') {
-        return 'unsatisfiable';
-    }
-    if (startRaw === '') {
-        const suffix = Number(endRaw);
-        if (!Number.isFinite(suffix) || suffix <= 0) {
-            return 'unsatisfiable';
-        }
-        return { start: Math.max(0, total - suffix), end: total - 1 };
-    }
-    const start = Number(startRaw);
-    const end = endRaw === '' ? total - 1 : Number(endRaw);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || start >= total) {
-        return 'unsatisfiable';
-    }
-    return { start, end: Math.min(end, total - 1) };
-};
 
 /**
  * Express 5 отдаёт param строкой или массивом.
@@ -115,61 +63,6 @@ const visibleTrack = (
         return null;
     }
     return track;
-};
-
-/**
- * Отдаёт объект с Range.
- * @param req Запрос
- * @param res Ответ
- * @param storage Хранилище
- * @param key Ключ
- * @param contentType MIME из нашей проверки
- * @param isPublic Кэш публичной записи
- */
-const sendStoredObject = async (
-    req: Request,
-    res: Response,
-    storage: ObjectStorage,
-    key: string,
-    contentType: string,
-    isPublic: boolean,
-) => {
-    const probe = await storage.open(key);
-    if (!probe) {
-        res.status(404).json({ message: 'Файл не найден.' });
-        return;
-    }
-    probe.stream.destroy();
-    const range = parseRangeHeader(req.get('range'), probe.total);
-    if (range === 'unsatisfiable') {
-        res.status(416).set('Content-Range', `bytes */${probe.total}`).end();
-        return;
-    }
-    const opened = await storage.open(key, range ?? undefined);
-    if (!opened) {
-        res.status(404).json({ message: 'Файл не найден.' });
-        return;
-    }
-    const start = range ? range.start : 0;
-    const end = range ? range.end : Math.max(0, opened.total - 1);
-    res.status(range ? 206 : 200);
-    res.set('Content-Type', contentType);
-    res.set('Accept-Ranges', 'bytes');
-    res.set('X-Content-Type-Options', 'nosniff');
-    res.set('Cache-Control', isPublic ? 'public, max-age=3600' : 'private, no-store');
-    res.set('Content-Disposition', 'inline; filename="audio.mp3"');
-    res.set('Content-Length', String(range ? end - start + 1 : opened.total));
-    if (range) {
-        res.set('Content-Range', `bytes ${start}-${end}/${opened.total}`);
-    }
-    opened.stream.on('error', () => {
-        if (!res.headersSent) {
-            res.status(500).end();
-        } else {
-            res.destroy();
-        }
-    });
-    opened.stream.pipe(res);
 };
 
 /**
@@ -208,7 +101,10 @@ export const createMusicRouter = ({
     router.get('/tracks', async (_req, res) => {
         const tracks = await MusicTrack.find({ status: 'published' })
             .sort({ publishedAt: -1, createdAt: -1 });
-        res.json({ tracks: tracks.map(toPublicTrack) });
+        const albums = await loadAlbumIndex();
+        res.json({
+            tracks: tracks.map((track) => toPublicTrack(track, publicAlbumId(albums, String(track._id)))),
+        });
     });
 
     /**
@@ -218,7 +114,10 @@ export const createMusicRouter = ({
      */
     router.get('/admin/tracks', ...superAdmin, async (_req, res) => {
         const tracks = await MusicTrack.find().sort({ updatedAt: -1 });
-        res.json({ tracks: tracks.map(toManageTrack) });
+        const albums = await loadAlbumIndex();
+        res.json({
+            tracks: tracks.map((track) => toManageTrack(track, albums.get(String(track._id)) ?? null)),
+        });
     });
 
     /**
@@ -249,6 +148,14 @@ export const createMusicRouter = ({
         if (!audio || !isMp3(audio.buffer) || audio.buffer.length > AUDIO_MAX_BYTES) {
             res.status(400).json({ message: 'Нужен файл MP3.' });
             return;
+        }
+        const albumField = parsed.fields.albumId?.trim() ?? '';
+        if (albumField) {
+            const album = await requireAlbum(albumField);
+            if (!album.ok) {
+                res.status(400).json({ message: album.message });
+                return;
+            }
         }
         let cover: {
             extension: 'jpg' | 'png' | 'webp';
@@ -289,7 +196,22 @@ export const createMusicRouter = ({
                 createdBy: req.dbUser!._id,
                 updatedBy: req.dbUser!._id,
             });
-            res.status(201).json({ track: toManageTrack(track) });
+            if (albumField) {
+                const placed = await placeTrackInAlbum(track._id, albumField);
+                if (!placed.ok) {
+                    await track.deleteOne();
+                    await objectStorage.delete(audioKey).catch(() => undefined);
+                    if (coverKey) {
+                        await objectStorage.delete(coverKey).catch(() => undefined);
+                    }
+                    res.status(400).json({ message: placed.message });
+                    return;
+                }
+            }
+            const albums = await loadAlbumIndex();
+            res.status(201).json({
+                track: toManageTrack(track, albums.get(String(track._id)) ?? null),
+            });
         } catch (err) {
             await objectStorage.delete(audioKey).catch(() => undefined);
             if (coverKey) {
@@ -317,9 +239,11 @@ export const createMusicRouter = ({
             res.status(404).json({ message: 'Запись не найдена.' });
             return;
         }
+        const albums = await loadAlbumIndex();
+        const album = albums.get(String(track._id)) ?? null;
         const body = track.status === 'published' || !isSuperAdmin(req.dbUser?.role)
-            ? toPublicTrack(track)
-            : toManageTrack(track);
+            ? toPublicTrack(track, publicAlbumId(albums, String(track._id)))
+            : toManageTrack(track, album);
         res.json({ track: body });
     });
 
@@ -360,6 +284,14 @@ export const createMusicRouter = ({
             res.status(400).json({ message: text.message });
             return;
         }
+        const albumField = 'albumId' in parsed.fields ? parsed.fields.albumId.trim() : null;
+        if (albumField) {
+            const album = await requireAlbum(albumField);
+            if (!album.ok) {
+                res.status(400).json({ message: album.message });
+                return;
+            }
+        }
         if (parsed.files.audio) {
             if (!isMp3(parsed.files.audio.buffer) || parsed.files.audio.buffer.length > AUDIO_MAX_BYTES) {
                 res.status(400).json({ message: 'Нужен файл MP3.' });
@@ -398,7 +330,15 @@ export const createMusicRouter = ({
             track.description = text.value.description;
             track.updatedBy = req.dbUser!._id;
             await track.save();
-            res.json({ track: toManageTrack(track) });
+            if (albumField !== null) {
+                const placed = await placeTrackInAlbum(track._id, albumField || null);
+                if (!placed.ok) {
+                    res.status(400).json({ message: placed.message });
+                    return;
+                }
+            }
+            const albums = await loadAlbumIndex();
+            res.json({ track: toManageTrack(track, albums.get(String(track._id)) ?? null) });
         } catch (err) {
             console.error('Music update failed:', err);
             res.status(500).json({ message: 'Не удалось обновить запись.' });
@@ -426,7 +366,8 @@ export const createMusicRouter = ({
         }
         track.updatedBy = req.dbUser!._id;
         await track.save();
-        res.json({ track: toManageTrack(track) });
+        const albums = await loadAlbumIndex();
+        res.json({ track: toManageTrack(track, albums.get(String(track._id)) ?? null) });
     });
 
     /**
@@ -448,7 +389,8 @@ export const createMusicRouter = ({
         track.publishedAt = null;
         track.updatedBy = req.dbUser!._id;
         await track.save();
-        res.json({ track: toManageTrack(track) });
+        const albums = await loadAlbumIndex();
+        res.json({ track: toManageTrack(track, albums.get(String(track._id)) ?? null) });
     });
 
     /**
@@ -476,6 +418,7 @@ export const createMusicRouter = ({
                 });
             }
         }
+        await detachTrack(track._id);
         await track.deleteOne();
         res.json({ deleted: true });
     });
@@ -537,6 +480,13 @@ export const createMusicRouter = ({
      * @description Обложка. Черновик — только super_admin.
      */
     router.get('/tracks/:id/cover', optionalAuthenticate, sendMedia('cover'));
+
+    registerCollectionRoutes(router, {
+        superAdmin,
+        optionalAuthenticate,
+        objectStorage,
+        rejectIfNoStorage,
+    });
 
     return router;
 };

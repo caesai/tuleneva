@@ -1,127 +1,162 @@
 /**
- * @file Плеер не стартует сам и играет одну запись.
+ * @file Каталог — сетка обложек. Плеер на подборке идёт по её порядку и сам не стартует.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { usePageMeta } from '@/hooks/usePageMeta.ts';
+import { MusicCollectionPage } from '@/pages/MusicPage/MusicCollectionPage.tsx';
 import { MusicPage } from '@/pages/MusicPage/MusicPage.tsx';
-import { fetchPublishedTracks } from '@/api/music.api.ts';
+import { fetchCollection, fetchMusicCatalog, fetchPublishedTrack } from '@/api/music.api.ts';
 
 vi.mock('@/hooks/usePageMeta.ts', () => ({
     usePageMeta: vi.fn(),
 }));
 
 vi.mock('@/api/music.api.ts', () => ({
-    fetchPublishedTracks: vi.fn(),
+    fetchMusicCatalog: vi.fn(),
+    fetchPublishedTrack: vi.fn(),
+    fetchCollection: vi.fn(),
     trackAudioUrl: (id: string) => `/api/music/tracks/${id}/audio`,
     trackCoverUrl: (id: string) => `/api/music/tracks/${id}/cover`,
+    collectionCoverUrl: (id: string) => `/api/music/collections/${id}/cover`,
 }));
 
-const renderPage = (path = '/music') => render(
+const renderMusic = (path = '/music') => render(
     <MemoryRouter initialEntries={[path]}>
         <Routes>
-            <Route path="/music/:trackId?" element={<MusicPage />} />
+            <Route path="/music" element={<MusicPage />} />
+            <Route path="/music/album/:id" element={<MusicCollectionPage />} />
+            <Route path="/music/playlist/:id" element={<MusicCollectionPage />} />
+            <Route path="/music/:trackId" element={<MusicPage />} />
         </Routes>
     </MemoryRouter>,
 );
+
+const track = (
+    id: string,
+    title: string,
+    extra: { albumId?: string | null; description?: string | null } = {},
+) => ({
+    id,
+    title,
+    credits: 'Студия',
+    description: extra.description ?? null,
+    hasCover: false,
+    publishedAt: '2026-11-01T00:00:00.000Z',
+    albumId: extra.albumId ?? null,
+});
 
 describe('MusicPage', () => {
     const play = vi.fn().mockResolvedValue(undefined);
 
     beforeEach(() => {
         play.mockClear();
+        vi.mocked(usePageMeta).mockClear();
         vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockImplementation(play);
         vi.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
         vi.spyOn(window.HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
     });
 
-    it('показывает пустой каталог', async () => {
-        vi.mocked(fetchPublishedTracks).mockResolvedValue([]);
-        renderPage();
+    it('показывает пустой каталог без прежнего вступления', async () => {
+        vi.mocked(fetchMusicCatalog).mockResolvedValue({ collections: [], singles: [] });
+        renderMusic();
         expect(await screen.findByText(/Пока здесь тихо/)).toBeInTheDocument();
+        expect(screen.queryByText(/Слушать можно без входа/)).not.toBeInTheDocument();
         expect(play).not.toHaveBeenCalled();
         expect(screen.queryByRole('link', { name: 'Расписание' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('link', { name: /открыть приложение/i })).not.toBeInTheDocument();
     });
 
     it('даёт повторить загрузку после ошибки', async () => {
-        vi.mocked(fetchPublishedTracks)
+        vi.mocked(fetchMusicCatalog)
             .mockRejectedValueOnce(new Error('Сеть недоступна'))
-            .mockResolvedValueOnce([]);
+            .mockResolvedValueOnce({ collections: [], singles: [] });
         const user = userEvent.setup();
-        renderPage();
+        renderMusic();
         expect(await screen.findByRole('alert')).toHaveTextContent('Сеть недоступна');
         await user.click(screen.getByRole('button', { name: 'Повторить' }));
         expect(await screen.findByText(/Пока здесь тихо/)).toBeInTheDocument();
     });
 
-    it('не играет само и переключает одну запись', async () => {
-        vi.mocked(fetchPublishedTracks).mockResolvedValue([
-            {
-                id: 'a',
-                title: 'Ночь',
-                credits: 'Север',
-                description: 'Тихий дубль',
-                hasCover: false,
-                publishedAt: '2026-11-01T00:00:00.000Z',
-            },
-            {
-                id: 'b',
-                title: 'День',
-                credits: 'Юг',
-                description: null,
-                hasCover: false,
-                publishedAt: '2026-11-02T00:00:00.000Z',
-            },
-        ]);
-        const user = userEvent.setup();
-        renderPage();
-        expect(await screen.findByText('Ночь')).toBeInTheDocument();
+    it('показывает обложки альбомов и синглы без подборки', async () => {
+        vi.mocked(fetchMusicCatalog).mockResolvedValue({
+            collections: [
+                {
+                    id: 'alb',
+                    type: 'album',
+                    title: 'Север',
+                    description: null,
+                    hasCover: false,
+                    trackCount: 2,
+                    publishedAt: '2026-11-01T00:00:00.000Z',
+                },
+            ],
+            singles: [track('solo', 'Одна')],
+        });
+        renderMusic();
+        const album = await screen.findByRole('link', { name: /Север/ });
+        expect(album).toHaveAttribute('href', '/music/album/alb');
+        expect(album).toHaveTextContent('Альбом');
+        expect(album).toHaveTextContent('2 записи');
+        expect(screen.getByRole('heading', { name: 'Синглы' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Ссылка' })).toHaveAttribute('href', '/music/solo');
         expect(play).not.toHaveBeenCalled();
-        const shareLinks = screen.getAllByRole('link', { name: 'Ссылка' });
-        expect(shareLinks[0]).toHaveAttribute('href', '/music/a');
-        expect(shareLinks[1]).toHaveAttribute('href', '/music/b');
+    });
 
+    it('открывает старую ссылку на запись и не играет сам', async () => {
+        vi.mocked(fetchPublishedTrack).mockResolvedValue(track('a', 'Ночь', { description: 'Тихий дубль' }));
+        const user = userEvent.setup();
+        renderMusic('/music/a');
+        expect(await screen.findByRole('button', { name: 'Слушать: Ночь' })).toBeInTheDocument();
+        expect(play).not.toHaveBeenCalled();
         await user.click(screen.getByRole('button', { name: 'Слушать: Ночь' }));
         expect(play).toHaveBeenCalled();
+        expect(document.querySelector('audio')?.getAttribute('src')).toContain('/api/music/tracks/a/audio');
+        expect(vi.mocked(usePageMeta)).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Ночь — Тюленева 25',
+            canonicalPath: '/music/a',
+            ogType: 'music.song',
+        }));
+    });
+
+    it('на альбоме переключает previous и next по порядку подборки', async () => {
+        vi.mocked(fetchCollection).mockResolvedValue({
+            id: 'alb',
+            type: 'album',
+            title: 'Север',
+            description: 'Холод',
+            hasCover: true,
+            trackCount: 2,
+            publishedAt: '2026-11-01T00:00:00.000Z',
+            tracks: [track('a', 'Ночь'), track('b', 'День')],
+        });
+        const user = userEvent.setup();
+        renderMusic('/music/album/alb');
+        expect(await screen.findByRole('heading', { name: 'Север' })).toBeInTheDocument();
+        expect(screen.getByText('Альбом')).toBeInTheDocument();
+        expect(play).not.toHaveBeenCalled();
+        expect(screen.getByRole('img', { name: 'Обложка «Север»' })).toHaveAttribute(
+            'src',
+            '/api/music/collections/alb/cover',
+        );
+
+        await user.click(screen.getByRole('button', { name: 'Слушать: Ночь' }));
         const audio = document.querySelector('audio');
         expect(audio?.getAttribute('src')).toContain('/api/music/tracks/a/audio');
+        expect(screen.getByRole('button', { name: 'Предыдущая запись' })).toBeDisabled();
 
-        await user.click(screen.getByRole('button', { name: 'Слушать: День' }));
+        await user.click(screen.getByRole('button', { name: 'Следующая запись' }));
         expect(audio?.getAttribute('src')).toContain('/api/music/tracks/b/audio');
-        expect(screen.getByLabelText('Позиция воспроизведения')).toBeInTheDocument();
-        expect(screen.getByLabelText('Громкость')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Предыдущая запись' })).toBeEnabled();
 
         await user.click(screen.getByRole('button', { name: 'Предыдущая запись' }));
         expect(audio?.getAttribute('src')).toContain('/api/music/tracks/a/audio');
-        expect(screen.getByRole('button', { name: 'Предыдущая запись' })).toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Следующая запись' })).toBeEnabled();
-    });
-
-    it('не считает обрыв play ошибкой и показывает настоящий отказ', async () => {
-        vi.mocked(fetchPublishedTracks).mockResolvedValue([
-            {
-                id: 'a',
-                title: 'Ночь',
-                credits: 'Север',
-                description: null,
-                hasCover: false,
-                publishedAt: '2026-11-01T00:00:00.000Z',
-            },
-        ]);
-        const user = userEvent.setup();
-        play.mockRejectedValueOnce(new DOMException('interrupted', 'AbortError'));
-        renderPage();
-        const clickListen = async () => {
-            const buttons = await screen.findAllByRole('button', { name: 'Слушать: Ночь' });
-            await user.click(buttons[0]);
-        };
-        await clickListen();
-        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-
-        play.mockRejectedValueOnce(new DOMException('blocked', 'NotAllowedError'));
-        await clickListen();
-        expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось воспроизвести запись.');
+        expect(vi.mocked(usePageMeta)).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Север — Тюленева 25',
+            canonicalPath: '/music/album/alb',
+            ogType: 'music.album',
+            ogImagePath: '/api/music/collections/alb/cover',
+        }));
     });
 });

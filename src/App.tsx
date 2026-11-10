@@ -31,6 +31,10 @@ const MusicPage = lazy(() =>
     import('@/pages/MusicPage/MusicPage.tsx').then((m) => ({ default: m.MusicPage })),
 );
 
+const MusicCollectionPage = lazy(() =>
+    import('@/pages/MusicPage/MusicCollectionPage.tsx').then((m) => ({ default: m.MusicCollectionPage })),
+);
+
 const AdminMusicPage = lazy(() =>
     import('@/pages/AdminMusicPage/AdminMusicPage.tsx').then((m) => ({ default: m.AdminMusicPage })),
 );
@@ -253,7 +257,10 @@ const App: React.FC = () => {
                             <Routes>
                                 <Route path="/" element={<IndexPage />} />
                                 <Route path="/app" element={<TimeTablePage />} />
-                                <Route path="/music/:trackId?" element={<MusicPage />} />
+                                <Route path="/music" element={<MusicPage />} />
+                                <Route path="/music/album/:id" element={<MusicCollectionPage />} />
+                                <Route path="/music/playlist/:id" element={<MusicCollectionPage />} />
+                                <Route path="/music/:trackId" element={<MusicPage />} />
                                 <Route
                                     path="/admin"
                                     element={
