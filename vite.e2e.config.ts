@@ -5,6 +5,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { indexHtmlMetaPlugin } from './vite-plugins/indexHtmlMetaPlugin.ts';
+import { readApiProxy } from './vite-plugins/apiProxy.ts';
+
+const apiProxy = readApiProxy();
 
 export default defineConfig({
     base: '/',
@@ -14,15 +17,15 @@ export default defineConfig({
         host: '127.0.0.1',
         proxy: {
             '/api': {
-                target: 'https://51.250.16.74',
+                target: apiProxy.http,
                 changeOrigin: true,
-                secure: false,
+                secure: apiProxy.secure,
             },
             '/ws': {
-                target: 'wss://51.250.16.74',
+                target: apiProxy.ws,
                 ws: true,
                 changeOrigin: true,
-                secure: false,
+                secure: apiProxy.secure,
             },
         },
     },

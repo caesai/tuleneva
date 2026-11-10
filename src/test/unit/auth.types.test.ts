@@ -26,6 +26,12 @@ describe('auth.types', () => {
         it('admin has admin flag', () => {
             const caps = buildAuthCapabilities(baseUser('admin'), true);
             expect(caps.isAdmin).toBe(true);
+            expect(caps.isSuperAdmin).toBe(false);
+        });
+
+        it('super_admin flag requires a session', () => {
+            expect(buildAuthCapabilities(baseUser('super_admin'), true).isSuperAdmin).toBe(true);
+            expect(buildAuthCapabilities(baseUser('super_admin'), false).isSuperAdmin).toBe(false);
         });
     });
 

@@ -16,6 +16,7 @@ Telegram Mini App и веб-клиент для бронирования вре�
 - Авторизация: Telegram Mini App и **web invite** (`?invite=CODE`)
 - Одноразовые инвайты с настраиваемыми `allowedProviders`
 - WebSocket: события `booking_update`, `booking_cancel`, `users_update` (админка)
+- Публичная музыка `/music`: слушать без входа. Публикует только `super_admin`
 
 ## Роли и права
 
@@ -61,6 +62,17 @@ PORT=3000
 # Чат студии: бот отвечает только на команды (/today и др.). Брони и отмены — админам в личку.
 # STUDIO_CHAT_ID=-100...
 # SMTP для подтверждения почты и сброса пароля (без SMTP_HOST привязка отвечает 503)
+# Медиа музыки. В production без драйвера загрузка и отдача файлов отвечают 503.
+# Вне production пустое значение — временный каталог ОС, не бакет студии.
+# OBJECT_STORAGE_DRIVER=local
+# OBJECT_STORAGE_LOCAL_DIR=/var/lib/tuleneva/media
+# OBJECT_STORAGE_DRIVER=s3
+# S3_ENDPOINT=https://s3.example.com
+# S3_REGION=us-east-1
+# S3_BUCKET=tuleneva-media
+# S3_ACCESS_KEY_ID=
+# S3_SECRET_ACCESS_KEY=
+# S3_FORCE_PATH_STYLE=true
 # SMTP_HOST=smtp.example.com
 # SMTP_PORT=587
 # SMTP_USER=...
@@ -82,7 +94,9 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 
-Кнопка «Войти по почте» и форма привязки у обычных пользователей по умолчанию скрыты. Админ и супер-админ видят форму привязки своей почты в Mini App без флага (нужен SMTP на VPS). Вход с машины: один раз привязать и подтвердить почту в Mini App, затем `VITE_EMAIL_AUTH_UI=true npm run dev` и «Войти по почте» на `https://tuleneva.local` — тот же пользователь и та же Mongo на VPS.
+Кнопка «Войти по почте» и форма привязки у обычных пользователей по умолчанию скрыты. Админ и супер-админ видят форму привязки своей почты в Mini App без флага (нужен SMTP на VPS).
+
+Локальный Vite проксирует `/api` и `/ws` на `http://127.0.0.1:3000`. Другой стенд задаётся явно: `VITE_API_PROXY_TARGET=http://127.0.0.1:3000`. Проверка TLS включена. `VITE_API_PROXY_INSECURE=true` имеет смысл только для своего сертификата, не для боевого API.
 
 Для Telegram SDK локально приложение эмулирует среду Mini App в браузере.
 
@@ -108,7 +122,7 @@ cd server && npm run typecheck
 cd server && npm run test:all
 ```
 
-Node 20 (см. `.node-version`). Integration-тесты используют in-memory MongoDB; внешний Mongo не нужен. Локальный Vite проксирует `/api` на прод — см. [AGENTS.md](AGENTS.md).
+Node 20 (см. `.node-version`). Integration-тесты используют in-memory MongoDB и память вместо бакета; внешний Mongo и S3 не нужны. Локальный Vite по умолчанию ходит на `http://127.0.0.1:3000`.
 
 ## API
 
@@ -145,6 +159,38 @@ Node 20 (см. `.node-version`). Integration-тесты используют in-
 | POST | `/api/book` | Бронирование (часы 12:00–23:00, без прошедших слотов) |
 | DELETE | `/api/cancel` | Отмена |
 | POST | `/api/telegram/webhook` | Обновления бота (если задан `TELEGRAM_WEBHOOK_SECRET`) |
+
+### Музыка
+
+Гости слушают опубликованное без входа: страница `/music` и ссылка `/music/:id`. Черновики, загрузка, правка, публикация и снятие — только `super_admin` (роль из `shared/roleLattice.ts`). Обычный `admin` получает 403 на запись и не видит черновик (404). В Mongo лежат название, авторы, описание и ключи объектов. MP3 и обложка — в объектном хранилище.
+
+| Method | Path | Назначение |
+|--------|------|------------|
+| GET | `/api/music/tracks` | Опубликованные записи |
+| GET | `/api/music/tracks/:id` | Одна опубликованная; черновик только супер-админу |
+| GET | `/api/music/tracks/:id/audio` | MP3, заголовок `Range` |
+| GET | `/api/music/tracks/:id/cover` | Обложка, если есть |
+| GET | `/api/music/admin/tracks` | Все записи, включая черновики |
+| POST | `/api/music/tracks` | Черновик: поля `title`, `credits`, `description`, файл `audio`, необязательный `cover` |
+| PATCH | `/api/music/tracks/:id` | Правка текста и файлов |
+| POST | `/api/music/tracks/:id/publish` | Публикация |
+| POST | `/api/music/tracks/:id/unpublish` | Снова черновик |
+| DELETE | `/api/music/tracks/:id` | Удалить запись и файлы |
+
+Лимиты: MP3 до 30 МБ, обложка JPEG/PNG/WebP до 2 МБ. Имя файла пользователя в ключ не попадает.
+
+**Хранилище ещё не подключено к продакшену.** Пока владелец не выберет провайдера и не положит секреты в `/etc/tuleneva/api.env`, боевая загрузка отвечает 503. Код не создаёт бакет и не содержит ключей.
+
+| Переменная | Смысл |
+|------------|--------|
+| `OBJECT_STORAGE_DRIVER` | `s3`, `local` или `none`. В `NODE_ENV=production` пустое значение значит «не настроено». Вне production пустое значение — временный локальный каталог. |
+| `OBJECT_STORAGE_LOCAL_DIR` | Каталог для `local`. Иначе системный temp. |
+| `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Обязательны для `s3`. Без них драйвер не включается. |
+| `S3_ENDPOINT` | Адрес совместимого API, если это не AWS. |
+| `S3_REGION` | По умолчанию `us-east-1`. |
+| `S3_FORCE_PATH_STYLE` | `true` для MinIO и части совместимых сервисов. |
+
+Бакет остаётся приватным: файлы отдаёт API после проверки, опубликована запись или нет.
 
 ### Deprecated (совместимость)
 
