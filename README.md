@@ -12,7 +12,7 @@ Telegram Mini App и веб-клиент для бронирования вре�
 
 ## Функционал
 
-- Просмотр расписания, бронирование и отмена слотов
+- Просмотр расписания, бронирование и отмена слотов. При `STEALTH_MODE` (по умолчанию включён) календарь `/app` только у людей из списка пользователей. Саморегистрация Telegram закрыта; инвайт администратора по-прежнему создаёт пользователя
 - Авторизация: Telegram Mini App и **web invite** (`?invite=CODE`)
 - Одноразовые инвайты с настраиваемыми `allowedProviders`
 - WebSocket: события `booking_update`, `booking_cancel`, `users_update` (админка)
@@ -51,6 +51,9 @@ JWT_SECRET=секретный_ключ
 WEB_APP_BASE_URL=https://tuleneva25.ru
 MONGO_URI=mongodb://127.0.0.1:27017/test
 PORT=3000
+# Календарь /app только для пользователей из базы. По умолчанию включено, переменную можно не задавать.
+# Выключить позже: STEALTH_MODE=0
+# STEALTH_MODE=1
 # Опционально: таймаут одного Telegram-сообщения (мс), по умолчанию 8000
 # TELEGRAM_NOTIFY_TIMEOUT_MS=8000
 # Если api.telegram.org с VPS недоступен — Cloudflare Worker (см. docs/VPS.md):

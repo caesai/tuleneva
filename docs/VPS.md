@@ -146,6 +146,9 @@ WEB_APP_BASE_URL=https://tuleneva25.ru
 # ПАРОЛЬ_ПРИЛОЖЕНИЯ — тот, что задали в §1 при db.createUser для user "tuleneva"
 MONGO_URI=mongodb://tuleneva:ПАРОЛЬ_ПРИЛОЖЕНИЯ@127.0.0.1:27017/test?authSource=admin
 PORT=3000
+# Календарь только для уже существующих пользователей. По умолчанию включено — строку можно не добавлять.
+# Выключить: STEALTH_MODE=0
+# STEALTH_MODE=1
 # Если curl к api.telegram.org с VPS даёт exit 28 — Cloudflare Worker
 # (скрипт deploy/cloudflare-telegram-proxy.js) и webhook:
 # TELEGRAM_API_ROOT=https://<имя>.workers.dev/<длинный-PREFIX>

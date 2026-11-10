@@ -22,6 +22,7 @@ export type FetchTimetableOptions = {
  * @param date - Просматриваемый месяц (Moment) или null.
  * @param selectedDate - Выбранный день для слотов (Moment) или null.
  * @param isOnline - Статус сетевого подключения (опционально, по умолчанию true).
+ * @param enabled - false, пока календарь закрыт стелс-режимом: запросов слотов нет.
  * @returns {object} Объект, содержащий:
  * - highlightedDates: массив чисел (дней месяца), где есть бронирования.
  * - bookedHours: массив объектов IHour с информацией о забронированных часах.
@@ -35,6 +36,7 @@ export const useTimeTableData = (
     date: Moment | null,
     selectedDate: Moment | null,
     isOnline: boolean = true,
+    enabled: boolean = true,
 ) => {
     const [highlightedDates, setHighlightedDates] = useState<number[]>([]);
     const [bookedHours, setBookedHours] = useState<IHour[]>([]);
@@ -148,17 +150,26 @@ export const useTimeTableData = (
 
     /** До paint: лоадер месяца и без старых подсветок в календаре */
     useLayoutEffect(() => {
+        if (!enabled) {
+            setLoading(false);
+            setHoursLoading(false);
+            return;
+        }
         if (!viewMonthKey) return;
         setLoading(true);
         setHighlightedDates([]);
-    }, [viewMonthKey]);
+    }, [enabled, viewMonthKey]);
 
     /** До paint: лоадер дня и без старых слотов */
     useLayoutEffect(() => {
+        if (!enabled) {
+            setHoursLoading(false);
+            return;
+        }
         if (!selectedDateKey) return;
         setHoursLoading(true);
         setBookedHours([]);
-    }, [selectedDateKey]);
+    }, [enabled, selectedDateKey]);
 
     // Основная функция загрузки данных (стабильная ссылка — без лишних эффектов при retry)
     const fetchData = useCallback(async (targetDate: Moment, options: FetchTimetableOptions = {}) => {
@@ -258,27 +269,27 @@ export const useTimeTableData = (
 
     // Эффект для загрузки данных при изменении даты или retry
     useEffect(() => {
-        if (!date) return;
+        if (!enabled || !date) return;
 
         if (!isOnline && retryCount > 0) return;
 
         fetchData(date, { silent: retryCount > 0 });
-    }, [date, retryCount, isOnline, fetchData]);
+    }, [enabled, date, retryCount, isOnline, fetchData]);
 
     // Загрузка слотов выбранного дня (ключ даты — без лишних запросов при новом объекте Moment)
     useEffect(() => {
-        if (!selectedDate || !selectedDateKey) return;
+        if (!enabled || !selectedDate || !selectedDateKey) return;
         fetchBookedHours(selectedDate);
-    }, [selectedDateKey, selectedDate, fetchBookedHours]);
+    }, [enabled, selectedDateKey, selectedDate, fetchBookedHours]);
 
     // Эффект для автоматического refetch при восстановлении связи
     useEffect(() => {
-        if (!wasOnlineRef.current && isOnline && currentDateRef.current) {
+        if (enabled && !wasOnlineRef.current && isOnline && currentDateRef.current) {
             setRetryCount(0);
             fetchData(currentDateRef.current, { silent: false });
         }
         wasOnlineRef.current = isOnline;
-    }, [isOnline, fetchData]);
+    }, [enabled, isOnline, fetchData]);
 
     // Function to manually trigger a refetch
     const refetch = useCallback(() => {

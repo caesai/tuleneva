@@ -69,6 +69,7 @@ const emailErrorStatus = (err: unknown): number => {
  * @param {Function} options.notifyAdmins
  * @param {Function|null} [options.sendMail]
  * @param {Function} [options.broadcastUpdate] - WebSocket broadcast (например users_update)
+ * @param {boolean} [options.stealthMode] - Закрыть саморегистрацию Telegram. Инвайты не затрагивает.
  */
 const createAuthRouter = ({
     jwtSecret,
@@ -80,6 +81,7 @@ const createAuthRouter = ({
     notifyAdmins,
     sendMail = null,
     broadcastUpdate = (..._args: any[]) => {},
+    stealthMode = false,
 }: any) => {
     const router = express.Router();
 
@@ -178,6 +180,9 @@ const createAuthRouter = ({
         try {
             const tg = parseTelegramUser(userData, botToken);
             const existing = await findUserByTelegramId(tg.user.id);
+            if (stealthMode && !existing) {
+                return res.status(403).json({ valid: false, message: 'Registration is closed.' });
+            }
             if (existing) {
                 return res.status(400).json({ valid: false, message: 'User already registered' });
             }

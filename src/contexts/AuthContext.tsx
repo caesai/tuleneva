@@ -21,6 +21,7 @@ import {
     readTelegramStartParam,
 } from '@/telegram/useSafeLaunchParams.ts';
 import { readTelegramLoginPayload } from '@/telegram/waitForTelegramLaunch.ts';
+import { setTelegramInitData } from '@/auth/calendarAuth.ts';
 import { AuthContext } from './AuthContextDefinition.ts';
 
 interface AuthContextProps {
@@ -54,6 +55,10 @@ export const AuthProvider: React.FC<AuthContextProps> = ({ children }) => {
         () => (launchParams ? readTelegramStartParam(launchParams) : null),
         [launchParams],
     );
+
+    useEffect(() => {
+        setTelegramInitData(rawInitData || null);
+    }, [rawInitData]);
 
     const login = useCallback((
         userData: IUser,

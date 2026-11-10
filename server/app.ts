@@ -35,6 +35,8 @@ import { latestBandNamesByUser } from './booking/latestBandNames';
 import { createMusicRouter } from './music/musicRoutes';
 import { registerMusicHtmlRoutes } from './seo/musicHtml';
 import type { ObjectStorage } from './storage/objectStorage';
+import { isStealthMode } from './config/stealthMode';
+import { createCalendarAccess } from './auth/calendarAccess';
 
 /**
  * Запускает Telegram-уведомление после уже отправленного ответа.
@@ -66,6 +68,7 @@ const notifyAfterResponse = (afterResponse) => {
  * @param {import('./storage/objectStorage').ObjectStorage|null} [options.objectStorage] - Медиа музыки. null: загрузка отвечает 503
  * @param {string} [options.indexHtml] - Готовый index.html для /music. В проде читается dist/index.html
  * @param {string} [options.indexHtmlPath] - Путь к dist/index.html, если он не рядом с cwd сервера
+ * @param {boolean} [options.stealthMode] - Календарь только для users. По умолчанию STEALTH_MODE, иначе включён
  */
 const createApp = ({
     jwtSecret,
@@ -81,17 +84,30 @@ const createApp = ({
     objectStorage = null,
     indexHtml = undefined,
     indexHtmlPath = undefined,
+    stealthMode = undefined,
 }: any) => {
     const mailSender = sendMail === undefined ? createSmtpSendMail() : sendMail;
     const booking = createBooking({ broadcastUpdate, notifyAdmins, notifyUser });
+    const stealth = typeof stealthMode === 'boolean' ? stealthMode : isStealthMode();
+    const calendarAccess = createCalendarAccess({ jwtSecret, botToken, stealth });
 
     const app = express();
     app.use(cors({
         origin: webAppBaseUrl,
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Telegram-Init-Data'],
     }));
     app.use(express.json({ limit: '32kb' }));
+
+/**
+ * @route GET /api/config
+ * @description Публичный флаг стелс-режима. Слотов и броней здесь нет.
+ * @returns {{ stealthMode: boolean }}
+ */
+app.get('/api/config', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ stealthMode: stealth });
+});
 
 /**
  * @route GET /api/health
@@ -208,6 +224,7 @@ app.use('/api/auth', createAuthRouter({
     notifyAdmins,
     sendMail: mailSender,
     broadcastUpdate,
+    stealthMode: stealth,
 }));
 
 app.get('/', (req, res) => {
@@ -240,6 +257,9 @@ app.post('/api/users/register', async (req, res) => {
     try {
         const tg = parseTelegramUser(userData, botToken);
         const existing = await findUserByTelegramId(tg.user.id);
+        if (stealth && !existing) {
+            return res.status(403).json({ valid: false, message: 'Registration is closed.' });
+        }
         if (existing) {
             return res.status(400).json({ valid: false, message: 'User already registered' });
         }
@@ -553,11 +573,11 @@ app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) 
  * @route GET /api/timetable
  * @description Получает список дат текущего месяца, в которые есть бронирования.
  * Используется для подсветки дат в календаре.
- * @access Public
+ * @access Public, если STEALTH_MODE выключен. Иначе только пользователь из users (JWT или init data).
  * @param {string} req.query.date - Дата (DD/MM/YYYY) для определения месяца.
  * @returns {Object} JSON с массивом дат (строки DD/MM/YYYY).
  */
-app.get('/api/timetable', async (req, res) => {
+app.get('/api/timetable', calendarAccess, async (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
 
@@ -573,11 +593,12 @@ app.get('/api/timetable', async (req, res) => {
 /**
  * @route GET /api/hours
  * @description Получает список забронированных часов на конкретную дату.
- * @access Public (опциональный Bearer JWT: полные данные только для role !== guest)
+ * @access Public при выключенном стелсе (опциональный Bearer JWT: PII только для role !== guest).
+ * В стелсе — только пользователь из users.
  * @param {string} req.query.date - Дата (DD/MM/YYYY).
  * @returns {Object} JSON с массивом слотов; PII только для авторизованных участников.
  */
-app.get('/api/hours', optionalAuthenticate, async (req, res) => {
+app.get('/api/hours', calendarAccess, optionalAuthenticate, async (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
 
