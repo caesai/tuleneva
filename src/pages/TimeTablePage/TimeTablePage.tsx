@@ -42,7 +42,7 @@ import { usePageMeta } from '@/hooks/usePageMeta.ts';
  * - Позволяет авторизованным пользователям (или администраторам) отменять свои бронирования.
  * - Обрабатывает взаимодействие с API для бронирования и отмены.
  * - Управляет состоянием выбранной даты, часов для бронирования и часов для отмены.
- * - Привязка почты и вход в админку — фиксированная колонка у правого края экрана.
+ * - Привязка почты и вход в админку — плавающая колонка у правого нижнего края, календарь не сдвигается.
  *
  * @returns {JSX.Element} Отрисованный компонент TimeTablePage.
  */
@@ -361,11 +361,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                     </div>
             )}
 
-            <div className={
-                emailAuth.showEmailLinkForm || isAdmin
-                    ? `${css.schedule} ${css.scheduleWithEdge}`
-                    : css.schedule
-            }>
+            <div className={css.schedule}>
             <div className={css.card}>
                 {showCardLoader ? (
                     <div

@@ -1,13 +1,14 @@
 /**
- * @file Расписание /app на iPhone: колонка иконок закреплена у правого края
- * и не сдвигает календарь вниз.
+ * @file Расписание /app на iPhone: календарь по центру на прежней ширине,
+ * иконки — плавающая колонка справа снизу, не на стрелках и слотах.
  */
 import { devices, expect, test, type Page } from '@playwright/test';
 
 const iphone = devices['iPhone 13'];
 
 test.use({
-    viewport: iphone.viewport,
+    /* Высота экрана iPhone 13, без панели Safari: в Mini App её нет. */
+    viewport: { width: iphone.viewport.width, height: 844 },
     userAgent: iphone.userAgent,
     isMobile: iphone.isMobile,
     hasTouch: iphone.hasTouch,
@@ -98,22 +99,36 @@ test('на расписании нет входа в музыку, иконки 
     expect(Math.abs(emailBox.x - adminBox.x)).toBeLessThanOrEqual(2);
     expect(overlaps(emailBox, nextBox)).toBe(false);
     expect(overlaps(adminBox, nextBox)).toBe(false);
-    expect(nextBox.x + nextBox.width).toBeLessThanOrEqual(emailBox.x + 1);
-    expect(nextBox.y).toBeLessThan(80);
 
-    const slot = page.getByRole('button', { name: 'Слот 12:00, свободен' });
-    await expect(slot).toBeVisible();
-    const slotBox = await slot.boundingBox();
-    expect(slotBox).not.toBeNull();
-    if (slotBox) {
-        expect(slotBox.x + slotBox.width).toBeLessThanOrEqual(emailBox.x + 1);
+    const calendar = page.getByRole('grid', { name: /2026/ });
+    const calendarBox = await calendar.boundingBox();
+    const viewport = page.viewportSize();
+    expect(calendarBox).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    if (calendarBox && viewport) {
+        const center = calendarBox.x + calendarBox.width / 2;
+        expect(Math.abs(center - viewport.width / 2)).toBeLessThan(12);
+        expect(calendarBox.width).toBeGreaterThanOrEqual(300);
+        expect(calendarBox.width).toBeLessThanOrEqual(340);
+    }
+
+    const slots = page.getByRole('button', { name: /^Слот / });
+    const slotCount = await slots.count();
+    expect(slotCount).toBeGreaterThan(0);
+    for (let index = 0; index < slotCount; index += 1) {
+        const slotBox = await slots.nth(index).boundingBox();
+        if (!slotBox) {
+            continue;
+        }
+        expect(overlaps(emailBox, slotBox)).toBe(false);
+        expect(overlaps(adminBox, slotBox)).toBe(false);
     }
 
     const emailStyle = await email.evaluate((node) => getComputedStyle(node.parentElement!).position);
     expect(emailStyle).toBe('fixed');
 
     await page.screenshot({
-        path: '/opt/cursor/artifacts/app-schedule-fixed-iphone.png',
+        path: '/opt/cursor/artifacts/app-schedule-pill-iphone.png',
         fullPage: false,
     });
 
@@ -128,7 +143,7 @@ test('на расписании нет входа в музыку, иконки 
         expect(Math.abs(emailAfterScroll.x - emailBox.x)).toBeLessThan(2);
     }
     await page.screenshot({
-        path: '/opt/cursor/artifacts/app-schedule-fixed-scrolled-iphone.png',
+        path: '/opt/cursor/artifacts/app-schedule-pill-scrolled-iphone.png',
         fullPage: false,
     });
 });

@@ -20,51 +20,32 @@
 }
 
 /**
- * На узком экране карточка не заходит под фиксированную колонку.
- * Шире 480px колонка висит в пустом поле справа от карточки 360px.
- */
-.scheduleWithEdge {
-    box-sizing: border-box;
-}
-
-@media (max-width: 480px) {
-    .scheduleWithEdge {
-        width: 100%;
-        padding-right: calc(
-            52px
-            + max(env(safe-area-inset-right, 0px), var(--tg-viewport-safe-area-inset-right, 0px))
-            + var(--tg-viewport-content-safe-area-inset-right, 0px)
-        );
-    }
-
-    .scheduleWithEdge :global(.MuiDateCalendar-root) {
-        width: 100%;
-        max-width: 100%;
-    }
-}
-
-/**
- * Конверт над щитом, вне потока: календарь остаётся у верхнего края.
- * Сверху — вырез и шапка Telegram (content safe area), справа — вырез экрана.
+ * Конверт над щитом: фиксированная «пилюля» в правом нижнем углу.
+ * Не в потоке, календарь остаётся по центру на всю прежнюю ширину.
+ * Низ и правый край учитывают вырез экрана и шапку Telegram.
  */
 .edgeActions {
     position: fixed;
     z-index: 5;
-    top: calc(
-        8px
-        + max(env(safe-area-inset-top, 0px), var(--tg-viewport-safe-area-inset-top, 0px))
-        + var(--tg-viewport-content-safe-area-inset-top, 0px)
-    );
     right: calc(
-        4px
+        10px
         + max(env(safe-area-inset-right, 0px), var(--tg-viewport-safe-area-inset-right, 0px))
         + var(--tg-viewport-content-safe-area-inset-right, 0px)
+    );
+    bottom: calc(
+        16px
+        + max(env(safe-area-inset-bottom, 0px), var(--tg-viewport-safe-area-inset-bottom, 0px))
+        + var(--tg-viewport-content-safe-area-inset-bottom, 0px)
     );
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
     margin: 0;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .edgeButton {
@@ -75,9 +56,9 @@
     height: 44px;
     padding: 0;
     border: none;
-    border-radius: 10px;
+    border-radius: 50%;
     background: transparent;
-    color: #666;
+    color: #444;
     cursor: pointer;
 }
 
@@ -100,10 +81,9 @@
 
 .card {
     position: relative;
-    align-self: stretch;
     background-color: white;
     color: black;
-    width: 100%;
+    width: 360px;
     max-width: 100%;
     box-sizing: border-box;
 }
