@@ -208,7 +208,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
         telegramStartParam,
         registerWithInvite,
         showToast,
-        suspended: stealthMode !== false,
     });
 
     const bandNames = readSavedBandNames();

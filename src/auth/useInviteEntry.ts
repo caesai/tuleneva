@@ -161,13 +161,10 @@ export interface UseTelegramStartInviteParams {
     telegramStartParam: string | null;
     registerWithInvite: (code: string, webProfile?: IWebInviteProfile) => Promise<void>;
     showToast: ShowToast;
-    /** Стелс: не создавать пользователя самим фактом открытия Mini App. */
-    suspended?: boolean;
 }
 
 /**
  * Применяет startapp на расписании без модалки.
- * В стелс-режиме `suspended` не даёт создать пользователя самим открытием Mini App.
  * @param params - Сессия Mini App и колбэки
  * @returns void (эффект внутри)
  */
@@ -180,13 +177,12 @@ export const useTelegramStartInvite = (params: UseTelegramStartInviteParams): vo
         telegramStartParam,
         registerWithInvite,
         showToast,
-        suspended = false,
     } = params;
 
     const inviteApplyStarted = useRef(false);
 
     useEffect(() => {
-        if (suspended || !isInTelegram || authLoading || inviteApplyStarted.current) {
+        if (!isInTelegram || authLoading || inviteApplyStarted.current) {
             return;
         }
         const code = telegramStartParam;
@@ -209,7 +205,6 @@ export const useTelegramStartInvite = (params: UseTelegramStartInviteParams): vo
                 );
             });
     }, [
-        suspended,
         authLoading,
         isAuthenticated,
         isInTelegram,

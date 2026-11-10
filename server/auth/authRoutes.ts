@@ -69,7 +69,7 @@ const emailErrorStatus = (err: unknown): number => {
  * @param {Function} options.notifyAdmins
  * @param {Function|null} [options.sendMail]
  * @param {Function} [options.broadcastUpdate] - WebSocket broadcast (например users_update)
- * @param {boolean} [options.stealthMode] - Не создавать новых пользователей
+ * @param {boolean} [options.stealthMode] - Закрыть саморегистрацию Telegram. Инвайты не затрагивает.
  */
 const createAuthRouter = ({
     jwtSecret,
@@ -232,9 +232,6 @@ const createAuthRouter = ({
                 const tg = parseTelegramUser(telegram.user, botToken);
                 user = await findUserByTelegramId(tg.user.id);
 
-                if (!user && stealthMode) {
-                    return res.status(403).json({ valid: false, message: 'Registration is closed.' });
-                }
                 if (!user) {
                     user = await upsertTelegramUser(tg.user, {
                         role: inviteCode.initialRole || 'guest',
@@ -250,9 +247,6 @@ const createAuthRouter = ({
                     isNewUser = true;
                 }
             } else if (provider === 'web') {
-                if (stealthMode) {
-                    return res.status(403).json({ valid: false, message: 'Registration is closed.' });
-                }
                 // Всегда новый UUID-identity: заявленный email не даёт вход в чужой аккаунт.
                 const profile = parseWebProfile(web);
                 user = await createWebUser(profile, {

@@ -82,14 +82,14 @@ describe('stealth mode calendar', () => {
         expect(await User.countDocuments()).toBe(before);
     });
 
-    it('does not create a user from an invite while stealth is on', async () => {
+    it('creates a user from an admin invite and lets that user open the calendar', async () => {
         const admin = await seedUser({ role: 'admin' });
         const initData = buildInitData(outsider, BOT_TOKEN);
+        const before = await User.countDocuments();
         const gen = await request(app)
             .post('/api/auth/invite/generate')
             .set(authHeader(admin))
             .send({ allowedProviders: ['telegram'], initialRole: 'user' });
-        const before = await User.countDocuments();
 
         const used = await request(app)
             .post('/api/auth/invite/use')
@@ -98,11 +98,19 @@ describe('stealth mode calendar', () => {
                 provider: 'telegram',
                 telegram: { user: initData },
             });
+        const created = await User.findOne({ telegram_id: outsider.id });
+        const timetable = await request(app)
+            .get('/api/timetable')
+            .query({ date: '01/06/2030' })
+            .set('Authorization', `Bearer ${used.body.token}`);
 
         expect(gen.status).toBe(201);
-        expect(used.status).toBe(403);
-        expect(await User.countDocuments()).toBe(before);
-        expect(await User.findOne({ telegram_id: outsider.id })).toBeNull();
+        expect(used.status).toBe(201);
+        expect(created).toBeTruthy();
+        expect(created?.role).toBe('user');
+        expect(await User.countDocuments()).toBe(before + 1);
+        expect(timetable.status).toBe(200);
+        expect(timetable.body.result).toEqual([]);
     });
 
     it('lets a listed user read the calendar and book', async () => {
