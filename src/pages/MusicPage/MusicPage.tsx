@@ -17,6 +17,7 @@ import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import type { IMusicCatalog, IMusicCollection, IMusicTrack } from '@/types/music.types.ts';
+import { MusicHeader } from './MusicHeader.tsx';
 import { TrackRows } from './TrackRows.tsx';
 import css from './MusicPage.module.css';
 
@@ -159,19 +160,12 @@ export const MusicPage: React.FC = () => {
 
     return (
         <main className={css.page}>
-            <header className={css.header}>
-                <Link to="/" className={css.brand}>
-                    <img src="/logo_main512.svg" alt="" width={36} height={36} />
-                    <span>Тюленева 25</span>
-                </Link>
-            </header>
+            <MusicHeader heading={!trackId} />
             {trackId ? (
                 <p className={css.back}>
                     <Link to="/music">Вся музыка</Link>
                 </p>
-            ) : (
-                <h1 className={css.title}>Музыка</h1>
-            )}
+            ) : null}
 
             {loading ? (
                 <div className={css.status} aria-busy="true" aria-label="Загрузка музыки">
