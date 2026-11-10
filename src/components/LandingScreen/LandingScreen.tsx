@@ -1,27 +1,55 @@
-import React, { useEffect, useState } from 'react';
+/**
+ * @file Главный экран: логотип по центру, три значка на орбите.
+ */
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
-import { MusicNoteIcon } from '@/components/LandingScreen/MusicNoteIcon.tsx';
-import { SocialLinks } from '@/components/SocialLinks/SocialLinks.tsx';
-import socialCss from '@/components/SocialLinks/SocialLinks.module.css';
+import { MusicNoteIcon, VkIcon, YouTubeIcon } from '@/components/Icons/Icons.tsx';
+import { SOCIAL_LINKS } from '@/config/socialLinks.ts';
 import { LANDING_PAGE_META } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import css from '@/components/LandingScreen/LandingScreen.module.css';
 
-/** Левый нижний угол той же орбиты, что у иконок соцсетей. */
-const MUSIC_NOTE_ORBIT = {
-    '--y-x-mult': -0.78,
-    '--y-y-mult': 0.72,
-    '--y-delay': '0.42s',
-} as React.CSSProperties;
+interface OrbitLink {
+    href: string;
+    label: string;
+    angle: number;
+    external?: boolean;
+    icon: React.ReactNode;
+}
 
 /**
- * Главный экран: логотип по центру видимой области, без прокрутки.
- * По нажатию вокруг него раскрываются соцсети и нота — ссылка на музыку.
+ * Три одинаковых значка через 120°: нота сверху, затем ВК и YouTube.
+ * @returns Ссылки орбиты
+ */
+const orbitLinks = (): OrbitLink[] => {
+    const byId = new Map(SOCIAL_LINKS.map((item) => [item.id, item]));
+    const vk = byId.get('vk');
+    const youtube = byId.get('youtube');
+    if (!vk || !youtube) {
+        return [
+            { href: '/music', label: 'Музыка', angle: 0, icon: <MusicNoteIcon className={css.orbitIcon} /> },
+        ];
+    }
+    return [
+        { href: '/music', label: 'Музыка', angle: 0, icon: <MusicNoteIcon className={css.orbitIcon} /> },
+        { href: vk.href, label: vk.label, angle: 120, external: true, icon: <VkIcon className={css.orbitIcon} /> },
+        {
+            href: youtube.href,
+            label: youtube.label,
+            angle: 240,
+            external: true,
+            icon: <YouTubeIcon className={css.orbitIcon} />,
+        },
+    ];
+};
+
+/**
+ * Главный экран без прокрутки. Значки крутятся вокруг логотипа и не сдвигают его.
+ * @returns Экран
  */
 export const LandingScreen: React.FC = () => {
     usePageMeta(LANDING_PAGE_META);
-    const [socialLinksOpen, setSocialLinksOpen] = useState(false);
 
     useEffect(() => {
         const html = document.documentElement;
@@ -44,26 +72,41 @@ export const LandingScreen: React.FC = () => {
     return (
         <div className={css.screen}>
             <div className={css.hero}>
-                <Loader
-                    fullScreen={false}
-                    onLogoClick={() => setSocialLinksOpen((open) => !open)}
-                    logoAriaExpanded={socialLinksOpen}
-                    logoClassName={css.heroLogo}
-                />
-                {socialLinksOpen ? (
-                    <>
-                        <SocialLinks layout="y" />
-                        <Link
-                            className={socialCss.linkY}
-                            to="/music"
-                            aria-label="Музыка"
-                            title="Музыка"
-                            style={MUSIC_NOTE_ORBIT}
-                        >
-                            <MusicNoteIcon className={`${socialCss.iconY} ${css.musicNoteIcon}`} />
-                        </Link>
-                    </>
-                ) : null}
+                <Loader fullScreen={false} logoClassName={css.heroLogo} />
+                <nav className={css.orbit} aria-label="Ссылки студии">
+                    {orbitLinks().map((item) => {
+                        const style = { '--angle': `${item.angle}deg` } as React.CSSProperties;
+                        const face = <span className={css.orbitFace}>{item.icon}</span>;
+                        if (item.external) {
+                            return (
+                                <a
+                                    key={item.label}
+                                    className={css.orbitSlot}
+                                    href={item.href}
+                                    aria-label={item.label}
+                                    title={item.label}
+                                    style={style}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {face}
+                                </a>
+                            );
+                        }
+                        return (
+                            <Link
+                                key={item.label}
+                                className={css.orbitSlot}
+                                to={item.href}
+                                aria-label={item.label}
+                                title={item.label}
+                                style={style}
+                            >
+                                {face}
+                            </Link>
+                        );
+                    })}
+                </nav>
             </div>
         </div>
     );

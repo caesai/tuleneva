@@ -33,41 +33,103 @@
 
 .hero {
     --hero-logo-size: 12em;
-    --hero-logo-padding: 3em;
-    --y-arm-x: calc(var(--hero-logo-size) / 2 + var(--hero-logo-padding) + 0.25rem);
-    --y-arm-y: calc(var(--hero-logo-size) / 2 + var(--hero-logo-padding) + 3.5rem);
-    --orbit-w: calc(var(--y-arm-x) * 2 + 4.75rem);
-    --orbit-h: calc(
-        var(--hero-logo-size) + var(--hero-logo-padding) * 2 + var(--y-arm-y) * 1.42
-    );
+    --orbit-radius: calc(var(--hero-logo-size) / 2 + 2.75rem);
+    --orbit-size: calc(var(--orbit-radius) * 2 + 48px);
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    width: var(--orbit-w);
-    height: var(--orbit-h);
+    width: var(--orbit-size);
+    height: var(--orbit-size);
     margin: 0;
     transform: scale(
         min(
             1,
-            calc(100cqw / var(--orbit-w)),
-            calc(100cqh / var(--orbit-h))
+            calc(100cqw / var(--orbit-size)),
+            calc(100cqh / var(--orbit-size))
         )
     );
 }
 
-.heroLogo {
+.hero .heroLogo {
     display: block;
     box-sizing: content-box;
     height: var(--hero-logo-size);
     width: auto;
     margin: 0;
-    padding: var(--hero-logo-padding);
+    padding: 0;
 }
 
-/* Та же орбита, что у соцсетей; глиф ноты чуть крупнее квадрата 4rem, чтобы читался одного размера. */
-.musicNoteIcon {
-    width: 4.75rem;
-    height: 4.75rem;
+.orbit {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    z-index: 1;
+    pointer-events: none;
+    animation: orbit-spin 24s linear infinite;
+}
+
+.orbitSlot {
+    position: absolute;
+    left: -24px;
+    top: -24px;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    color: #111;
+    text-decoration: none;
+    pointer-events: auto;
+    border-radius: 50%;
+    transform: rotate(var(--angle)) translateY(calc(-1 * var(--orbit-radius))) rotate(calc(-1 * var(--angle)));
+}
+
+.orbitFace {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    animation: orbit-spin 24s linear infinite reverse;
+}
+
+.orbitIcon {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+
+.orbit:hover,
+.orbit:hover .orbitFace,
+.orbit:focus-within,
+.orbit:focus-within .orbitFace,
+.orbit:active,
+.orbit:active .orbitFace {
+    animation-play-state: paused;
+}
+
+.orbitSlot:hover,
+.orbitSlot:focus-visible {
+    color: #111;
+    opacity: 0.55;
+}
+
+.orbitSlot:focus-visible {
+    outline: 2px solid #111;
+    outline-offset: 2px;
+}
+
+@keyframes orbit-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .orbit,
+    .orbitFace {
+        animation: none;
+    }
 }

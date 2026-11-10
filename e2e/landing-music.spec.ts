@@ -1,18 +1,15 @@
 /**
- * @file Главная: нота по нажатию на логотип ведёт на /music.
+ * @file Главная: нота на орбите ведёт на /music.
  * Текстовой ссылки «Слушать» на главной нет.
  * На публичной музыке нет ссылки в приложение расписания.
  */
 import { test, expect } from '@playwright/test';
 
-test('logo tap shows a music note and music page has no app link', async ({ page }) => {
+test('music note on the home orbit opens /music', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
 
-    await expect(page.getByRole('link', { name: 'Музыка' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Слушать' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Показать соцсети студии' }).click();
-
     await expect(page.getByRole('link', { name: 'Telegram' })).toHaveCount(0);
     const note = page.getByRole('link', { name: 'Музыка' });
     await expect(note).toBeVisible();

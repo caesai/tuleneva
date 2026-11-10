@@ -3,10 +3,11 @@
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { LinkIcon, MusicNoteIcon } from '@/components/Icons/Icons.tsx';
 import { PauseIcon, PlayIcon } from '@/components/TrackPlayer/PlayerIcons.tsx';
 import { trackCoverUrl } from '@/api/music.api.ts';
 import type { IMusicTrack } from '@/types/music.types.ts';
-import { LinkChainIcon } from './MusicIcons.tsx';
+import { isPlaceholderCredit } from './credits.ts';
 import css from './MusicPage.module.css';
 
 interface TrackRowsProps {
@@ -16,6 +17,8 @@ interface TrackRowsProps {
     currentId?: string | null;
     /** Идёт ли звук этой строки. */
     playing: boolean;
+    /** Обложка альбома или плейлиста, если у записи своей нет. */
+    fallbackCoverUrl?: string | null;
     /** Открыть запись без старта. */
     onSelect: (id: string) => void;
     /** Слушать или поставить на паузу. */
@@ -31,12 +34,14 @@ export const TrackRows: React.FC<TrackRowsProps> = ({
     tracks,
     currentId,
     playing,
+    fallbackCoverUrl,
     onSelect,
     onPress,
 }) => (
     <ul className={css.list}>
         {tracks.map((track) => {
             const current = track.id === currentId;
+            const cover = track.hasCover ? trackCoverUrl(track.id) : fallbackCoverUrl;
             return (
                 <li key={track.id} className={current ? css.itemCurrent : css.item}>
                     <button
@@ -45,14 +50,18 @@ export const TrackRows: React.FC<TrackRowsProps> = ({
                         onClick={() => onSelect(track.id)}
                         aria-current={current ? 'true' : undefined}
                     >
-                        {track.hasCover ? (
-                            <img className={css.thumb} src={trackCoverUrl(track.id)} alt="" />
+                        {cover ? (
+                            <img className={css.thumb} src={cover} alt="" />
                         ) : (
-                            <span className={css.thumbEmpty} aria-hidden="true" />
+                            <span className={css.thumbEmpty} aria-hidden="true">
+                                <MusicNoteIcon className={css.placeholderIcon} />
+                            </span>
                         )}
                         <span className={css.itemText}>
                             <span className={css.itemTitle}>{track.title}</span>
-                            <span className={css.itemCredits}>{track.credits}</span>
+                            {isPlaceholderCredit(track.credits) ? null : (
+                                <span className={css.itemCredits}>{track.credits}</span>
+                            )}
                         </span>
                     </button>
                     <button
@@ -71,7 +80,7 @@ export const TrackRows: React.FC<TrackRowsProps> = ({
                         aria-label={`Ссылка на «${track.title}»`}
                         title={`Ссылка на «${track.title}»`}
                     >
-                        <LinkChainIcon className={css.shareGlyph} />
+                        <LinkIcon className={css.shareGlyph} />
                     </Link>
                 </li>
             );
