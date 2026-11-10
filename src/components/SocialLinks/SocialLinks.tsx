@@ -3,11 +3,11 @@ import { SOCIAL_LINKS } from '@/config/socialLinks.ts';
 import { SocialLinkIcon } from '@/components/SocialLinks/SocialLinkIcons.tsx';
 import css from '@/components/SocialLinks/SocialLinks.module.css';
 
-/** Раскладка: строка под логотипом или буква Y вокруг центра. */
+/** Раскладка: строка под логотипом или кольцо вокруг центра. */
 export type TSocialLinksLayout = 'row' | 'y';
 
 export interface ISocialLinksProps {
-    /** row — горизонтальный ряд; y — две иконки по бокам сверху и одна снизу (лендинг). */
+    /** row — горизонтальный ряд; y — иконки по кругу вокруг центра (лендинг). */
     layout?: TSocialLinksLayout;
 }
 
@@ -19,13 +19,13 @@ interface IYBranchPosition {
 }
 
 /**
- * Позиции веток Y по часовой: левый верх → правый верх → низ.
- * Порядок SOCIAL_LINKS: telegram, vk, youtube.
+ * Четыре места вокруг логотипа: нота садится в левый нижний угол с теми же
+ * множителями (см. лендинг). Порядок SOCIAL_LINKS: telegram, vk, youtube.
  */
 const Y_BRANCH_POSITIONS: readonly IYBranchPosition[] = [
-    { xMult: -1, yMult: -0.42, delayIndex: 0 },
-    { xMult: 1, yMult: -0.42, delayIndex: 1 },
-    { xMult: 0, yMult: 1, delayIndex: 2 },
+    { xMult: -0.92, yMult: -0.42, delayIndex: 0 },
+    { xMult: 0.92, yMult: -0.42, delayIndex: 1 },
+    { xMult: 0.78, yMult: 0.72, delayIndex: 2 },
 ] as const;
 
 /** Задержка между появлением соседних иконок по часовой, с. */

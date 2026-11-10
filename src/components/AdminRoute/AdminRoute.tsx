@@ -8,7 +8,9 @@ interface AdminRouteProps {
 }
 
 /**
- * Защищённый маршрут: рендерит children только для admin / super_admin.
+ * Защищённый маршрут: рендерит children только для admin / super_admin
+ * с уже установленной сессией. Пока auth ещё читает токен или ждёт init data,
+ * показывает лоадер и не уводит на главную.
  * Неавторизованных и остальных ролей перенаправляет на главную.
  */
 export const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {

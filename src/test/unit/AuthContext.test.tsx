@@ -60,6 +60,13 @@ function EmailLoginProbe() {
     );
 }
 
+const liveJwt = () => {
+    const exp = Math.floor(Date.now() / 1000) + 60 * 60;
+    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+    const body = btoa(JSON.stringify({ exp, userId: '1' }));
+    return `${header}.${body}.sig`;
+};
+
 describe('AuthContext', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -67,7 +74,7 @@ describe('AuthContext', () => {
     });
 
     it('restores session from stored token', async () => {
-        localStorage.setItem('authToken', 'stored-jwt');
+        localStorage.setItem('authToken', liveJwt());
         mockFetch.mockResolvedValueOnce({
             ok: true,
             json: async () => ({
@@ -129,5 +136,81 @@ describe('AuthContext', () => {
         });
         expect(screen.getByTestId('authed').textContent).toBe('false');
         expect(localStorage.getItem('authToken')).toBeNull();
+    });
+
+    it('не зовёт session и не шумит, если JWT уже просрочен', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const exp = Math.floor(Date.now() / 1000) - 120;
+        const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+        const body = btoa(JSON.stringify({ exp, userId: '1' }));
+        localStorage.setItem('authToken', `${header}.${body}.sig`);
+
+        render(
+            <AuthProvider>
+                <Probe />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('loading').textContent).toBe('false');
+        });
+        expect(screen.getByTestId('status').textContent).toBe('anonymous');
+        expect(mockFetch).not.toHaveBeenCalled();
+        expect(localStorage.getItem('authToken')).toBeNull();
+        expect(errorSpy).not.toHaveBeenCalled();
+        errorSpy.mockRestore();
+    });
+
+    it('тихо принимает valid:false и не пишет ошибку в консоль', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        localStorage.setItem('authToken', liveJwt());
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({ valid: false }),
+        });
+
+        render(
+            <AuthProvider>
+                <Probe />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('loading').textContent).toBe('false');
+        });
+        expect(screen.getByTestId('status').textContent).toBe('anonymous');
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(localStorage.getItem('authToken')).toBeNull();
+        expect(errorSpy).not.toHaveBeenCalled();
+        errorSpy.mockRestore();
+    });
+
+    it('повторяет session один раз после сетевого сбоя и тогда входит', async () => {
+        localStorage.setItem('authToken', liveJwt());
+        mockFetch
+            .mockRejectedValueOnce(new Error('offline'))
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    valid: true,
+                    token: 'fresh-jwt',
+                    authProvider: 'web',
+                    user: { _id: '1', first_name: 'A', role: 'admin', isRegistered: true },
+                }),
+            });
+
+        render(
+            <AuthProvider>
+                <Probe />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('status').textContent).toBe('authenticated');
+        });
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(localStorage.getItem('authToken')).toBe('fresh-jwt');
     });
 });

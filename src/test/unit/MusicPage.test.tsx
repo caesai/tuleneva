@@ -41,6 +41,8 @@ describe('MusicPage', () => {
         renderPage();
         expect(await screen.findByText(/Пока здесь тихо/)).toBeInTheDocument();
         expect(play).not.toHaveBeenCalled();
+        expect(screen.queryByRole('link', { name: 'Расписание' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /открыть приложение/i })).not.toBeInTheDocument();
     });
 
     it('даёт повторить загрузку после ошибки', async () => {

@@ -70,7 +70,7 @@ export const buildAuthCapabilities = (
     isAuthenticated: boolean,
 ): IAuthCapabilities => {
     const isGuest = user?.role === 'guest';
-    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const isAdmin = isAuthenticated && (user?.role === 'admin' || user?.role === 'super_admin');
     const canManageBookings = isAuthenticated && !!user && !isGuest;
 
     return {

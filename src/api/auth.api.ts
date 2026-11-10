@@ -14,6 +14,8 @@ const jsonHeaders = {
 
 /**
  * Восстанавливает сессию по JWT из localStorage.
+ * Нет токена, битый или просроченный JWT — 200 и `{ valid: false }`, не ошибка.
+ * @returns Ответ `/api/auth/session`
  */
 export const getAuthSession = async (): Promise<Response> => {
     return fetch(`${AUTH_BASE}/session`, {

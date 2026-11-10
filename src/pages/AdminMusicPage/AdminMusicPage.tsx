@@ -32,10 +32,11 @@ interface PlayerSource {
 
 /**
  * Форма черновика, явная публикация и снятие с эфира.
+ * Список запрашивается после сессии; 401/403 на первом заходе повторяются один раз.
  * @returns Страница /admin/music
  */
 export const AdminMusicPage: React.FC = () => {
-    const { capabilities, isLoading } = useAuth();
+    const { capabilities, isLoading, authStatus } = useAuth();
     const [tracks, setTracks] = useState<IMusicTrack[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -53,8 +54,19 @@ export const AdminMusicPage: React.FC = () => {
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
+        const read = async () => {
+            try {
+                return await fetchManageTracks();
+            } catch (err) {
+                const status = (err as { status?: number }).status;
+                if (status === 401 || status === 403) {
+                    return fetchManageTracks();
+                }
+                throw err;
+            }
+        };
         try {
-            setTracks(await fetchManageTracks());
+            setTracks(await read());
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Не удалось загрузить записи.');
         } finally {
@@ -63,11 +75,11 @@ export const AdminMusicPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (!capabilities.isSuperAdmin) {
+        if (isLoading || authStatus === 'loading' || !capabilities.isSuperAdmin) {
             return;
         }
         void load();
-    }, [capabilities.isSuperAdmin, load]);
+    }, [authStatus, capabilities.isSuperAdmin, isLoading, load]);
 
     useEffect(() => () => {
         if (player?.revoke) {
@@ -202,7 +214,7 @@ export const AdminMusicPage: React.FC = () => {
         }
     };
 
-    if (isLoading) {
+    if (isLoading || authStatus === 'loading') {
         return (
             <main className={css.page} aria-busy="true">
                 <Loader fullScreen={false} />

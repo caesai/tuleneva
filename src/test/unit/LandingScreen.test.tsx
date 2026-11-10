@@ -19,6 +19,7 @@ describe('LandingScreen', () => {
 
         const showButton = screen.getByRole('button', { name: 'Показать соцсети студии' });
 
+        expect(screen.queryByRole('link', { name: 'Слушать' })).not.toBeInTheDocument();
         expect(screen.queryByRole('navigation', { name: 'Соцсети студии' })).not.toBeInTheDocument();
 
         await user.click(showButton);
@@ -26,8 +27,11 @@ describe('LandingScreen', () => {
         expect(screen.getByRole('navigation', { name: 'Соцсети студии' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Telegram' })).toBeInTheDocument();
 
+        expect(screen.getByRole('link', { name: 'Музыка' })).toHaveAttribute('href', '/music');
+
         await user.click(screen.getByRole('button', { name: 'Скрыть соцсети студии' }));
 
         expect(screen.queryByRole('navigation', { name: 'Соцсети студии' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Музыка' })).not.toBeInTheDocument();
     });
 });

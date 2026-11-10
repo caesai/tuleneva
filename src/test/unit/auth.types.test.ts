@@ -23,10 +23,11 @@ describe('auth.types', () => {
             expect(caps.isAdmin).toBe(false);
         });
 
-        it('admin has admin flag', () => {
+        it('admin has admin flag only with a live session', () => {
             const caps = buildAuthCapabilities(baseUser('admin'), true);
             expect(caps.isAdmin).toBe(true);
             expect(caps.isSuperAdmin).toBe(false);
+            expect(buildAuthCapabilities(baseUser('admin'), false).isAdmin).toBe(false);
         });
 
         it('super_admin flag requires a session', () => {

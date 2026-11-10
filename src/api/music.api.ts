@@ -32,7 +32,9 @@ export const fetchPublishedTracks = async (): Promise<IMusicTrack[]> => {
 export const fetchManageTracks = async (): Promise<IMusicTrack[]> => {
     const response = await fetch('/api/music/admin/tracks', { headers: authOnly() });
     if (!response.ok) {
-        throw new Error('Не удалось загрузить записи.');
+        const error = new Error('Не удалось загрузить записи.') as Error & { status?: number };
+        error.status = response.status;
+        throw error;
     }
     const data = await response.json() as { tracks: IMusicTrack[] };
     return data.tracks;
