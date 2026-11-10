@@ -1,17 +1,25 @@
 .page {
+    --ink: #111;
+    --muted: #767676;
+    --heading: 22px;
+    --subheading: 16px;
+    --body: 15px;
+    --radius: 12px;
     width: min(440px, 100%);
     margin: 0 auto;
-    padding: 20px 16px 40px;
+    padding: 24px 16px 40px;
     box-sizing: border-box;
-    color: #111;
+    color: var(--ink);
+    font-size: var(--body);
+    line-height: 1.45;
 }
 
 .header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 8px;
+    margin-bottom: 16px;
 }
 
 .brand {
@@ -24,33 +32,43 @@
     font-weight: 650;
 }
 
-.brandName {
+.brandName,
+.title {
     margin: 0;
-    font-size: inherit;
-    font-weight: inherit;
+    font-size: var(--heading);
+    font-weight: 650;
     line-height: 1.2;
 }
 
 .title {
-    margin: 0 0 16px;
-    font-size: 28px;
-    line-height: 1.15;
-    font-weight: 650;
+    margin-bottom: 16px;
 }
 
 .back {
-    margin: 0 0 12px;
+    margin: 0 0 16px;
 }
 
 .back a {
-    color: #111;
-    font-size: 14px;
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-left: -8px;
+    color: var(--ink);
+    text-decoration: none;
+    border-radius: 50%;
+}
+
+.backIcon {
+    width: 22px;
+    height: 22px;
+    display: block;
 }
 
 .kicker {
-    margin: 0 0 4px;
-    color: #555;
-    font-size: 13px;
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: var(--body);
     font-weight: 650;
 }
 
@@ -58,15 +76,15 @@
     list-style: none;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px 12px;
-    margin: 0 0 28px;
+    gap: 16px 8px;
+    margin: 0 0 24px;
     padding: 0;
 }
 
 .coverCard {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     color: inherit;
     text-decoration: none;
     min-width: 0;
@@ -78,8 +96,8 @@
 .heroCoverEmpty {
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 14px;
-    background: #111;
+    border-radius: var(--radius);
+    background: #f3f3f3;
 }
 
 .cover {
@@ -93,13 +111,15 @@
 }
 
 .coverMeta {
-    color: #555;
-    font-size: 13px;
+    color: var(--muted);
+    font-size: var(--body);
 }
 
 .sectionTitle {
-    margin: 0 0 12px;
-    font-size: 20px;
+    margin: 0 0 16px;
+    font-size: var(--subheading);
+    font-weight: 650;
+    line-height: 1.3;
 }
 
 .singles {
@@ -129,8 +149,9 @@
 
 .lead,
 .empty {
-    margin: 0 0 20px;
-    color: #444;
+    margin: 0 0 16px;
+    color: var(--muted);
+    font-size: var(--body);
     line-height: 1.45;
 }
 
@@ -151,7 +172,7 @@
     align-items: center;
     padding: 8px;
     border: 1px solid #e6e6e6;
-    border-radius: 14px;
+    border-radius: var(--radius);
     background: #fff;
 }
 
@@ -178,7 +199,8 @@
 .share:focus-visible,
 .shareButton:focus-visible,
 .retry:focus-visible,
-.brand:focus-visible {
+.brand:focus-visible,
+.back a:focus-visible {
     outline: 2px solid #111;
     outline-offset: 2px;
 }
@@ -187,7 +209,7 @@
 .thumbEmpty {
     width: 44px;
     height: 44px;
-    border-radius: 8px;
+    border-radius: var(--radius);
     flex-shrink: 0;
 }
 
@@ -196,10 +218,23 @@
     background: #f3f3f3;
 }
 
-.thumbEmpty {
-    background:
-        radial-gradient(circle at center, #fff 0 5px, transparent 6px),
-        #111;
+.thumbEmpty,
+.coverEmpty,
+.heroCoverEmpty {
+    display: grid;
+    place-items: center;
+    color: var(--ink);
+}
+
+.placeholderIcon {
+    width: 22px;
+    height: 22px;
+}
+
+.heroCoverEmpty .placeholderIcon,
+.coverEmpty .placeholderIcon {
+    width: 28px;
+    height: 28px;
 }
 
 .itemText {
@@ -220,20 +255,19 @@
 }
 
 .itemCredits {
-    color: #555;
-    font-size: 13px;
+    color: var(--muted);
+    font-size: var(--body);
 }
 
-.rowPlay,
 .retry {
     min-height: 44px;
-    border: none;
-    border-radius: 999px;
-    background: #111;
-    color: #fff;
+    border: 1px solid var(--ink);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink);
     font: inherit;
-    font-size: 13px;
-    padding: 0 12px;
+    font-size: var(--body);
+    padding: 0 16px;
     cursor: pointer;
 }
 
@@ -242,8 +276,13 @@
     place-items: center;
     width: 44px;
     height: 44px;
+    min-height: 44px;
     padding: 0;
+    border: none;
     border-radius: 50%;
+    background: #111;
+    color: #fff;
+    cursor: pointer;
 }
 
 .rowIcon {
@@ -266,10 +305,6 @@
     color: #111;
     text-decoration: none;
     cursor: pointer;
-}
-
-.shareButton {
-    background: #f3f3f3;
 }
 
 .shareGlyph {

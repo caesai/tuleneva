@@ -14,6 +14,7 @@ import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, toAbsoluteUrl, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import type { IMusicCollection } from '@/types/music.types.ts';
+import { ArrowLeftIcon, MusicNoteIcon } from '@/components/Icons/Icons.tsx';
 import { MusicHeader } from './MusicHeader.tsx';
 import { SharePageButton } from './SharePageButton.tsx';
 import { TrackRows } from './TrackRows.tsx';
@@ -134,7 +135,9 @@ export const MusicCollectionPage: React.FC = () => {
                 ) : null}
             </MusicHeader>
             <p className={css.back}>
-                <Link to="/music">Вся музыка</Link>
+                <Link to="/music" aria-label="Вся музыка" title="Вся музыка">
+                    <ArrowLeftIcon className={css.backIcon} />
+                </Link>
             </p>
 
             {loading ? (
@@ -161,7 +164,9 @@ export const MusicCollectionPage: React.FC = () => {
                             alt={`Обложка «${collection.title}»`}
                         />
                     ) : (
-                        <span className={css.heroCoverEmpty} aria-hidden="true" />
+                        <span className={css.heroCoverEmpty} aria-hidden="true">
+                            <MusicNoteIcon className={css.placeholderIcon} />
+                        </span>
                     )}
                     <p className={css.kicker}>{kindLabel}</p>
                     <h1 className={css.title}>{collection.title}</h1>
@@ -173,6 +178,7 @@ export const MusicCollectionPage: React.FC = () => {
                             tracks={tracks}
                             currentId={trackId}
                             playing={playing}
+                            fallbackCoverUrl={collection.hasCover ? collectionCoverUrl(collection.id) : null}
                             onSelect={setTrackId}
                             onPress={pressRow}
                         />

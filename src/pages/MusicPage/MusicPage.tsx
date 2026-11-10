@@ -17,6 +17,7 @@ import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import type { IMusicCatalog, IMusicCollection, IMusicTrack } from '@/types/music.types.ts';
+import { ArrowLeftIcon, MusicNoteIcon } from '@/components/Icons/Icons.tsx';
 import { MusicHeader } from './MusicHeader.tsx';
 import { TrackRows } from './TrackRows.tsx';
 import css from './MusicPage.module.css';
@@ -163,7 +164,9 @@ export const MusicPage: React.FC = () => {
             <MusicHeader heading={!trackId} />
             {trackId ? (
                 <p className={css.back}>
-                    <Link to="/music">Вся музыка</Link>
+                    <Link to="/music" aria-label="Вся музыка" title="Вся музыка">
+                        <ArrowLeftIcon className={css.backIcon} />
+                    </Link>
                 </p>
             ) : null}
 
@@ -201,7 +204,9 @@ export const MusicPage: React.FC = () => {
                                         alt=""
                                     />
                                 ) : (
-                                    <span className={css.coverEmpty} aria-hidden="true" />
+                                    <span className={css.coverEmpty} aria-hidden="true">
+                                        <MusicNoteIcon className={css.placeholderIcon} />
+                                    </span>
                                 )}
                                 <span className={css.coverTitle}>{collection.title}</span>
                                 <span className={css.coverMeta}>

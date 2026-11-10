@@ -104,6 +104,7 @@ describe('MusicPage', () => {
         expect(screen.queryByText('Тюленева 25')).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Музыка' })).toHaveAttribute('href', '/');
         expect(screen.getByRole('link', { name: 'Ссылка на «Одна»' })).toHaveAttribute('href', '/music/solo');
+        expect(screen.queryByText('Студия')).not.toBeInTheDocument();
         expect(play).not.toHaveBeenCalled();
     });
 
@@ -140,6 +141,9 @@ describe('MusicPage', () => {
         expect(screen.queryByRole('heading', { name: 'Музыка' })).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Музыка' })).toHaveAttribute('href', '/');
         expect(screen.getByRole('button', { name: 'Поделиться' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Вся музыка' })).toHaveAttribute('href', '/music');
+        expect(screen.queryByText('Студия')).not.toBeInTheDocument();
+        expect(document.querySelectorAll('img[src="/api/music/collections/alb/cover"]').length).toBeGreaterThan(1);
         expect(screen.getByText('Альбом')).toBeInTheDocument();
         expect(play).not.toHaveBeenCalled();
         expect(screen.getByRole('img', { name: 'Обложка «Север»' })).toHaveAttribute(

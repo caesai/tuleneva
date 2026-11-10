@@ -2,6 +2,7 @@
  * @file Один плеер: play/pause, соседние записи, перемотка и громкость. Без autoplay.
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { MusicNoteIcon } from '@/components/Icons/Icons.tsx';
 import {
     NextIcon,
     PauseIcon,
@@ -10,6 +11,7 @@ import {
     VolumeIcon,
     VolumeOffIcon,
 } from '@/components/TrackPlayer/PlayerIcons.tsx';
+import { isPlaceholderCredit } from '@/pages/MusicPage/credits.ts';
 import css from './TrackPlayer.module.css';
 
 interface TrackPlayerProps {
@@ -241,11 +243,15 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                         onError={() => setCoverFailed(true)}
                     />
                 ) : (
-                    <span className={css.disc} aria-hidden="true" />
+                    <span className={css.disc} aria-hidden="true">
+                        <MusicNoteIcon className={css.discIcon} />
+                    </span>
                 )}
                 <div className={css.meta}>
                     <p className={css.title}>{title}</p>
-                    <p className={css.credits}>{credits}</p>
+                    {isPlaceholderCredit(credits) ? null : (
+                        <p className={css.credits}>{credits}</p>
+                    )}
                 </div>
             </div>
             <div className={css.controls}>

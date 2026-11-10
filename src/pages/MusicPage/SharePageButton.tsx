@@ -5,7 +5,7 @@ import React from 'react';
 import { ToastContainer } from '@/components/Toast/Toast.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { useToast } from '@/hooks/useToast.ts';
-import { ShareIcon } from './MusicIcons.tsx';
+import { ShareIcon } from '@/components/Icons/Icons.tsx';
 import { copyText, openShareTarget, shareLink } from './shareLink.ts';
 import css from './MusicPage.module.css';
 
