@@ -1,6 +1,6 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
 import React, { useState, useEffect, Suspense, type JSX } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading.ts';
@@ -42,7 +42,7 @@ import { usePageMeta } from '@/hooks/usePageMeta.ts';
  * - Позволяет авторизованным пользователям (или администраторам) отменять свои бронирования.
  * - Обрабатывает взаимодействие с API для бронирования и отмены.
  * - Управляет состоянием выбранной даты, часов для бронирования и часов для отмены.
- * - Привязка почты для входа в браузере открывается иконкой конверта рядом с админкой.
+ * - Привязка почты и вход в админку — колонка иконок над карточкой, справа.
  *
  * @returns {JSX.Element} Отрисованный компонент TimeTablePage.
  */
@@ -310,26 +310,22 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
 
             <TimeTableEmailDialogs auth={emailAuth} />
 
-            <nav className={css.studioNav} aria-label="Разделы студии">
-                <Link to="/music">Музыка</Link>
-            </nav>
-
-            <div className={css.card}>
+            <div className={css.schedule}>
                 {(emailAuth.showEmailLinkForm || isAdmin) && (
-                    <div className={css.cardCornerActions}>
+                    <div className={css.edgeActions}>
                         {emailAuth.showEmailLinkForm && (
                             <button
                                 type="button"
-                                className={css.adminEntryButton}
+                                className={css.edgeButton}
                                 onClick={emailAuth.openEmailLink}
                                 aria-label="Вход в браузере"
                                 title="Вход в браузере"
                             >
                                 <svg
-                                    className={css.adminEntryIcon}
+                                    className={css.edgeIcon}
                                     viewBox="0 0 24 24"
-                                    width="18"
-                                    height="18"
+                                    width="20"
+                                    height="20"
                                     aria-hidden="true"
                                     focusable="false"
                                 >
@@ -343,16 +339,16 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                         {isAdmin && (
                             <button
                                 type="button"
-                                className={css.adminEntryButton}
+                                className={css.edgeButton}
                                 onClick={() => navigate('/admin')}
                                 aria-label="Админ-панель"
                                 title="Админ-панель"
                             >
                                 <svg
-                                    className={css.adminEntryIcon}
+                                    className={css.edgeIcon}
                                     viewBox="0 0 24 24"
-                                    width="18"
-                                    height="18"
+                                    width="20"
+                                    height="20"
                                     aria-hidden="true"
                                     focusable="false"
                                 >
@@ -365,6 +361,8 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                         )}
                     </div>
                 )}
+
+            <div className={css.card}>
                 {showCardLoader ? (
                     <div
                         className={`${css.cardLoader} ${css.cardLoaderFull}`}
@@ -451,6 +449,7 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                     </>
                 )}
             </div>
-        </div >
+            </div>
+        </div>
     );
 };
