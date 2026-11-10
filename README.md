@@ -162,17 +162,29 @@ Node 20 (см. `.node-version`). Integration-тесты используют in-
 
 ### Музыка
 
-Гости слушают опубликованное без входа: страница `/music` и ссылка `/music/:id`. Черновики, загрузка, правка, публикация и снятие — только `super_admin` (роль из `shared/roleLattice.ts`). Обычный `admin` получает 403 на запись и не видит черновик (404). В Mongo лежат название, авторы, описание и ключи объектов. MP3 и обложка — в объектном хранилище.
+Гости слушают опубликованное без входа: страница `/music`, альбом `/music/album/:id`, плейлист `/music/playlist/:id` и старая ссылка на запись `/music/:id`. Черновики, загрузка, правка, публикация и снятие — только `super_admin` (роль из `shared/roleLattice.ts`). Обычный `admin` получает 403 на запись и не видит черновик (404). В Mongo лежат название, авторы, описание и ключи объектов. MP3 и обложка — в объектном хранилище.
+
+Альбом или плейлист — отдельная коллекция с названием, описанием, обложкой, статусом и упорядоченным списком id. Запись может быть в одном альбоме и в нескольких плейлистах. Старые записи без подборки остаются как есть и на `/music` попадают в «Синглы», пока их не включат в опубликованный альбом или плейлист. Отдельная миграция базы не нужна.
 
 | Method | Path | Назначение |
 |--------|------|------------|
+| GET | `/api/music/catalog` | Опубликованные альбомы и плейлисты и синглы без подборки |
+| GET | `/api/music/collections/:id` | Подборка и записи по порядку. Черновик — 404, кроме супер-админа |
+| GET | `/api/music/collections/:id/cover` | Обложка подборки |
+| GET | `/api/music/admin/collections` | Все подборки, включая черновики |
+| POST | `/api/music/admin/collections` | Черновик: JSON `type` (`album` или `playlist`), `title`, `description` |
+| PATCH | `/api/music/admin/collections/:id` | Название, описание, файл `cover` |
+| PUT | `/api/music/admin/collections/:id/tracks` | JSON `{ trackIds }` — состав и порядок |
+| POST | `/api/music/admin/collections/:id/publish` | Публикация подборки |
+| POST | `/api/music/admin/collections/:id/unpublish` | Снова черновик |
+| DELETE | `/api/music/admin/collections/:id` | Удалить подборку и обложку, записи остаются |
 | GET | `/api/music/tracks` | Опубликованные записи |
 | GET | `/api/music/tracks/:id` | Одна опубликованная; черновик только супер-админу |
 | GET | `/api/music/tracks/:id/audio` | MP3, заголовок `Range` |
 | GET | `/api/music/tracks/:id/cover` | Обложка, если есть |
 | GET | `/api/music/admin/tracks` | Все записи, включая черновики |
-| POST | `/api/music/tracks` | Черновик: поля `title`, `credits`, `description`, файл `audio`, необязательный `cover` |
-| PATCH | `/api/music/tracks/:id` | Правка текста и файлов |
+| POST | `/api/music/tracks` | Черновик: поля `title`, `credits`, `description`, необязательный `albumId`, файл `audio`, необязательный `cover` |
+| PATCH | `/api/music/tracks/:id` | Правка текста, файлов и, если передано поле `albumId`, альбома |
 | POST | `/api/music/tracks/:id/publish` | Публикация |
 | POST | `/api/music/tracks/:id/unpublish` | Снова черновик |
 | DELETE | `/api/music/tracks/:id` | Удалить запись и файлы |

@@ -115,3 +115,23 @@ export const parseMusicText = (input: {
     }
     return { ok: true, value: { title, credits, description } };
 };
+
+/**
+ * Проверяет название и описание альбома или плейлиста.
+ * @param input Поля
+ * @returns Текст или сообщение об ошибке
+ */
+export const parseCollectionText = (input: {
+    title?: unknown;
+    description?: unknown;
+}): { ok: true; value: { title: string; description: string } } | { ok: false; message: string } => {
+    const title = cleanText(input.title);
+    const description = cleanText(input.description);
+    if (!title || title.length > TITLE_MAX) {
+        return { ok: false, message: `Название нужно, и оно короче ${TITLE_MAX + 1} символов.` };
+    }
+    if (description.length > DESCRIPTION_MAX) {
+        return { ok: false, message: `Описание короче ${DESCRIPTION_MAX + 1} символов.` };
+    }
+    return { ok: true, value: { title, description } };
+};

@@ -1,43 +1,111 @@
 /**
- * @file Публичная страница музыки. Вход не нужен, автозапуска нет.
+ * @file Каталог музыки и страница одной записи.
+ * Синглы — опубликованные записи, которых нет ни в одном опубликованном альбоме или плейлисте.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { fetchPublishedTracks, trackAudioUrl, trackCoverUrl } from '@/api/music.api.ts';
-import { PauseIcon, PlayIcon } from '@/components/TrackPlayer/PlayerIcons.tsx';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import {
+    collectionCoverUrl,
+    fetchCollection,
+    fetchMusicCatalog,
+    fetchPublishedTrack,
+    trackAudioUrl,
+    trackCoverUrl,
+} from '@/api/music.api.ts';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
-import type { IMusicTrack } from '@/types/music.types.ts';
+import type { IMusicCatalog, IMusicCollection, IMusicTrack } from '@/types/music.types.ts';
+import { TrackRows } from './TrackRows.tsx';
 import css from './MusicPage.module.css';
 
 /**
- * Каталог записей студии и одна панель плеера.
- * Ссылки обратно в приложение расписания здесь нет.
- * @returns Страница /music и /music/:trackId
+ * «1 запись», «2 записи», «5 записей».
+ * @param count Число
+ * @returns Подпись
+ */
+const trackCountLabel = (count: number): string => {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+        return `${count} запись`;
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        return `${count} записи`;
+    }
+    return `${count} записей`;
+};
+
+/**
+ * Подпись типа на карточке.
+ * @param type album или playlist
+ * @returns Альбом или Плейлист
+ */
+const typeLabel = (type: IMusicCollection['type']): string => (
+    type === 'album' ? 'Альбом' : 'Плейлист'
+);
+
+/**
+ * Сетка обложек или одна запись по старой ссылке /music/:trackId.
+ * @returns Страница
  */
 export const MusicPage: React.FC = () => {
     const { trackId } = useParams();
     const navigate = useNavigate();
-    const [tracks, setTracks] = useState<IMusicTrack[]>([]);
+    const location = useLocation();
+    const playOnOpen = Boolean((location.state as { play?: boolean } | null)?.play);
+    const [catalog, setCatalog] = useState<IMusicCatalog>({ collections: [], singles: [] });
+    const [track, setTrack] = useState<IMusicTrack | null>(null);
+    const [album, setAlbum] = useState<IMusicCollection | null>(null);
+    const [missing, setMissing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [reloadKey, setReloadKey] = useState(0);
     const [playRequest, setPlayRequest] = useState(0);
-    const [pauseRequest, setPauseRequest] = useState(0);
-    const [playing, setPlaying] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
         setError(null);
-        fetchPublishedTracks()
-            .then((list) => {
+        setMissing(false);
+        const run = async () => {
+            if (!trackId) {
+                const next = await fetchMusicCatalog();
                 if (!cancelled) {
-                    setTracks(list);
+                    setCatalog(next);
+                    setTrack(null);
+                    setAlbum(null);
                 }
-            })
+                return;
+            }
+            const nextTrack = await fetchPublishedTrack(trackId);
+            if (cancelled) {
+                return;
+            }
+            if (!nextTrack) {
+                setTrack(null);
+                setAlbum(null);
+                setMissing(true);
+                return;
+            }
+            setTrack(nextTrack);
+            if (nextTrack.albumId) {
+                try {
+                    const nextAlbum = await fetchCollection(nextTrack.albumId);
+                    if (!cancelled) {
+                        setAlbum(nextAlbum.type === 'album' ? nextAlbum : null);
+                    }
+                } catch {
+                    if (!cancelled) {
+                        setAlbum(null);
+                    }
+                }
+            } else if (!cancelled) {
+                setAlbum(null);
+            }
+        };
+        run()
             .catch((err: unknown) => {
                 if (!cancelled) {
                     setError(err instanceof Error ? err.message : 'Не удалось загрузить музыку.');
@@ -51,58 +119,43 @@ export const MusicPage: React.FC = () => {
         return () => {
             cancelled = true;
         };
-    }, [reloadKey]);
+    }, [reloadKey, trackId]);
 
-    const selected = tracks.find((track) => track.id === trackId) ?? null;
+    useEffect(() => {
+        if (playOnOpen && track && track.id === trackId) {
+            setPlayRequest((value) => value + 1);
+        }
+    }, [playOnOpen, track, trackId]);
+
     const pageMeta = useMemo<IPageMeta>(() => {
-        if (!selected) {
+        if (!track) {
             return MUSIC_PAGE_META;
         }
         return {
             ...MUSIC_PAGE_META,
-            title: `${selected.title} — Тюленева 25`,
-            description: selected.description || `${selected.title}. ${selected.credits}`,
-            canonicalPath: `/music/${selected.id}`,
+            title: `${track.title} — Тюленева 25`,
+            description: track.description || `${track.title}. ${track.credits}`,
+            canonicalPath: `/music/${track.id}`,
+            ogType: 'music.song',
+            ogImagePath: track.hasCover ? trackCoverUrl(track.id) : MUSIC_PAGE_META.ogImagePath,
+            ogImageAlt: track.title,
         };
-    }, [selected]);
+    }, [track]);
     usePageMeta(pageMeta);
 
-    /**
-     * Открывает запись в адресе, не начиная воспроизведение.
-     * @param id Идентификатор
-     */
-    const selectTrack = (id: string) => {
-        navigate(`/music/${id}`);
-    };
+    const order = album?.tracks ?? [];
+    const selectedIndex = order.findIndex((item) => item.id === track?.id);
 
     /**
-     * Жест пользователя: выбрать запись и попросить плеер стартовать.
+     * Открывает запись. play — сразу просит плеер стартовать.
      * @param id Идентификатор
+     * @param play Начать воспроизведение
      */
-    const playTrack = (id: string) => {
-        navigate(`/music/${id}`);
-        setPlayRequest((value) => value + 1);
+    const openTrack = (id: string, play: boolean) => {
+        navigate(`/music/${id}`, play ? { state: { play: true } } : undefined);
     };
 
-    /**
-     * Кнопка в строке: пауза, если эта запись уже звучит, иначе старт.
-     * @param id Идентификатор
-     */
-    const pressRow = (id: string) => {
-        if (id === trackId && playing) {
-            setPauseRequest((value) => value + 1);
-            return;
-        }
-        playTrack(id);
-    };
-
-    const selectedIndex = tracks.findIndex((track) => track.id === trackId);
-    const playAt = (index: number) => {
-        const track = tracks[index];
-        if (track) {
-            playTrack(track.id);
-        }
-    };
+    const quiet = catalog.collections.length === 0 && catalog.singles.length === 0;
 
     return (
         <main className={css.page}>
@@ -112,10 +165,13 @@ export const MusicPage: React.FC = () => {
                     <span>Тюленева 25</span>
                 </Link>
             </header>
-            <h1 className={css.title}>Музыка</h1>
-            <p className={css.lead}>
-                Записи студии. Слушать можно без входа. Включается только то, что вы нажмёте.
-            </p>
+            {trackId ? (
+                <p className={css.back}>
+                    <Link to="/music">Вся музыка</Link>
+                </p>
+            ) : (
+                <h1 className={css.title}>Музыка</h1>
+            )}
 
             {loading ? (
                 <div className={css.status} aria-busy="true" aria-label="Загрузка музыки">
@@ -132,74 +188,76 @@ export const MusicPage: React.FC = () => {
                 </div>
             ) : null}
 
-            {!loading && !error && tracks.length === 0 ? (
+            {!loading && !error && !trackId && quiet ? (
                 <p className={css.empty}>Пока здесь тихо. Записи появятся, когда студия их опубликует.</p>
             ) : null}
 
-            {tracks.length > 0 ? (
-                <ul className={css.list}>
-                    {tracks.map((track) => {
-                        const current = track.id === trackId;
-                        return (
-                            <li key={track.id} className={current ? css.itemCurrent : css.item}>
-                                <button
-                                    type="button"
-                                    className={css.itemMain}
-                                    onClick={() => selectTrack(track.id)}
-                                    aria-current={current ? 'true' : undefined}
-                                >
-                                    {track.hasCover ? (
-                                        <img
-                                            className={css.thumb}
-                                            src={trackCoverUrl(track.id)}
-                                            alt=""
-                                        />
-                                    ) : (
-                                        <span className={css.thumbEmpty} aria-hidden="true" />
-                                    )}
-                                    <span className={css.itemText}>
-                                        <span className={css.itemTitle}>{track.title}</span>
-                                        <span className={css.itemCredits}>{track.credits}</span>
-                                    </span>
-                                </button>
-                                <button
-                                    type="button"
-                                    className={css.rowPlay}
-                                    onClick={() => pressRow(track.id)}
-                                    aria-label={current && playing ? `Пауза: ${track.title}` : `Слушать: ${track.title}`}
-                                >
-                                    {current && playing
-                                        ? <PauseIcon className={css.rowIcon} />
-                                        : <PlayIcon className={css.rowIcon} />}
-                                </button>
-                                <Link className={css.share} to={`/music/${track.id}`}>
-                                    Ссылка
-                                </Link>
-                            </li>
-                        );
-                    })}
+            {!loading && !error && !trackId && catalog.collections.length > 0 ? (
+                <ul className={css.grid}>
+                    {catalog.collections.map((collection) => (
+                        <li key={collection.id}>
+                            <Link
+                                className={css.coverCard}
+                                to={`/music/${collection.type === 'album' ? 'album' : 'playlist'}/${collection.id}`}
+                            >
+                                {collection.hasCover ? (
+                                    <img
+                                        className={css.cover}
+                                        src={collectionCoverUrl(collection.id)}
+                                        alt=""
+                                    />
+                                ) : (
+                                    <span className={css.coverEmpty} aria-hidden="true" />
+                                )}
+                                <span className={css.coverTitle}>{collection.title}</span>
+                                <span className={css.coverMeta}>
+                                    {typeLabel(collection.type)}
+                                    {' · '}
+                                    {trackCountLabel(collection.trackCount)}
+                                </span>
+                            </Link>
+                        </li>
+                    ))}
                 </ul>
             ) : null}
 
-            {trackId && !loading && !selected ? (
+            {!loading && !error && !trackId && catalog.singles.length > 0 ? (
+                <section className={css.singles}>
+                    <h2 className={css.sectionTitle}>Синглы</h2>
+                    <TrackRows
+                        tracks={catalog.singles}
+                        playing={false}
+                        onSelect={(id) => openTrack(id, false)}
+                        onPress={(id) => openTrack(id, true)}
+                    />
+                </section>
+            ) : null}
+
+            {missing && !loading ? (
                 <p className={css.empty} role="status">Запись не найдена или ещё не опубликована.</p>
             ) : null}
 
-            {selected ? (
-                <TrackPlayer
-                    title={selected.title}
-                    credits={selected.credits}
-                    description={selected.description}
-                    coverUrl={selected.hasCover ? trackCoverUrl(selected.id) : null}
-                    src={trackAudioUrl(selected.id)}
-                    playRequest={playRequest}
-                    pauseRequest={pauseRequest}
-                    hasPrevious={selectedIndex > 0}
-                    hasNext={selectedIndex >= 0 && selectedIndex < tracks.length - 1}
-                    onPlayingChange={setPlaying}
-                    onPrevious={() => playAt(selectedIndex - 1)}
-                    onNext={() => playAt(selectedIndex + 1)}
-                />
+            {track ? (
+                <>
+                    <h1 className={css.title}>{track.title}</h1>
+                    {album ? (
+                        <p className={css.back}>
+                            <Link to={`/music/album/${album.id}`}>{`Альбом «${album.title}»`}</Link>
+                        </p>
+                    ) : null}
+                    <TrackPlayer
+                        title={track.title}
+                        credits={track.credits}
+                        description={track.description}
+                        coverUrl={track.hasCover ? trackCoverUrl(track.id) : null}
+                        src={trackAudioUrl(track.id)}
+                        playRequest={playRequest}
+                        hasPrevious={selectedIndex > 0}
+                        hasNext={selectedIndex >= 0 && selectedIndex < order.length - 1}
+                        onPrevious={() => openTrack(order[selectedIndex - 1].id, true)}
+                        onNext={() => openTrack(order[selectedIndex + 1].id, true)}
+                    />
+                </>
             ) : null}
         </main>
     );

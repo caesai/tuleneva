@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminMusicPage } from '@/pages/AdminMusicPage/AdminMusicPage.tsx';
-import { createMusicDraft } from '@/api/music.api.ts';
+import { createMusicDraft, fetchManageCollections, setCollectionTracks } from '@/api/music.api.ts';
 import { prepareCoverFile } from '@/music/prepareCover.ts';
 
 const auth = vi.hoisted(() => ({
@@ -34,14 +34,22 @@ vi.mock('@/music/prepareCover.ts', () => ({
 
 vi.mock('@/api/music.api.ts', () => ({
     fetchManageTracks: vi.fn().mockResolvedValue([]),
+    fetchManageCollections: vi.fn().mockResolvedValue([]),
     createMusicDraft: vi.fn(),
     updateMusicTrack: vi.fn(),
     publishMusicTrack: vi.fn(),
     unpublishMusicTrack: vi.fn(),
     deleteMusicTrack: vi.fn(),
+    createCollection: vi.fn(),
+    updateCollection: vi.fn(),
+    setCollectionTracks: vi.fn(),
+    publishCollection: vi.fn(),
+    unpublishCollection: vi.fn(),
+    deleteCollection: vi.fn(),
     fetchTrackBlob: vi.fn(),
     trackAudioUrl: (id: string) => `/api/music/tracks/${id}/audio`,
     trackCoverUrl: (id: string) => `/api/music/tracks/${id}/cover`,
+    collectionCoverUrl: (id: string) => `/api/music/collections/${id}/cover`,
 }));
 
 describe('AdminMusicPage', () => {
@@ -119,5 +127,59 @@ describe('AdminMusicPage', () => {
         );
         await user.click(screen.getByRole('button', { name: 'Сохранить черновик' }));
         expect(await screen.findByRole('alert')).toHaveTextContent('Обложка больше 2 МБ');
+    });
+
+    it('поднимает запись в альбоме кнопкой', async () => {
+        auth.isSuperAdmin = true;
+        vi.mocked(fetchManageCollections).mockResolvedValueOnce([
+            {
+                id: 'c',
+                type: 'album',
+                title: 'Север',
+                description: null,
+                hasCover: false,
+                trackCount: 2,
+                publishedAt: null,
+                status: 'draft',
+                tracks: [
+                    {
+                        id: 'a',
+                        title: 'Ночь',
+                        credits: 'Студия',
+                        description: null,
+                        hasCover: false,
+                        publishedAt: null,
+                        status: 'published',
+                    },
+                    {
+                        id: 'b',
+                        title: 'День',
+                        credits: 'Студия',
+                        description: null,
+                        hasCover: false,
+                        publishedAt: null,
+                        status: 'published',
+                    },
+                ],
+            },
+        ]);
+        vi.mocked(setCollectionTracks).mockResolvedValue({
+            id: 'c',
+            type: 'album',
+            title: 'Север',
+            description: null,
+            hasCover: false,
+            trackCount: 2,
+            publishedAt: null,
+        });
+        const user = userEvent.setup();
+        render(
+            <MemoryRouter>
+                <AdminMusicPage />
+            </MemoryRouter>,
+        );
+        await user.click(await screen.findByRole('button', { name: 'Состав: Север' }));
+        await user.click(screen.getByRole('button', { name: 'Выше: День' }));
+        expect(setCollectionTracks).toHaveBeenCalledWith('c', ['b', 'a']);
     });
 });

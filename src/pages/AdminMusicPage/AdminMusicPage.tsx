@@ -4,8 +4,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+    createCollection,
     createMusicDraft,
     deleteMusicTrack,
+    fetchManageCollections,
     fetchManageTracks,
     fetchTrackBlob,
     publishMusicTrack,
@@ -14,12 +16,13 @@ import {
     unpublishMusicTrack,
     updateMusicTrack,
 } from '@/api/music.api.ts';
+import { AdminCollections } from '@/pages/AdminMusicPage/AdminCollections.tsx';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import { prepareCoverFile } from '@/music/prepareCover.ts';
-import type { IMusicTrack } from '@/types/music.types.ts';
+import type { IMusicCollection, IMusicTrack } from '@/types/music.types.ts';
 import css from './AdminMusicPage.module.css';
 
 interface PlayerSource {
@@ -40,6 +43,9 @@ interface PlayerSource {
 export const AdminMusicPage: React.FC = () => {
     const { capabilities, isLoading, authStatus } = useAuth();
     const [tracks, setTracks] = useState<IMusicTrack[]>([]);
+    const [collections, setCollections] = useState<IMusicCollection[]>([]);
+    const [albumChoice, setAlbumChoice] = useState('');
+    const [newAlbumTitle, setNewAlbumTitle] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [title, setTitle] = useState('');
@@ -71,7 +77,18 @@ export const AdminMusicPage: React.FC = () => {
             }
         };
         try {
-            setTracks(await read());
+            const [nextTracks, nextCollections] = await Promise.all([
+                read(),
+                fetchManageCollections().catch((err: unknown) => {
+                    const status = (err as { status?: number }).status;
+                    if (status === 401 || status === 403) {
+                        return fetchManageCollections();
+                    }
+                    throw err;
+                }),
+            ]);
+            setTracks(nextTracks);
+            setCollections(nextCollections);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Не удалось загрузить записи.');
         } finally {
@@ -106,6 +123,8 @@ export const AdminMusicPage: React.FC = () => {
         setAudioFile(null);
         setCoverFile(null);
         setEditingId(null);
+        setAlbumChoice('');
+        setNewAlbumTitle('');
     };
 
     /**
@@ -169,6 +188,30 @@ export const AdminMusicPage: React.FC = () => {
         if (coverFile) {
             body.set('cover', coverFile);
         }
+        let albumId = albumChoice === '__new__' ? '' : albumChoice;
+        if (albumChoice === '__new__') {
+            const albumTitle = newAlbumTitle.trim();
+            if (!albumTitle) {
+                setError('Название альбома нужно.');
+                return;
+            }
+            try {
+                const createdAlbum = await createCollection({
+                    type: 'album',
+                    title: albumTitle,
+                    description: '',
+                });
+                albumId = createdAlbum.id;
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Не удалось создать альбом.');
+                return;
+            }
+        }
+        if (albumId) {
+            body.set('albumId', albumId);
+        } else if (editingId) {
+            body.set('albumId', '');
+        }
         setSaving(true);
         setError(null);
         try {
@@ -194,6 +237,8 @@ export const AdminMusicPage: React.FC = () => {
         setDescription(track.description || '');
         setAudioFile(null);
         setCoverFile(null);
+        setAlbumChoice(track.albumId || '');
+        setNewAlbumTitle('');
         setError(null);
     };
 
@@ -314,6 +359,35 @@ export const AdminMusicPage: React.FC = () => {
                     </span>
                 </label>
                 <label>
+                    Альбом
+                    <select
+                        aria-label="Альбом"
+                        value={albumChoice}
+                        onChange={(event) => setAlbumChoice(event.target.value)}
+                    >
+                        <option value="">Без альбома</option>
+                        {collections
+                            .filter((collection) => collection.type === 'album')
+                            .map((collection) => (
+                                <option key={collection.id} value={collection.id}>
+                                    {collection.title}
+                                </option>
+                            ))}
+                        <option value="__new__">Новый альбом…</option>
+                    </select>
+                </label>
+                {albumChoice === '__new__' ? (
+                    <label>
+                        Название альбома
+                        <input
+                            aria-label="Название альбома"
+                            value={newAlbumTitle}
+                            onChange={(event) => setNewAlbumTitle(event.target.value)}
+                            maxLength={120}
+                        />
+                    </label>
+                ) : null}
+                <label>
                     Обложка
                     <span className={css.filePicker}>
                         <input
@@ -363,7 +437,10 @@ export const AdminMusicPage: React.FC = () => {
                         <li key={track.id} className={css.card}>
                             <div>
                                 <p className={css.cardTitle}>{track.title}</p>
-                                <p className={css.cardCredits}>{track.credits}</p>
+                                <p className={css.cardCredits}>
+                                    {track.credits}
+                                    {track.albumTitle ? ` · ${track.albumTitle}` : ''}
+                                </p>
                                 <p className={track.status === 'published' ? css.published : css.draft}>
                                     {track.status === 'published' ? 'Опубликовано' : 'Черновик'}
                                 </p>
@@ -408,6 +485,13 @@ export const AdminMusicPage: React.FC = () => {
                     ))}
                 </ul>
             )}
+
+            <AdminCollections
+                collections={collections}
+                tracks={tracks}
+                onReload={() => void load()}
+                onError={setError}
+            />
 
             <ModalPopup isOpen={pending !== null} onClose={() => setPending(null)}>
                 {pending ? (

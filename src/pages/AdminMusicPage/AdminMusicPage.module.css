@@ -51,7 +51,11 @@
 }
 
 .form input,
-.form textarea {
+.form textarea,
+.form select,
+.editor input,
+.editor textarea,
+.editor select {
     font: inherit;
     font-weight: 400;
     padding: 8px 10px;
@@ -146,6 +150,74 @@
 
 .error {
     color: #9b1c1c;
+}
+
+.section {
+    margin-top: 28px;
+}
+
+.section h2,
+.form h3 {
+    margin: 0 0 8px;
+}
+
+.editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.editor label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.collectionHead {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.collectionCover,
+.collectionCoverEmpty {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    background: #111;
+}
+
+.collectionCover {
+    object-fit: cover;
+}
+
+.orderList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.orderItem {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.orderTitle {
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
+.orderButton {
+    min-width: 44px;
+    min-height: 44px;
 }
 
 button:focus-visible,
