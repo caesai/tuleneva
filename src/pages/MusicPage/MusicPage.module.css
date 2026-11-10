@@ -128,7 +128,7 @@
 
 .rowPlay,
 .retry {
-    min-height: 40px;
+    min-height: 44px;
     border: none;
     border-radius: 999px;
     background: #111;
@@ -137,6 +137,21 @@
     font-size: 13px;
     padding: 0 12px;
     cursor: pointer;
+}
+
+.rowPlay {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+}
+
+.rowIcon {
+    width: 22px;
+    height: 22px;
+    display: block;
 }
 
 .share {

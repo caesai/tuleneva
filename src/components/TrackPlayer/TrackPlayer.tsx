@@ -1,7 +1,15 @@
 /**
- * @file Один плеер: play/pause, перемотка, без autoplay.
+ * @file Один плеер: play/pause, соседние записи, перемотка и громкость. Без autoplay.
  */
 import React, { useEffect, useRef, useState } from 'react';
+import {
+    NextIcon,
+    PauseIcon,
+    PlayIcon,
+    PreviousIcon,
+    VolumeIcon,
+    VolumeOffIcon,
+} from '@/components/TrackPlayer/PlayerIcons.tsx';
 import css from './TrackPlayer.module.css';
 
 interface TrackPlayerProps {
@@ -17,6 +25,18 @@ interface TrackPlayerProps {
     src: string | null;
     /** Счётчик жеста «слушать». 0 не запускает воспроизведение. */
     playRequest: number;
+    /** Счётчик паузы из списка. 0 ничего не делает. */
+    pauseRequest?: number;
+    /** Есть предыдущая запись в каталоге. */
+    hasPrevious?: boolean;
+    /** Есть следующая запись в каталоге. */
+    hasNext?: boolean;
+    /** Сообщает, идёт ли сейчас звук. */
+    onPlayingChange?: (playing: boolean) => void;
+    /** Предыдущая запись. */
+    onPrevious?: () => void;
+    /** Следующая запись. */
+    onNext?: () => void;
 }
 
 /**
@@ -57,6 +77,12 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
     coverUrl,
     src,
     playRequest,
+    pauseRequest = 0,
+    hasPrevious = false,
+    hasNext = false,
+    onPlayingChange,
+    onPrevious,
+    onNext,
 }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [playing, setPlaying] = useState(false);
@@ -64,6 +90,8 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
     const [duration, setDuration] = useState(0);
     const [mediaError, setMediaError] = useState(false);
     const [coverFailed, setCoverFailed] = useState(false);
+    const [volume, setVolume] = useState(1);
+    const [muted, setMuted] = useState(false);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -108,6 +136,26 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
     useEffect(() => () => {
         audioRef.current?.pause();
     }, []);
+
+    useEffect(() => {
+        if (pauseRequest === 0) {
+            return;
+        }
+        audioRef.current?.pause();
+        setPlaying(false);
+    }, [pauseRequest]);
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) {
+            return;
+        }
+        audio.volume = muted ? 0 : volume;
+    }, [muted, volume, src]);
+
+    useEffect(() => {
+        onPlayingChange?.(playing);
+    }, [onPlayingChange, playing]);
 
     /**
      * Сдвигает позицию на delta секунд.
@@ -199,6 +247,19 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                     <p className={css.title}>{title}</p>
                     <p className={css.credits}>{credits}</p>
                 </div>
+            </div>
+            <div className={css.controls}>
+                {onPrevious && onNext ? (
+                    <button
+                        type="button"
+                        className={css.iconButton}
+                        onClick={onPrevious}
+                        disabled={!hasPrevious}
+                        aria-label="Предыдущая запись"
+                    >
+                        <PreviousIcon className={css.glyph} />
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     className={css.play}
@@ -207,8 +268,19 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                     aria-pressed={playing}
                     aria-label={playing ? `Пауза: ${title}` : `Слушать: ${title}`}
                 >
-                    {playing ? 'Пауза' : 'Слушать'}
+                    {playing ? <PauseIcon className={css.glyph} /> : <PlayIcon className={css.glyph} />}
                 </button>
+                {onPrevious && onNext ? (
+                    <button
+                        type="button"
+                        className={css.iconButton}
+                        onClick={onNext}
+                        disabled={!hasNext}
+                        aria-label="Следующая запись"
+                    >
+                        <NextIcon className={css.glyph} />
+                    </button>
+                ) : null}
             </div>
             <div className={css.seekRow}>
                 <span className={css.time}>{formatTime(current)}</span>
@@ -219,6 +291,9 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                     max={duration || 0}
                     step={0.1}
                     value={Number.isFinite(current) ? current : 0}
+                    style={{
+                        '--fill': `${duration ? Math.min(100, (current / duration) * 100) : 0}%`,
+                    } as React.CSSProperties}
                     disabled={!duration}
                     aria-label="Позиция воспроизведения"
                     aria-valuemin={0}
@@ -234,6 +309,34 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                     }}
                 />
                 <span className={css.time}>{formatTime(duration)}</span>
+            </div>
+            <div className={css.volumeRow}>
+                <button
+                    type="button"
+                    className={css.iconButton}
+                    onClick={() => setMuted((value) => !value)}
+                    aria-label={muted || volume === 0 ? 'Включить звук' : 'Выключить звук'}
+                    aria-pressed={muted || volume === 0}
+                >
+                    {muted || volume === 0
+                        ? <VolumeOffIcon className={css.glyph} />
+                        : <VolumeIcon className={css.glyph} />}
+                </button>
+                <input
+                    className={css.volume}
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={muted ? 0 : volume}
+                    style={{ '--fill': `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
+                    aria-label="Громкость"
+                    onChange={(event) => {
+                        const next = Number(event.target.value);
+                        setVolume(next);
+                        setMuted(next === 0);
+                    }}
+                />
             </div>
             {description ? <p className={css.description}>{description}</p> : null}
             {mediaError ? (
