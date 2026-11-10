@@ -13,6 +13,7 @@ test('logo tap shows a music note and music page has no app link', async ({ page
     await expect(page.getByRole('link', { name: 'Слушать' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Показать соцсети студии' }).click();
 
+    await expect(page.getByRole('link', { name: 'Telegram' })).toHaveCount(0);
     const note = page.getByRole('link', { name: 'Музыка' });
     await expect(note).toBeVisible();
     await note.click();

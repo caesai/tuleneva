@@ -25,7 +25,9 @@ describe('LandingScreen', () => {
         await user.click(showButton);
 
         expect(screen.getByRole('navigation', { name: 'Соцсети студии' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Telegram' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Telegram' })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'ВКонтакте' })).toHaveAttribute('href', 'https://vk.com/tuleneva25');
+        expect(screen.getByRole('link', { name: 'YouTube' })).toBeInTheDocument();
 
         expect(screen.getByRole('link', { name: 'Музыка' })).toHaveAttribute('href', '/music');
 

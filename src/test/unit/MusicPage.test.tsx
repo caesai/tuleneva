@@ -100,7 +100,10 @@ describe('MusicPage', () => {
         expect(album).toHaveTextContent('Альбом');
         expect(album).toHaveTextContent('2 записи');
         expect(screen.getByRole('heading', { name: 'Синглы' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Ссылка' })).toHaveAttribute('href', '/music/solo');
+        expect(screen.getAllByRole('heading', { name: 'Музыка' })).toHaveLength(1);
+        expect(screen.queryByText('Тюленева 25')).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Музыка' })).toHaveAttribute('href', '/');
+        expect(screen.getByRole('link', { name: 'Ссылка на «Одна»' })).toHaveAttribute('href', '/music/solo');
         expect(play).not.toHaveBeenCalled();
     });
 
@@ -134,6 +137,9 @@ describe('MusicPage', () => {
         const user = userEvent.setup();
         renderMusic('/music/album/alb');
         expect(await screen.findByRole('heading', { name: 'Север' })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Музыка' })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Музыка' })).toHaveAttribute('href', '/');
+        expect(screen.getByRole('button', { name: 'Поделиться' })).toBeInTheDocument();
         expect(screen.getByText('Альбом')).toBeInTheDocument();
         expect(play).not.toHaveBeenCalled();
         expect(screen.getByRole('img', { name: 'Обложка «Север»' })).toHaveAttribute(
@@ -158,5 +164,53 @@ describe('MusicPage', () => {
             ogType: 'music.album',
             ogImagePath: '/api/music/collections/alb/cover',
         }));
+    });
+
+    it('копирует ссылку альбома, если нет системного «Поделиться»', async () => {
+        vi.mocked(fetchCollection).mockResolvedValue({
+            id: 'alb',
+            type: 'album',
+            title: 'Север',
+            description: null,
+            hasCover: false,
+            trackCount: 1,
+            publishedAt: '2026-11-01T00:00:00.000Z',
+            tracks: [track('a', 'Ночь')],
+        });
+        Object.defineProperty(navigator, 'share', {
+            configurable: true,
+            value: undefined,
+        });
+        const user = userEvent.setup();
+        renderMusic('/music/album/alb');
+        await user.click(await screen.findByRole('button', { name: 'Поделиться' }));
+        expect(await screen.findByText('Ссылка скопирована')).toBeInTheDocument();
+        expect(await navigator.clipboard.readText()).toBe('https://tuleneva25.ru/music/album/alb');
+    });
+
+    it('на плейлисте делится адресом плейлиста через Web Share', async () => {
+        vi.mocked(fetchCollection).mockResolvedValue({
+            id: 'pl',
+            type: 'playlist',
+            title: 'Вечер',
+            description: null,
+            hasCover: false,
+            trackCount: 1,
+            publishedAt: '2026-11-01T00:00:00.000Z',
+            tracks: [track('a', 'Ночь')],
+        });
+        const share = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'share', {
+            configurable: true,
+            value: share,
+        });
+        const user = userEvent.setup();
+        renderMusic('/music/playlist/pl');
+        expect(await screen.findByText('Плейлист')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Поделиться' }));
+        expect(share).toHaveBeenCalledWith({
+            title: 'Вечер — Тюленева 25',
+            url: 'https://tuleneva25.ru/music/playlist/pl',
+        });
     });
 });

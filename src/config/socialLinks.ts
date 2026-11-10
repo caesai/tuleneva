@@ -15,11 +15,6 @@ export interface ISocialLink {
  */
 export const SOCIAL_LINKS: readonly ISocialLink[] = [
     {
-        id: 'telegram',
-        href: 'https://t.me/tuleneva25_bot',
-        label: 'Telegram',
-    },
-    {
         id: 'vk',
         href: 'https://vk.com/tuleneva25',
         label: 'ВКонтакте',

@@ -14,6 +14,8 @@ import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, toAbsoluteUrl, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import type { IMusicCollection } from '@/types/music.types.ts';
+import { MusicHeader } from './MusicHeader.tsx';
+import { SharePageButton } from './SharePageButton.tsx';
 import { TrackRows } from './TrackRows.tsx';
 import css from './MusicPage.module.css';
 
@@ -121,12 +123,16 @@ export const MusicCollectionPage: React.FC = () => {
 
     return (
         <main className={css.page}>
-            <header className={css.header}>
-                <Link to="/" className={css.brand}>
-                    <img src="/logo_main512.svg" alt="" width={36} height={36} />
-                    <span>Тюленева 25</span>
-                </Link>
-            </header>
+            <MusicHeader>
+                {collection ? (
+                    <SharePageButton
+                        title={`${collection.title} — Тюленева 25`}
+                        url={toAbsoluteUrl(
+                            `/music/${collection.type === 'album' ? 'album' : 'playlist'}/${collection.id}`,
+                        )}
+                    />
+                ) : null}
+            </MusicHeader>
             <p className={css.back}>
                 <Link to="/music">Вся музыка</Link>
             </p>

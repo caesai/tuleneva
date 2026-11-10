@@ -19,13 +19,12 @@ interface IYBranchPosition {
 }
 
 /**
- * Четыре места вокруг логотипа: нота садится в левый нижний угол с теми же
- * множителями (см. лендинг). Порядок SOCIAL_LINKS: telegram, vk, youtube.
+ * Места вокруг логотипа. Нота остаётся в левом нижнем углу (см. лендинг).
+ * Порядок SOCIAL_LINKS: vk справа сверху, youtube справа снизу.
  */
 const Y_BRANCH_POSITIONS: readonly IYBranchPosition[] = [
-    { xMult: -0.92, yMult: -0.42, delayIndex: 0 },
-    { xMult: 0.92, yMult: -0.42, delayIndex: 1 },
-    { xMult: 0.78, yMult: 0.72, delayIndex: 2 },
+    { xMult: 0.92, yMult: -0.42, delayIndex: 0 },
+    { xMult: 0.78, yMult: 0.72, delayIndex: 1 },
 ] as const;
 
 /** Задержка между появлением соседних иконок по часовой, с. */

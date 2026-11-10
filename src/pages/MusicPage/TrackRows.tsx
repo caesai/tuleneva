@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { PauseIcon, PlayIcon } from '@/components/TrackPlayer/PlayerIcons.tsx';
 import { trackCoverUrl } from '@/api/music.api.ts';
 import type { IMusicTrack } from '@/types/music.types.ts';
+import { LinkChainIcon } from './MusicIcons.tsx';
 import css from './MusicPage.module.css';
 
 interface TrackRowsProps {
@@ -64,8 +65,13 @@ export const TrackRows: React.FC<TrackRowsProps> = ({
                             ? <PauseIcon className={css.rowIcon} />
                             : <PlayIcon className={css.rowIcon} />}
                     </button>
-                    <Link className={css.share} to={`/music/${track.id}`}>
-                        Ссылка
+                    <Link
+                        className={css.share}
+                        to={`/music/${track.id}`}
+                        aria-label={`Ссылка на «${track.title}»`}
+                        title={`Ссылка на «${track.title}»`}
+                    >
+                        <LinkChainIcon className={css.shareGlyph} />
                     </Link>
                 </li>
             );
