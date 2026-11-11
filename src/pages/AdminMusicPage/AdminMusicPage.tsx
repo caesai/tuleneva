@@ -1,6 +1,6 @@
 /**
  * @file Библиотека музыки супер-админа: треки, альбомы и плейлисты отдельными списками.
- * Сервер пускает только super_admin; страница повторяет эту границу.
+ * Сверху сводка прослушиваний за 7 дней, в строках — счётчики. Сервер пускает только super_admin.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -11,6 +11,7 @@ import {
     deleteMusicTrack,
     fetchManageCollections,
     fetchManageTracks,
+    fetchMusicStats,
     fetchTrackBlob,
     publishCollection,
     publishMusicTrack,
@@ -36,7 +37,7 @@ import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
-import type { IMusicCollection, IMusicTrack } from '@/types/music.types.ts';
+import type { IMusicCollection, IMusicItemStats, IMusicStats, IMusicTrack } from '@/types/music.types.ts';
 import css from './AdminMusicPage.module.css';
 
 type LibraryTab = 'tracks' | 'albums' | 'playlists';
@@ -87,6 +88,46 @@ const EMPTY_COPY: Record<LibraryTab, string> = {
     playlists: 'Пока нет плейлистов.',
 };
 
+const ZERO_STATS: IMusicItemStats = {
+    plays7d: 0,
+    playsAll: 0,
+    completes7d: 0,
+    completesAll: 0,
+};
+
+/**
+ * «1 прослушивание», «2 прослушивания», «5 прослушиваний».
+ * @param count Число
+ * @returns Подпись
+ */
+const playsLabel = (count: number): string => {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+        return `${count} прослушивание`;
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        return `${count} прослушивания`;
+    }
+    return `${count} прослушиваний`;
+};
+
+/**
+ * Две строки счётчика: окно 7 дней и всё время. Фраза не рвётся посередине числа.
+ * @param props.stats Счётчики или пусто, тогда нули
+ * @returns Абзац
+ */
+const ListenCaption: React.FC<{ stats?: IMusicItemStats }> = ({ stats }) => {
+    const item = stats ?? ZERO_STATS;
+    return (
+        <p className={css.listen}>
+            {`7 дней: ${item.plays7d} прослуш., ${item.completes7d} до конца. `}
+            <br />
+            {`Всего: ${item.playsAll} прослуш., ${item.completesAll} до конца`}
+        </p>
+    );
+};
+
 /**
  * Обложка 44px или нота, если файла нет.
  * @param props.src Адрес обложки
@@ -122,6 +163,8 @@ export const AdminMusicPage: React.FC = () => {
     const { capabilities, isLoading, authStatus } = useAuth();
     const [tracks, setTracks] = useState<IMusicTrack[]>([]);
     const [collections, setCollections] = useState<IMusicCollection[]>([]);
+    const [stats, setStats] = useState<IMusicStats | null>(null);
+    const [statsError, setStatsError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [tab, setTab] = useState<LibraryTab>('tracks');
@@ -160,6 +203,19 @@ export const AdminMusicPage: React.FC = () => {
             ]);
             setTracks(nextTracks);
             setCollections(nextCollections);
+            try {
+                setStats(await fetchMusicStats().catch((err: unknown) => {
+                    const status = (err as { status?: number }).status;
+                    if (status === 401 || status === 403) {
+                        return fetchMusicStats();
+                    }
+                    throw err;
+                }));
+                setStatsError(null);
+            } catch {
+                setStats(null);
+                setStatsError('Статистика не загрузилась.');
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Не удалось загрузить записи.');
         } finally {
@@ -338,6 +394,28 @@ export const AdminMusicPage: React.FC = () => {
                 <p className={css.lead}>
                     Черновик слышите вы. Гости увидят запись только после публикации.
                 </p>
+                {stats ? (
+                    <section className={css.summary} aria-label="Сводка за 7 дней">
+                        <h2 className={css.summaryTitle}>За 7 дней</h2>
+                        <p className={css.summaryMetrics}>
+                            <span>{playsLabel(stats.summary.plays)}</span>
+                            <span>{`до конца ${stats.summary.completes}`}</span>
+                            <span>{`поделились ${stats.summary.shares}`}</span>
+                        </p>
+                        <p className={css.summaryLine}>
+                            {stats.summary.topSources.length > 0
+                                ? `Источники: ${stats.summary.topSources.map((item) => `${item.source || 'без метки'} ${item.count}`).join(', ')}`
+                                : 'Источники: пока нет'}
+                        </p>
+                        <p className={css.summaryLine}>
+                            {stats.summary.topTracks.length > 0
+                                ? `Записи: ${stats.summary.topTracks.map((item) => `${item.title} ${item.plays}`).join(', ')}`
+                                : 'Записи: пока нет'}
+                        </p>
+                    </section>
+                ) : statsError ? (
+                    <p className={css.summaryLine} role="status">{statsError}</p>
+                ) : null}
                 <div className={css.tabs} role="tablist" aria-label="Разделы библиотеки">
                     {(['tracks', 'albums', 'playlists'] as const).map((item) => (
                         <button
@@ -386,6 +464,7 @@ export const AdminMusicPage: React.FC = () => {
                                             {meta ? <span className={css.rowMetaText}>{meta}</span> : null}
                                             <StatusMark published={published} />
                                         </p>
+                                        {stats ? <ListenCaption stats={stats.tracks[track.id]} /> : null}
                                     </div>
                                     <div className={css.rowActions}>
                                         <button
@@ -464,6 +543,11 @@ export const AdminMusicPage: React.FC = () => {
                                             <span className={css.rowMetaText}>{countLabel(collection.trackCount)}</span>
                                             <StatusMark published={published} />
                                         </p>
+                                        {stats ? (
+                                            <ListenCaption
+                                                stats={(collection.type === 'album' ? stats.albums : stats.playlists)[collection.id]}
+                                            />
+                                        ) : null}
                                     </div>
                                     <div className={css.rowActions}>
                                         {published ? (

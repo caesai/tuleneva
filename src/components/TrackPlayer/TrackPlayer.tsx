@@ -1,8 +1,11 @@
 /**
  * @file Один плеер: play/pause, соседние записи, перемотка и громкость. Без autoplay.
+ * На публичной странице `listen` считает play_start и play_complete. В админке пропа нет — предпросмотр не идёт в статистику.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MusicNoteIcon } from '@/components/Icons/Icons.tsx';
+import { type ListenTarget, recordMusicEvent } from '@/music/listenStats.ts';
+import { MUSIC_COMPLETE_RATIO } from '../../../shared/musicListen.ts';
 import {
     NextIcon,
     PauseIcon,
@@ -39,6 +42,11 @@ interface TrackPlayerProps {
     onPrevious?: () => void;
     /** Следующая запись. */
     onNext?: () => void;
+    /**
+     * Публичное прослушивание: id записи и контекст альбома или плейлиста.
+     * Без пропа события не пишутся.
+     */
+    listen?: ListenTarget | null;
 }
 
 /**
@@ -85,9 +93,14 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
     onPlayingChange,
     onPrevious,
     onNext,
+    listen = null,
 }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
+    const listenRef = useRef(listen);
+    const startedRef = useRef(false);
+    const completedRef = useRef(false);
     const [playing, setPlaying] = useState(false);
+    listenRef.current = listen;
     const [current, setCurrent] = useState(0);
     const [duration, setDuration] = useState(0);
     const [mediaError, setMediaError] = useState(false);
@@ -101,6 +114,8 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
             return;
         }
         audio.pause();
+        startedRef.current = false;
+        completedRef.current = false;
         setPlaying(false);
         setCurrent(0);
         setDuration(0);
@@ -158,6 +173,54 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
     useEffect(() => {
         onPlayingChange?.(playing);
     }, [onPlayingChange, playing]);
+
+    /**
+     * Звук реально пошёл. Пауза и продолжение той же записи — не новый старт.
+     */
+    const notePlayStart = useCallback(() => {
+        const target = listenRef.current;
+        if (!target?.trackId || startedRef.current) {
+            return;
+        }
+        startedRef.current = true;
+        completedRef.current = false;
+        recordMusicEvent('play_start', target);
+    }, []);
+
+    /**
+     * Дослушали до порога или до конца файла.
+     * @param audio Элемент
+     * @param ended Событие ended
+     * @param beacon Уход со страницы
+     */
+    const notePlayComplete = useCallback((audio: HTMLAudioElement, ended: boolean, beacon = false) => {
+        const target = listenRef.current;
+        if (!target?.trackId || !startedRef.current || completedRef.current) {
+            return;
+        }
+        const duration = audio.duration;
+        const ratio = Number.isFinite(duration) && duration > 0 ? audio.currentTime / duration : 0;
+        if (!ended && ratio < MUSIC_COMPLETE_RATIO) {
+            return;
+        }
+        completedRef.current = true;
+        recordMusicEvent('play_complete', target, beacon ? { beacon: true } : undefined);
+        if (ended) {
+            startedRef.current = false;
+        }
+    }, []);
+
+    useEffect(() => {
+        const onHide = () => {
+            const audio = audioRef.current;
+            if (!audio) {
+                return;
+            }
+            notePlayComplete(audio, false, true);
+        };
+        window.addEventListener('pagehide', onHide);
+        return () => window.removeEventListener('pagehide', onHide);
+    }, [notePlayComplete]);
 
     /**
      * Сдвигает позицию на delta секунд.
@@ -220,11 +283,18 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                 ref={audioRef}
                 preload="metadata"
                 onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
-                onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
-                onEnded={() => setPlaying(false)}
+                onTimeUpdate={(event) => {
+                    setCurrent(event.currentTarget.currentTime);
+                    notePlayComplete(event.currentTarget, false);
+                }}
+                onEnded={(event) => {
+                    setPlaying(false);
+                    notePlayComplete(event.currentTarget, true);
+                }}
                 onPlay={() => {
                     setPlaying(true);
                     setMediaError(false);
+                    notePlayStart();
                 }}
                 onPause={() => setPlaying(false)}
                 onError={() => {

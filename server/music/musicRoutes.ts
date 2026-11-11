@@ -1,11 +1,14 @@
 /**
- * @file Публичный каталог и публикация музыки. Пишет только super_admin.
+ * @file Публичный каталог, анонимные события прослушивания и публикация.
+ * Пишет каталог только super_admin. События принимает любой гость.
  */
 import express, { type Request, type RequestHandler, type Response } from 'express';
 import mongoose from 'mongoose';
 import MusicTrack, { type MusicTrackDocument } from '../models/MusicTrack';
+import { createRateLimiter } from '../auth/rateLimit';
 import { isSuperAdmin } from '../auth/roleHelpers';
 import { requireSuperAdmin } from '../auth/requireSuperAdmin';
+import { getMusicStats, parsePlainMusicEvent, postMusicEvent } from './musicEvents';
 import type { ObjectStorage } from '../storage/objectStorage';
 import { audioObjectKey, coverObjectKey } from '../storage/objectKey';
 import { detachTrack, placeTrackInAlbum, requireAlbum } from './collectionMembership';
@@ -79,6 +82,36 @@ export const createMusicRouter = ({
 }: MusicRouterOptions) => {
     const router = express.Router();
     const superAdmin = [authenticateToken, verifyUserExists, requireSuperAdmin];
+    /**
+     * Частота по IP в памяти процесса. Адрес в music_events не пишется.
+     * Новый роутер — новый счётчик, чтобы тесты не делили лимит.
+     */
+    const eventsLimiter = createRateLimiter({
+        windowMs: 60_000,
+        max: 60,
+        message: 'Слишком много событий. Подождите немного.',
+    });
+
+    /**
+     * @route POST /api/music/events
+     * @description Анонимное событие прослушивания или шаринга. Стелс-режим календаря не влияет.
+     * JWT необязателен: если участник вошёл, сохраняем его userId.
+     */
+    router.post(
+        '/events',
+        eventsLimiter,
+        express.text({ type: 'text/plain', limit: '8kb' }),
+        optionalAuthenticate,
+        parsePlainMusicEvent,
+        postMusicEvent,
+    );
+
+    /**
+     * @route GET /api/music/admin/stats
+     * @description Сводка за 7 дней и счётчики записей, альбомов и плейлистов.
+     * @access super_admin
+     */
+    router.get('/admin/stats', ...superAdmin, getMusicStats);
 
     /**
      * Хранилище не настроено.

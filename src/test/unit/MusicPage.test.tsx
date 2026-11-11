@@ -188,7 +188,7 @@ describe('MusicPage', () => {
         renderMusic('/music/album/alb');
         await user.click(await screen.findByRole('button', { name: 'Поделиться' }));
         expect(await screen.findByText('Ссылка скопирована')).toBeInTheDocument();
-        expect(await navigator.clipboard.readText()).toBe('https://tuleneva25.ru/music/album/alb');
+        expect(await navigator.clipboard.readText()).toBe('https://tuleneva25.ru/music/album/alb?from=share');
     });
 
     it('на плейлисте делится адресом плейлиста через Web Share', async () => {
@@ -213,7 +213,64 @@ describe('MusicPage', () => {
         await user.click(screen.getByRole('button', { name: 'Поделиться' }));
         expect(share).toHaveBeenCalledWith({
             title: 'Вечер — Тюленева 25',
-            url: 'https://tuleneva25.ru/music/playlist/pl',
+            url: 'https://tuleneva25.ru/music/playlist/pl?from=share',
         });
+    });
+
+    it('считает старт, дослушивание и шаринг и зовёт Метрику теми же id', async () => {
+        localStorage.removeItem('tuleneva:music-dedupe');
+        sessionStorage.clear();
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+        vi.stubGlobal('fetch', fetchMock);
+        const ym = vi.fn();
+        (window as Window & { ym?: typeof ym }).ym = ym;
+        vi.mocked(fetchPublishedTrack).mockResolvedValue(track('a', 'Ночь'));
+        const user = userEvent.setup();
+        renderMusic('/music/a?from=instagram');
+        await user.click(await screen.findByRole('button', { name: 'Слушать: Ночь' }));
+        document.querySelector('audio')?.dispatchEvent(new Event('play'));
+        const start = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+            type: string;
+            trackId: string;
+            source: string;
+        };
+        expect(start.type).toBe('play_start');
+        expect(start.trackId).toBe('a');
+        expect(start.source).toBe('instagram');
+        expect(ym).toHaveBeenCalledWith(98668551, 'reachGoal', 'play_start', {
+            trackId: 'a',
+            source: 'instagram',
+        });
+
+        document.querySelector('audio')?.dispatchEvent(new Event('play'));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        const audio = document.querySelector('audio') as HTMLAudioElement;
+        Object.defineProperty(audio, 'duration', { configurable: true, get: () => 100 });
+        Object.defineProperty(audio, 'currentTime', { configurable: true, get: () => 91 });
+        audio.dispatchEvent(new Event('timeupdate'));
+        const complete = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)) as { type: string };
+        expect(complete.type).toBe('play_complete');
+        expect(ym).toHaveBeenCalledWith(98668551, 'reachGoal', 'play_complete', {
+            trackId: 'a',
+            source: 'instagram',
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Поделиться' }));
+        const shared = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body)) as {
+            type: string;
+            trackId: string;
+            source: string;
+        };
+        expect(shared.type).toBe('share');
+        expect(shared.trackId).toBe('a');
+        expect(shared.source).toBe('instagram');
+        expect(ym).toHaveBeenCalledWith(98668551, 'reachGoal', 'share', {
+            trackId: 'a',
+            source: 'instagram',
+        });
+
+        delete (window as Window & { ym?: unknown }).ym;
+        vi.unstubAllGlobals();
     });
 });
