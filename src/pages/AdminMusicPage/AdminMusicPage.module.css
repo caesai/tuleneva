@@ -198,44 +198,40 @@
 .trackActions {
     grid-column: 1 / -1;
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     margin-top: 6px;
 }
 
 .trackPlay,
-.trackMore,
-.trackPrimary {
+.trackIcon {
     box-sizing: border-box;
-    cursor: pointer;
-}
-
-.trackPlay,
-.trackMore {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 44px;
     height: 44px;
     padding: 0;
-    border-radius: 50%;
+    border: none;
     flex-shrink: 0;
+    cursor: pointer;
 }
 
 .trackPlay {
-    border: none;
+    border-radius: 50%;
     background: #111;
     color: #fff;
 }
 
-.trackMore {
-    border: none;
+.trackIcon {
+    border-radius: 12px;
     background: transparent;
     color: #111;
 }
 
-.trackMore[aria-expanded='true'] {
+.trackIcon:hover {
     background: #f3f3f3;
 }
 
@@ -245,43 +241,8 @@
     display: block;
 }
 
-.trackPrimary {
-    min-height: 44px;
-    padding: 0 14px;
-    border: 1px solid #111;
-    border-radius: 12px;
-    background: #111;
-    color: #fff;
-    font: inherit;
-    font-size: 15px;
-    font-weight: 650;
-}
-
-.trackMenu {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-}
-
-.trackMenu button {
-    min-height: 44px;
-    padding: 0 4px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #111;
-    font: inherit;
-    font-size: 15px;
-    font-weight: 650;
-    text-align: left;
-    cursor: pointer;
-}
-
 .trackDanger {
-    color: #8f2d2d !important;
-    background: transparent !important;
-    border: none !important;
+    color: #8f2d2d;
 }
 
 @media (min-width: 720px) {

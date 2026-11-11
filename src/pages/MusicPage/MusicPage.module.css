@@ -1,47 +1,29 @@
-.page {
+.shell {
     --ink: #111;
     --muted: #767676;
     --heading: 22px;
     --subheading: 16px;
     --body: 15px;
     --radius: 12px;
+    background: #fff;
+    color: var(--ink);
+    min-height: 100vh;
+}
+
+.page {
     width: min(440px, 100%);
     margin: 0 auto;
     padding: 24px 16px 40px;
     box-sizing: border-box;
-    color: var(--ink);
     font-size: var(--body);
     line-height: 1.45;
 }
 
-.header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 16px;
-}
-
-.brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    color: inherit;
-    text-decoration: none;
-    font-weight: 650;
-}
-
-.brandName,
 .title {
-    margin: 0;
+    margin: 0 0 16px;
     font-size: var(--heading);
     font-weight: 650;
     line-height: 1.2;
-}
-
-.title {
-    margin-bottom: 16px;
 }
 
 .back {
@@ -49,20 +31,9 @@
 }
 
 .back a {
-    display: inline-grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    margin-left: -8px;
     color: var(--ink);
+    font-weight: 650;
     text-decoration: none;
-    border-radius: 50%;
-}
-
-.backIcon {
-    width: 22px;
-    height: 22px;
-    display: block;
 }
 
 .kicker {
@@ -199,7 +170,6 @@
 .share:focus-visible,
 .shareButton:focus-visible,
 .retry:focus-visible,
-.brand:focus-visible,
 .back a:focus-visible {
     outline: 2px solid #111;
     outline-offset: 2px;
@@ -300,7 +270,7 @@
     flex-shrink: 0;
     padding: 0;
     border: none;
-    border-radius: 50%;
+    border-radius: 12px;
     background: transparent;
     color: #111;
     text-decoration: none;

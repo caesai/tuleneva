@@ -155,6 +155,57 @@ export const MoreIcon: React.FC<IconProps> = ({ className }) => (
 );
 
 /**
+ * Опубликовать: стрелка вверх из строки.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const PublishIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="M12 15V5" />
+        <path d="m7.5 9.5 4.5-4.5 4.5 4.5" />
+        <path d="M5 19h14" />
+    </LineIcon>
+);
+
+/**
+ * Снять с публикации: стрелка вниз к строке.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const UnpublishIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="M12 5v10" />
+        <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+        <path d="M5 20h14" />
+    </LineIcon>
+);
+
+/**
+ * Изменить запись.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const PencilIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7.5 18.5 3.5 19.5l1-4Z" />
+    </LineIcon>
+);
+
+/**
+ * Удалить запись.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const TrashIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="M4 7h16" />
+        <path d="M9 7V5h6v2" />
+        <path d="M7 7l1 13h8l1-13" />
+    </LineIcon>
+);
+
+/**
  * Треугольник play. Заливка: только внутри чёрной кнопки.
  * @param props.className Размер
  * @returns SVG

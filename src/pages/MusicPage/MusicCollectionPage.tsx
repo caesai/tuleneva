@@ -1,8 +1,9 @@
 /**
  * @file Страница альбома или плейлиста: обложка, текст и плеер по порядку подборки.
+ * Назад и «Поделиться» живут в общей липкой шапке.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
     collectionCoverUrl,
     fetchCollection,
@@ -14,8 +15,8 @@ import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, toAbsoluteUrl, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import type { IMusicCollection } from '@/types/music.types.ts';
-import { ArrowLeftIcon, MusicNoteIcon } from '@/components/Icons/Icons.tsx';
-import { MusicHeader } from './MusicHeader.tsx';
+import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
+import { MusicNoteIcon } from '@/components/Icons/Icons.tsx';
 import { SharePageButton } from './SharePageButton.tsx';
 import { TrackRows } from './TrackRows.tsx';
 import css from './MusicPage.module.css';
@@ -123,8 +124,8 @@ export const MusicCollectionPage: React.FC = () => {
     };
 
     return (
-        <main className={css.page}>
-            <MusicHeader>
+        <main className={css.shell}>
+            <AppHeader title="Музыка" backTo="/music" backLabel="Вся музыка">
                 {collection ? (
                     <SharePageButton
                         title={`${collection.title} — Тюленева 25`}
@@ -133,12 +134,8 @@ export const MusicCollectionPage: React.FC = () => {
                         )}
                     />
                 ) : null}
-            </MusicHeader>
-            <p className={css.back}>
-                <Link to="/music" aria-label="Вся музыка" title="Вся музыка">
-                    <ArrowLeftIcon className={css.backIcon} />
-                </Link>
-            </p>
+            </AppHeader>
+            <div className={css.page}>
 
             {loading ? (
                 <div className={css.status} aria-busy="true" aria-label="Загрузка музыки">
@@ -201,6 +198,7 @@ export const MusicCollectionPage: React.FC = () => {
                     ) : null}
                 </>
             ) : null}
+            </div>
         </main>
     );
 };

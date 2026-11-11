@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminMusicPage } from '@/pages/AdminMusicPage/AdminMusicPage.tsx';
-import { createMusicDraft, fetchManageCollections, setCollectionTracks } from '@/api/music.api.ts';
+import { createMusicDraft, fetchManageCollections, fetchManageTracks, setCollectionTracks } from '@/api/music.api.ts';
 import { prepareCoverFile } from '@/music/prepareCover.ts';
 
 const auth = vi.hoisted(() => ({
@@ -88,6 +88,33 @@ describe('AdminMusicPage', () => {
         await user.upload(input, new File(['heic'], 'IMG_0001.HEIC', { type: '' }));
         expect(await screen.findByText('cover.jpg')).toBeInTheDocument();
         expect(prepareCoverFile).toHaveBeenCalled();
+    });
+
+    it('показывает действия записи значками и спрашивает перед удалением', async () => {
+        auth.isSuperAdmin = true;
+        vi.mocked(fetchManageTracks).mockResolvedValueOnce([
+            {
+                id: 't1',
+                title: 'Ночь',
+                credits: 'Север',
+                description: null,
+                hasCover: false,
+                publishedAt: null,
+                status: 'draft',
+            },
+        ]);
+        const user = userEvent.setup();
+        render(
+            <MemoryRouter>
+                <AdminMusicPage />
+            </MemoryRouter>,
+        );
+        expect(await screen.findByRole('button', { name: 'Слушать Ночь' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Опубликовать «Ночь»' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Изменить «Ночь»' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Действия Ночь' })).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Удалить «Ночь»' }));
+        expect(await screen.findByRole('heading', { name: 'Удалить «Ночь»?' })).toBeInTheDocument();
     });
 
     it('показывает русскую ошибку, если фото не открылось', async () => {

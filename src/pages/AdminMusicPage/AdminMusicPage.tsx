@@ -18,7 +18,7 @@ import {
     updateMusicTrack,
 } from '@/api/music.api.ts';
 import { AdminCollections } from '@/pages/AdminMusicPage/AdminCollections.tsx';
-import { MoreIcon, PlayIcon } from '@/components/Icons/Icons.tsx';
+import { PencilIcon, PlayIcon, PublishIcon, TrashIcon, UnpublishIcon } from '@/components/Icons/Icons.tsx';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
@@ -63,7 +63,6 @@ export const AdminMusicPage: React.FC = () => {
     const [player, setPlayer] = useState<PlayerSource | null>(null);
     const [playRequest, setPlayRequest] = useState(0);
     const [pending, setPending] = useState<{ id: string; action: 'unpublish' | 'delete'; title: string } | null>(null);
-    const [menuId, setMenuId] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -320,7 +319,7 @@ export const AdminMusicPage: React.FC = () => {
             <AppHeader title="Музыка" backTo="/admin" backLabel="Назад" />
             <div className={css.body}>
             <p className={css.lead}>
-                Черновик слышите вы. Гости увидят запись только после «Опубликовать».
+                Черновик слышите вы. Гости увидят запись только после публикации.
                 Файлы уходят в объектное хранилище, не в базу.
             </p>
 
@@ -436,7 +435,6 @@ export const AdminMusicPage: React.FC = () => {
                 <ul className={css.list}>
                     {tracks.map((track) => {
                         const published = track.status === 'published';
-                        const menuOpen = menuId === track.id;
                         return (
                             <li key={track.id} className={css.track}>
                                 <div className={css.trackMain}>
@@ -454,14 +452,27 @@ export const AdminMusicPage: React.FC = () => {
                                         type="button"
                                         className={css.trackPlay}
                                         aria-label={`Слушать ${track.title}`}
+                                        title={`Слушать ${track.title}`}
                                         onClick={() => void listen(track)}
                                     >
                                         <PlayIcon className={css.trackPlayIcon} />
                                     </button>
-                                    {published ? null : (
+                                    {published ? (
                                         <button
                                             type="button"
-                                            className={css.trackPrimary}
+                                            className={css.trackIcon}
+                                            aria-label={`Снять «${track.title}» с публикации`}
+                                            title="Снять с публикации"
+                                            onClick={() => setPending({ id: track.id, action: 'unpublish', title: track.title })}
+                                        >
+                                            <UnpublishIcon className={css.trackPlayIcon} />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className={css.trackIcon}
+                                            aria-label={`Опубликовать «${track.title}»`}
+                                            title="Опубликовать"
                                             onClick={() => {
                                                 void publishMusicTrack(track.id)
                                                     .then(() => load())
@@ -470,53 +481,28 @@ export const AdminMusicPage: React.FC = () => {
                                                     });
                                             }}
                                         >
-                                            Опубликовать
+                                            <PublishIcon className={css.trackPlayIcon} />
                                         </button>
                                     )}
                                     <button
                                         type="button"
-                                        className={css.trackMore}
-                                        aria-expanded={menuOpen}
-                                        aria-label={`Действия ${track.title}`}
-                                        onClick={() => setMenuId(menuOpen ? null : track.id)}
+                                        className={css.trackIcon}
+                                        aria-label={`Изменить «${track.title}»`}
+                                        title="Изменить"
+                                        onClick={() => beginEdit(track)}
                                     >
-                                        <MoreIcon className={css.trackPlayIcon} />
+                                        <PencilIcon className={css.trackPlayIcon} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`${css.trackIcon} ${css.trackDanger}`}
+                                        aria-label={`Удалить «${track.title}»`}
+                                        title="Удалить"
+                                        onClick={() => setPending({ id: track.id, action: 'delete', title: track.title })}
+                                    >
+                                        <TrashIcon className={css.trackPlayIcon} />
                                     </button>
                                 </div>
-                                {menuOpen ? (
-                                    <div className={css.trackMenu}>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setMenuId(null);
-                                                beginEdit(track);
-                                            }}
-                                        >
-                                            Изменить
-                                        </button>
-                                        {published ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setMenuId(null);
-                                                    setPending({ id: track.id, action: 'unpublish', title: track.title });
-                                                }}
-                                            >
-                                                Снять с публикации
-                                            </button>
-                                        ) : null}
-                                        <button
-                                            type="button"
-                                            className={css.trackDanger}
-                                            onClick={() => {
-                                                setMenuId(null);
-                                                setPending({ id: track.id, action: 'delete', title: track.title });
-                                            }}
-                                        >
-                                            Удалить
-                                        </button>
-                                    </div>
-                                ) : null}
                             </li>
                         );
                     })}
