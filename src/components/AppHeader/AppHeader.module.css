@@ -1,0 +1,67 @@
+/**
+ * @file Верхняя шапка расписания и админки. Липкая, с учётом выреза и шапки Telegram.
+ */
+.bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    align-self: stretch;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 56px;
+    padding-top: calc(8px + max(env(safe-area-inset-top, 0px), var(--tg-viewport-content-safe-area-inset-top, 0px)));
+    padding-right: calc(8px + max(env(safe-area-inset-right, 0px), var(--tg-viewport-content-safe-area-inset-right, 0px)));
+    padding-bottom: 8px;
+    padding-left: calc(8px + max(env(safe-area-inset-left, 0px), var(--tg-viewport-content-safe-area-inset-left, 0px)));
+    background: #fff;
+    border-bottom: 1px solid #e6e6e6;
+}
+
+.lead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.2;
+}
+
+.brand,
+.back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    color: #111;
+    border-radius: 12px;
+}
+
+.mark {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+
+.icon {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}

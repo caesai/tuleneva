@@ -8,6 +8,9 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { ScrollToTop } from '@/navigation/ScrollToTop.tsx';
 import { swipeBehavior } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
+import { ThemeProvider } from '@mui/material/styles';
+import { appTheme } from '@/theme/appTheme.ts';
+import ui from '@/theme/ui.module.css';
 import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
@@ -104,83 +107,83 @@ const IndexPage: React.FC = () => {
     return (
         <>
             <ToastContainer toasts={toasts} onRemove={removeToast} />
-            <ModalPopup isOpen={isModalOpen} onClose={closeModal}>
-                <div>
-                    <h3>Тюленева 25</h3>
-                    <p>
+            <ModalPopup isOpen={isModalOpen} onClose={closeModal} title="Тюленева 25">
+                <div className={ui.stack}>
+                    <p className={ui.lead}>
                         {isAuthenticated && user?.role === 'guest'
                             ? 'Ваш аккаунт ожидает подтверждения администратором. Вы пока не можете бронировать репетиции.'
                             : 'Для доступа к бронированию необходима авторизация.'}
                     </p>
-                    <button onClick={handleConfirm} style={{ marginTop: '10px', padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#007aff', color: 'white' }}>
-                        Понятно
-                    </button>
-                    {user?.role === 'guest' && (
-                        <button
-                            style={{ marginTop: '10px', padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#007aff', color: 'white' }}
-                            onClick={handleRequestAccess}
-                        >
-                            Запросить доступ
+                    <div className={ui.actions}>
+                        <button type="button" className={ui.secondary} onClick={handleConfirm}>
+                            Понятно
                         </button>
-                    )}
+                        {user?.role === 'guest' && (
+                            <button type="button" className={ui.primary} onClick={handleRequestAccess}>
+                                Запросить доступ
+                            </button>
+                        )}
+                    </div>
                 </div>
             </ModalPopup>
 
             {/* Модальное окно для инвайт-ссылки */}
-            <ModalPopup isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '260px' }}>
-                    <h3 style={{ margin: 0 }}>Тюленева 25</h3>
-                    <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.4' }}>
+            <ModalPopup isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} title="Тюленева 25">
+                <div className={ui.stack}>
+                    <p className={ui.lead}>
                         {showWebInviteForm
                             ? 'Вы были приглашены. Заполните форму, чтобы запросить доступ к бронированию репетиций.'
                             : 'Вы были приглашены. Нажмите кнопку ниже, чтобы запросить доступ к бронированию репетиций.'}
                     </p>
                     {showWebInviteForm && (
                         <>
-                            <input
-                                type="text"
-                                placeholder="Имя *"
-                                value={webFirstName}
-                                onChange={(e) => setWebFirstName(e.target.value)}
-                                style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ccc' }}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Фамилия"
-                                value={webLastName}
-                                onChange={(e) => setWebLastName(e.target.value)}
-                                style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ccc' }}
-                            />
+                            <label className={ui.label}>
+                                Имя
+                                <input
+                                    className={ui.field}
+                                    type="text"
+                                    name="given-name"
+                                    autoComplete="given-name"
+                                    placeholder="Имя"
+                                    value={webFirstName}
+                                    onChange={(e) => setWebFirstName(e.target.value)}
+                                    required
+                                />
+                            </label>
+                            <label className={ui.label}>
+                                Фамилия
+                                <input
+                                    className={ui.field}
+                                    type="text"
+                                    name="family-name"
+                                    autoComplete="family-name"
+                                    placeholder="Фамилия"
+                                    value={webLastName}
+                                    onChange={(e) => setWebLastName(e.target.value)}
+                                />
+                            </label>
                         </>
                     )}
-                    <button
-                        onClick={handleInviteRequestAccess}
-                        disabled={inviteLoading}
-                        style={{
-                            marginTop: '4px',
-                            padding: '10px 16px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: '#007aff',
-                            color: 'white',
-                            fontSize: '14px',
-                            fontWeight: 500,
-                            cursor: inviteLoading ? 'not-allowed' : 'pointer',
-                            opacity: inviteLoading ? 0.6 : 1,
-                        }}
-                    >
-                        {inviteLoading ? 'Отправка...' : 'Запросить доступ'}
-                    </button>
+                    <div className={ui.actions}>
+                        <button
+                            type="button"
+                            className={ui.primary}
+                            onClick={handleInviteRequestAccess}
+                            disabled={inviteLoading}
+                        >
+                            {inviteLoading ? 'Отправка...' : 'Запросить доступ'}
+                        </button>
+                    </div>
                 </div>
             </ModalPopup>
 
             <ModalPopup
                 isOpen={EMAIL_AUTH_UI_ENABLED && isLinkEmailOpen}
                 onClose={() => setIsLinkEmailOpen(false)}
+                title="Привяжите почту"
             >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '280px' }}>
-                    <h3 style={{ margin: 0 }}>Привяжите почту</h3>
-                    <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.4' }}>
+                <div className={ui.stack}>
+                    <p className={ui.lead}>
                         Без почты сессия в браузере действует одни сутки. После
                         подтверждения письма сможете войти снова. Можно закрыть
                         и привязать позже в расписании.
@@ -216,19 +219,11 @@ const IndexPage: React.FC = () => {
                             }
                         }}
                     />
-                    <button
-                        type="button"
-                        onClick={() => setIsLinkEmailOpen(false)}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: '8px',
-                            border: '1px solid #ccc',
-                            background: 'transparent',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        Позже
-                    </button>
+                    <div className={ui.actions}>
+                        <button type="button" className={ui.secondary} onClick={() => setIsLinkEmailOpen(false)}>
+                            Позже
+                        </button>
+                    </div>
                 </div>
             </ModalPopup>
 
@@ -253,6 +248,7 @@ const App: React.FC = () => {
     const platform = ['macos', 'ios'].includes(lp.tgWebAppPlatform) ? 'ios' : 'base';
 
     return (
+        <ThemeProvider theme={appTheme}>
         <AppRoot appearance="light" platform={platform}>
             <NetworkProvider>
                 <WebSocketProvider>
@@ -289,6 +285,7 @@ const App: React.FC = () => {
                 </WebSocketProvider>
             </NetworkProvider>
         </AppRoot>
+        </ThemeProvider>
     );
 };
 

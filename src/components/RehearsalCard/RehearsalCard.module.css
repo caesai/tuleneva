@@ -1,76 +1,40 @@
+/**
+ * @file Карточка репетиции: время крупно, имя и коллектив приглушены, тип — цветной чип.
+ */
 .slot {
     width: 100%;
-    padding: 0.5em 1em;
-    padding-top: 25px;
-    margin-bottom: 0.5em;
+    padding: 14px;
     box-sizing: border-box;
 }
 
-.avatar {
-    width: 14px;
-    height: 14px;
+.row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
 }
 
-.usernameContainer {
+.identity {
+    min-width: 0;
+    flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: start;
-    align-items: start;
-    min-width: 0;
-    flex: 1;
+    gap: 2px;
 }
 
-.username {
-    font-weight: 600;
-    white-space: nowrap;
-    font-size: 14px;
+.time {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+.name,
+.band {
+    margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
-}
-
-/**
-* TODO: Убрать весь этот элемент в отдельный компонент
-*/
-.time {
-    font-weight: 600;
-    font-size: 12px;
-    word-break: break-word;
-    max-width: 100%;
-}
-
-.timeContainer {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 1em;
-    min-width: 0;
-    width: 100%;
-}
-
-.username {
-    flex: 1;
-    text-align: center;
-}
-
-.bandIcon {
-    font-size: 20px;
-    display: inline-flex;
-    width: 38px;
-    height: 36px;
-    justify-content: center;
-}
-
-.bandName {
-    font-style: italic;
-    text-align: left;
-    font-size: 18px;
-    line-height: 18px;
-}
-
-.rehearsalTypes {
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    justify-content: end;
+    white-space: nowrap;
+    color: #767676;
+    font-size: 15px;
 }

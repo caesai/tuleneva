@@ -130,6 +130,18 @@ export const ShieldIcon: React.FC<IconProps> = ({ className }) => (
 );
 
 /**
+ * Крестик закрытия. Тот же контур 1.75, без заливки.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const CloseIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="M6 6 18 18" />
+        <path d="M18 6 6 18" />
+    </LineIcon>
+);
+
+/**
  * Треугольник play. Заливка: только внутри чёрной кнопки.
  * @param props.className Размер
  * @returns SVG

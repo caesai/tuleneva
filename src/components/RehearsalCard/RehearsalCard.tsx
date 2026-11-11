@@ -1,6 +1,8 @@
 import React, { type JSX } from "react"
-import { Card, Chip } from "@mui/material";
+import { Card } from "@mui/material";
 import css from '@/components/RehearsalCard/RehearsalCard.module.css';
+import ui from '@/theme/ui.module.css';
+import { rehearsalTypeChipClass } from '@/theme/rehearsalChips.ts';
 import type { TRehearsalType } from "@/types/timetable.types";
 import { SafeAvatar } from '@/components/SafeAvatar/SafeAvatar.tsx';
 
@@ -80,35 +82,31 @@ export const RehearsalCard: React.FC<IRehearsalCardProps> = ({
 }): JSX.Element => {
     const displayName = canViewUserDetails ? username : 'Забронировано';
     const avatarSrc = canViewUserDetails && photoUrl ? photoUrl : undefined;
+    const typeLabel = rehearsalType === 'rehearsal'
+        ? 'Репетиция'
+        : rehearsalType === 'recording'
+            ? 'Запись'
+            : 'Съемка';
 
     return (
-        <Card className={css.slot}>
-            <div className={css.timeContainer}>
+        <Card className={css.slot} elevation={0}>
+            <div className={css.row}>
                 <SafeAvatar
                     src={avatarSrc}
                     fallback={getAvatarFallback(username, canViewUserDetails)}
                     timeoutMs={1200}
-                    className={css.avatar}
-                    sx={{ width: 36, height: 36, border: '1px solid' }}
+                    sx={{ width: 44, height: 44, fontSize: 16 }}
                 />
-                <div className={css.usernameContainer}>
-                    <span className={css.username}>{displayName}</span>
-                    <span className={css.time}>🕓 {formatSelectedHoursRange(selectedHours)}</span>
+                <div className={css.identity}>
+                    <p className={css.time}>{formatSelectedHoursRange(selectedHours)}</p>
+                    <p className={css.name}>{displayName}</p>
+                    {bookingBandName && canViewUserDetails ? (
+                        <p className={css.band}>{bookingBandName}</p>
+                    ) : null}
                 </div>
-            </div>
-            {bookingBandName && canViewUserDetails && (
-                <div className={css.timeContainer} style={{ marginTop: '10px' }}>
-                    <span className={css.bandIcon}>🎸 </span>
-                    <span className={css.bandName}>{bookingBandName}</span>
-                </div>
-            )}
-            <div className={css.rehearsalTypes}>
-                <Chip
-                    variant="outlined"
-                    color={rehearsalType === 'rehearsal' ? 'info' : rehearsalType === 'recording' ? 'error' : 'success'}
-                    size="small" label={rehearsalType === 'rehearsal' ? 'Репетиция' : rehearsalType === 'recording' ? 'Запись' : 'Съемка'}
-                    sx={{ fontSize: 10, marginTop: '5px' }}
-                />
+                <span className={`${ui.chip} ${ui.chipStatic} ${rehearsalTypeChipClass(rehearsalType)}`}>
+                    {typeLabel}
+                </span>
             </div>
         </Card>
     )

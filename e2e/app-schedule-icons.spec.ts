@@ -1,6 +1,6 @@
 /**
  * @file Расписание /app на iPhone: календарь по центру на прежней ширине,
- * иконки — плавающая колонка справа снизу, не на стрелках и слотах.
+ * почта и админка — в верхней шапке, не на стрелках и слотах.
  */
 import { devices, expect, test, type Page } from '@playwright/test';
 
@@ -95,8 +95,8 @@ test('на расписании нет входа в музыку, иконки 
     expect(emailBox.height).toBeGreaterThanOrEqual(44);
     expect(adminBox.width).toBeGreaterThanOrEqual(44);
     expect(adminBox.height).toBeGreaterThanOrEqual(44);
-    expect(emailBox.y + emailBox.height).toBeLessThanOrEqual(adminBox.y + 1);
-    expect(Math.abs(emailBox.x - adminBox.x)).toBeLessThanOrEqual(2);
+    expect(emailBox.x + emailBox.width).toBeLessThanOrEqual(adminBox.x + 1);
+    expect(Math.abs(emailBox.y - adminBox.y)).toBeLessThanOrEqual(2);
     expect(overlaps(emailBox, nextBox)).toBe(false);
     expect(overlaps(adminBox, nextBox)).toBe(false);
 
@@ -124,8 +124,11 @@ test('на расписании нет входа в музыку, иконки 
         expect(overlaps(adminBox, slotBox)).toBe(false);
     }
 
-    const emailStyle = await email.evaluate((node) => getComputedStyle(node.parentElement!).position);
-    expect(emailStyle).toBe('fixed');
+    const headerPosition = await email.evaluate((node) => {
+        const header = node.closest('header');
+        return header ? getComputedStyle(header).position : '';
+    });
+    expect(headerPosition).toBe('sticky');
 
     await page.screenshot({
         path: '/opt/cursor/artifacts/app-schedule-pill-iphone.png',

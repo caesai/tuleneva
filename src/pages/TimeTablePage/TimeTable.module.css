@@ -7,9 +7,11 @@
     align-items: center;
     gap: 12px;
     box-sizing: border-box;
-    padding-top: env(safe-area-inset-top, 0px);
     padding-right: env(safe-area-inset-right, 0px);
     padding-left: env(safe-area-inset-left, 0px);
+    background: #fff;
+    color: #111;
+    min-height: 100vh;
 }
 
 .schedule {
@@ -19,36 +21,7 @@
     flex-direction: column;
 }
 
-/**
- * Конверт над щитом: фиксированная «пилюля» в правом нижнем углу.
- * Не в потоке, календарь остаётся по центру на всю прежнюю ширину.
- * Низ и правый край учитывают вырез экрана и шапку Telegram.
- */
-.edgeActions {
-    position: fixed;
-    z-index: 5;
-    right: calc(
-        10px
-        + max(env(safe-area-inset-right, 0px), var(--tg-viewport-safe-area-inset-right, 0px))
-        + var(--tg-viewport-content-safe-area-inset-right, 0px)
-    );
-    bottom: calc(
-        16px
-        + max(env(safe-area-inset-bottom, 0px), var(--tg-viewport-safe-area-inset-bottom, 0px))
-        + var(--tg-viewport-content-safe-area-inset-bottom, 0px)
-    );
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-    margin: 0;
-    padding: 4px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-
-.edgeButton {
+.headerButton {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -56,20 +29,13 @@
     height: 44px;
     padding: 0;
     border: none;
-    border-radius: 50%;
+    border-radius: 12px;
     background: transparent;
     color: #111;
     cursor: pointer;
 }
 
-.edgeButton:hover,
-.edgeButton:focus-visible {
-    color: #111;
-    opacity: 0.55;
-    outline: none;
-}
-
-.edgeIcon {
+.headerIcon {
     width: 22px;
     height: 22px;
     display: block;
@@ -187,13 +153,16 @@
 }
 
 .confirmButton {
-    background-color: rgb(85, 193, 85);
-    color: white;
+    min-height: 44px;
+    background-color: #111;
+    color: #fff;
 }
 
 .cancelButton {
-    background-color: rgb(255, 174, 0);
-    color: white;
+    min-height: 44px;
+    background-color: #fff;
+    color: #8f2d2d;
+    border: 1px solid #8f2d2d;
 }
 
 @keyframes fadeIn {

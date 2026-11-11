@@ -1,0 +1,153 @@
+/**
+ * @file Общие поля, кнопки и цветные чипы. Один залитый primary на вид, опасное — контуром.
+ */
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+}
+
+.lead {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.45;
+    color: #767676;
+}
+
+.label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 650;
+    color: #767676;
+}
+
+.field {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 16px;
+    color: #111;
+    background: #fff;
+    box-sizing: border-box;
+}
+
+.field:disabled {
+    opacity: 0.55;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.primary,
+.secondary,
+.danger {
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.primary {
+    background: #111;
+    color: #fff;
+    border: 1px solid #111;
+}
+
+.secondary {
+    background: #fff;
+    color: #111;
+    border: 1px solid #e6e6e6;
+}
+
+.danger {
+    background: #fff;
+    color: #8f2d2d;
+    border: 1px solid #8f2d2d;
+}
+
+.primary:disabled,
+.secondary:disabled,
+.danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.error {
+    margin: 0;
+    font-size: 13px;
+    color: #8f2d2d;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-weight: 650;
+    line-height: 1.2;
+    white-space: nowrap;
+    background: #fff;
+}
+
+.chipStatic {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.chipChoice {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.chipRehearsal {
+    color: var(--chip-rehearsal-fg);
+    border-color: var(--chip-rehearsal-line);
+}
+
+.chipRecording {
+    color: var(--chip-recording-fg);
+    border-color: var(--chip-recording-line);
+}
+
+.chipShooting {
+    color: var(--chip-shooting-fg);
+    border-color: var(--chip-shooting-line);
+}
+
+.chipOn.chipRehearsal,
+.chipStatic.chipRehearsal {
+    background: var(--chip-rehearsal-bg);
+}
+
+.chipOn.chipRecording,
+.chipStatic.chipRecording {
+    background: var(--chip-recording-bg);
+}
+
+.chipOn.chipShooting,
+.chipStatic.chipShooting {
+    background: var(--chip-shooting-bg);
+}

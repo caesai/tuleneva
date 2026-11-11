@@ -1,3 +1,6 @@
+/**
+ * @file Календарь месяца. Дни с бронью отмечены гитарой, как на main.
+ */
 import React from "react";
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
@@ -6,6 +9,7 @@ import { PickersDay, type PickersDayProps } from '@mui/x-date-pickers/PickersDay
 import { Badge, Card } from "@mui/material";
 import { ruRU } from "@mui/x-date-pickers/locales";
 import moment, { type Moment } from '@/lib/moment';
+import css from '@/components/Calendar/Calendar.module.css';
 
 /**
  * Свойства компонента Calendar.
@@ -24,7 +28,7 @@ interface CalendarProps {
 /**
  * Компонент календаря для выбора даты.
  * Использует MUI X Date Pickers.
- * Отображает индикаторы на днях с бронированиями.
+ * На днях с бронированиями — гитара. Контур 1.75 на размере клетки не читается как гитара, поэтому маркер — тот же эмодзи, что на main, уменьшенный.
  *
  * @component
  */
@@ -64,8 +68,12 @@ const CalendarDay: React.FC<CalendarDayProps> = (props) => {
     return (
         <Badge
             key={day.toString()}
+            className={css.day}
             overlap="circular"
-            badgeContent={isSelected ? "🎸" : undefined}
+            anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            invisible={!isSelected}
+            badgeContent={isSelected ? <span className={css.guitar} aria-hidden="true">🎸</span> : undefined}
+            slotProps={{ badge: { className: css.marker } }}
         >
             <PickersDay
                 {...other}

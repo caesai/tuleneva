@@ -1,35 +1,38 @@
-// src/Modal.js
+/**
+ * @file Общий диалог: заголовок, крестик, содержимое.
+ * На узком экране и в Telegram открывается снизу, на широком — по центру.
+ */
 import React, { type ReactNode, useEffect } from 'react';
+import { CloseIcon } from '@/components/Icons/Icons.tsx';
 import css from '@/components/ModalPopup/ModalPopup.module.css';
 
-/**
- * Свойства компонента ModalPopup.
- */
 interface ModalPopupProps {
-    /** Флаг, определяющий видимость модального окна. */
+    /** Флаг видимости */
     isOpen: boolean;
-    /** Функция обратного вызова для закрытия модального окна. */
+    /** Закрытие по фону, Esc и крестику */
     onClose: () => void;
-    /** Содержимое модального окна. */
+    /** Заголовок. Без него остаётся только крестик. */
+    title?: string;
+    /** Содержимое */
     children: ReactNode;
 }
 
 /**
- * Универсальный компонент модального окна.
- * Поддерживает закрытие по клику на фон и нажатию Esc.
- *
- * @component
+ * Модальное окно с единой шапкой.
+ * @param props Видимость, заголовок и содержимое
+ * @returns Диалог или null
  */
-export const ModalPopup: React.FC<ModalPopupProps> = ({ isOpen, onClose, children }) => {
+export const ModalPopup: React.FC<ModalPopupProps> = ({ isOpen, onClose, title, children }) => {
     useEffect(() => {
+        if (!isOpen) {
+            return undefined;
+        }
         const handleEscapeKey = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 onClose();
             }
         };
-        if (isOpen) {
-            window.addEventListener('keydown', handleEscapeKey);
-        }
+        window.addEventListener('keydown', handleEscapeKey);
         return () => {
             window.removeEventListener('keydown', handleEscapeKey);
         };
@@ -38,11 +41,20 @@ export const ModalPopup: React.FC<ModalPopupProps> = ({ isOpen, onClose, childre
     if (!isOpen) return null;
 
     return (
-        <div className={css.modalOverlay} onClick={onClose}>
-            <div className={css.modalContent} onClick={(e) => e.stopPropagation()}>
-                {/* <button className={css.modalCloseButton} onClick={onClose}>
-                    &times;
-                </button> */}
+        <div className={css.overlay} onClick={onClose}>
+            <div
+                className={css.sheet}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={title ? 'modal-title' : undefined}
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className={css.head}>
+                    {title ? <h2 id="modal-title" className={css.title}>{title}</h2> : null}
+                    <button type="button" className={css.close} onClick={onClose} aria-label="Закрыть">
+                        <CloseIcon className={css.icon} />
+                    </button>
+                </div>
                 {children}
             </div>
         </div>

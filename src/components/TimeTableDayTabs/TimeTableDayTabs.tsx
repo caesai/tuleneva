@@ -58,7 +58,7 @@ export const TimeTableDayTabs: React.FC<ITimeTableDayTabsProps> = ({
         )}
 
         <div className={css.tabWrapper}>
-            <TabPanel value="schedule" style={{ padding: '20px 0' }}>
+            <TabPanel value="schedule" className={css.panel}>
                 {hasBookedHours ? (
                     <Schedule
                         bookedHours={bookedHours}
@@ -69,7 +69,7 @@ export const TimeTableDayTabs: React.FC<ITimeTableDayTabsProps> = ({
                 )}
             </TabPanel>
             {canManageSelectedDate && (
-                <TabPanel value="booking" style={{ padding: '20px 0' }}>
+                <TabPanel value="booking" className={css.panel}>
                     <TimeSlots
                         bookedHours={bookedHours}
                         selectedHours={selectedHours}

@@ -1,13 +1,14 @@
 .adminPage {
-    padding: 20px;
-    background-color: var(--tg-theme-bg-color);
-    color: var(--tg-theme-text-color);
+    background: #fff;
+    color: #111;
     min-height: 100vh;
 }
 
 .shell {
     width: min(960px, 100%);
     margin: 0 auto;
+    padding: 20px 16px 40px;
+    box-sizing: border-box;
 }
 
 .header {
@@ -58,19 +59,26 @@
 }
 
 .roleSelect {
-    padding: 5px;
-    border-radius: 4px;
-    border: 1px solid var(--tg-theme-hint-color);
-    background-color: var(--tg-theme-bg-color);
-    color: var(--tg-theme-text-color);
+    min-height: 44px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    color: #111;
+    font: inherit;
+    font-size: 16px;
 }
 
 .deleteButton {
-    padding: 5px 10px;
-    border-radius: 4px;
-    border: none;
-    background-color: var(--tg-theme-destructive-text-color);
-    color: white;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid #8f2d2d;
+    background: #fff;
+    color: #8f2d2d;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
     cursor: pointer;
 }
 
@@ -98,14 +106,16 @@
 }
 
 .inviteButton {
-    padding: 10px 20px;
-    background-color: var(--tg-theme-button-color);
-    color: var(--tg-theme-button-text-color);
-    border: none;
-    border-radius: 8px;
+    min-height: 44px;
+    padding: 0 20px;
+    background: #111;
+    color: #fff;
+    border: 1px solid #111;
+    border-radius: 12px;
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
     width: 100%;
 }
 
@@ -143,8 +153,14 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    min-width: 280px;
-    max-width: 340px;
+    width: 100%;
+}
+
+.inviteModal label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
 }
 
 .inviteModal h3 {
@@ -153,10 +169,10 @@
 }
 
 .inviteDescription {
-    font-size: 13px;
-    color: #666;
+    font-size: 15px;
+    color: #767676;
     margin: 0;
-    line-height: 1.4;
+    line-height: 1.45;
 }
 
 .inviteLabel {
@@ -173,47 +189,51 @@
 
 .inviteLinkInput {
     width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 12px;
-    color: #333;
-    background-color: #f5f5f5;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 16px;
+    color: #111;
+    background: #fafafa;
     box-sizing: border-box;
     word-break: break-all;
 }
 
-.copyButton {
-    padding: 10px 16px;
-    background-color: #007aff;
-    color: white;
-    border: none;
-    border-radius: 8px;
+.copyButton,
+.closeModalButton {
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 12px;
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: background-color 0.2s;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
 }
 
-.copyButton:hover {
-    background-color: #0062cc;
+.copyButton {
+    background: #111;
+    color: #fff;
+    border: 1px solid #111;
 }
 
 .closeModalButton {
-    padding: 10px 16px;
-    background-color: #f0f0f0;
-    color: #333;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
+    background: #fff;
+    color: #111;
+    border: 1px solid #e6e6e6;
 }
 
 .musicAdminLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
     color: #111;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 650;
     text-decoration: none;
+    border-radius: 12px;
 }
 
 .filters {
@@ -225,10 +245,15 @@
 .search {
     flex: 1;
     min-width: 0;
-    padding: 8px 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
     font: inherit;
+    font-size: 16px;
+    color: #111;
+    background: #fff;
+    box-sizing: border-box;
 }
 
 .userGrid {
@@ -243,7 +268,7 @@
     gap: 10px;
     padding: 14px;
     border: 1px solid #e6e6e6;
-    border-radius: 16px;
+    border-radius: 12px;
     background: #fff;
     min-width: 0;
 }
@@ -264,15 +289,22 @@
 .userIdentity {
     min-width: 0;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
 }
 
-.userName,
 .userBand,
 .userMail {
     margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.userName {
+    margin: 0;
 }
 
 .userHandle {
@@ -283,21 +315,24 @@
 }
 
 .userName {
+    font-size: 16px;
     font-weight: 650;
 }
 
 .userHandle,
 .userBand,
 .userMail {
-    color: #555;
-    font-size: 13px;
+    color: #767676;
+    font-size: 15px;
 }
 
 .rolePill {
-    flex-shrink: 0;
+    align-self: flex-start;
+    margin-top: 4px;
     padding: 4px 8px;
     border-radius: 999px;
     background: #f3f3f3;
+    color: #767676;
     font-size: 12px;
     font-weight: 650;
 }
@@ -325,14 +360,15 @@
 }
 
 .quietButton {
-    min-height: 36px;
-    padding: 0 12px;
+    min-height: 44px;
+    padding: 0 14px;
     border: 1px solid #e6e6e6;
     border-radius: 999px;
     background: #fff;
     color: #111;
     font: inherit;
-    font-size: 13px;
+    font-size: 15px;
+    font-weight: 650;
     cursor: pointer;
 }
 
