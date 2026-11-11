@@ -146,9 +146,23 @@ WEB_APP_BASE_URL=https://tuleneva25.ru
 # ПАРОЛЬ_ПРИЛОЖЕНИЯ — тот, что задали в §1 при db.createUser для user "tuleneva"
 MONGO_URI=mongodb://tuleneva:ПАРОЛЬ_ПРИЛОЖЕНИЯ@127.0.0.1:27017/test?authSource=admin
 PORT=3000
+# Один локальный Nginx. Пусто — loopback (X-Forwarded-For только с 127.0.0.1/::1).
+# Число — сколько хопов доверять. false — не доверять заголовку.
+# TRUST_PROXY=loopback
 # Календарь только для уже существующих пользователей. По умолчанию включено — строку можно не добавлять.
 # Выключить: STEALTH_MODE=0
 # STEALTH_MODE=1
+# Медиа музыки. Плейсхолдеры, не секреты из репозитория.
+# В production без драйвера загрузка и отдача отвечают 503.
+# OBJECT_STORAGE_DRIVER=local
+# OBJECT_STORAGE_LOCAL_DIR=/var/lib/tuleneva/media
+# OBJECT_STORAGE_DRIVER=s3
+# S3_ENDPOINT=https://s3.example.com
+# S3_REGION=us-east-1
+# S3_BUCKET=tuleneva-media
+# S3_ACCESS_KEY_ID=
+# S3_SECRET_ACCESS_KEY=
+# S3_FORCE_PATH_STYLE=true
 # Если curl к api.telegram.org с VPS даёт exit 28 — Cloudflare Worker
 # (скрипт deploy/cloudflare-telegram-proxy.js) и webhook:
 # TELEGRAM_API_ROOT=https://<имя>.workers.dev/<длинный-PREFIX>
@@ -223,7 +237,9 @@ sudo systemctl status tuleneva-api
 
 ## 7. Nginx
 
-Шаблон: [deploy/nginx-tuleneva.conf](../deploy/nginx-tuleneva.conf). Корень статики — `/var/www/tuleneva/current/dist`. Проксируйте `/api` и `/ws` на `127.0.0.1:3000`.
+Шаблон: [deploy/nginx-tuleneva.conf](../deploy/nginx-tuleneva.conf). Корень статики — `/var/www/tuleneva/current/dist`. Проксируйте `/api`, `/music` и `/ws` на `127.0.0.1:3000`.
+
+CD конфиг Nginx **не** выкладывает. Блоки `location /music` и заголовки `X-Forwarded-For` / `X-Real-IP` нужно вписать в живой файл руками (и `listen 80`, и `listen 443` после certbot), затем `sudo nginx -t && sudo systemctl reload nginx`. Без `X-Forwarded-For` лимиты по IP видят один адрес `127.0.0.1`. `TRUST_PROXY` по умолчанию `loopback`: Express верит заголовку только от локального Nginx.
 
 ```bash
 sudo cp /path/to/nginx-tuleneva.conf /etc/nginx/sites-available/tuleneva
@@ -251,11 +267,13 @@ location /assets/ {
 }
 
 # Open Graph для /music собирает Node. Без этого блока Nginx отдаёт один и тот же index.html.
+# X-Forwarded-For нужен и здесь, и в location /api/ и /ws (см. полный шаблон).
 location /music {
     proxy_pass http://127.0.0.1:3000;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 
 location / {
@@ -301,12 +319,36 @@ scp -r deploy@IP:/var/backups/tuleneva/YYYYMMDDTHHMMSSZ ./tuleneva-mongo-backup
 
 Второй Mongo и запись с локального приложения в отдельную базу не нужны: правки идут в живую Mongo через `npm run dev` (прокси на VPS) после входа по почте.
 
+### Медиа на диске (`OBJECT_STORAGE_DRIVER=local`)
+
+Файлы музыки не входят в `mongodump`. Скрипт [server/scripts/backup-media.sh](../server/scripts/backup-media.sh) кладёт каталог в `tar.gz` и оставляет последние `RETAIN` архивов (по умолчанию 14). Скопируйте его отдельно от релиза, как и дамп Mongo, например в `/usr/local/bin/backup-media.sh`.
+
+```bash
+sudo mkdir -p /var/lib/tuleneva/media /var/backups/tuleneva-media
+# В /etc/tuleneva/backup.env добавьте (каталог бэкапа — другой диск, если есть):
+#   MEDIA_DIR=/var/lib/tuleneva/media
+#   MEDIA_BACKUP_DIR=/var/backups/tuleneva-media
+#   RETAIN=14
+#
+# cron, на несколько минут позже дампа Mongo:
+# 20 3 * * * set -a; . /etc/tuleneva/backup.env; set +a; /usr/local/bin/backup-media.sh >> /var/log/tuleneva-media-backup.log 2>&1
+```
+
+Тот же каталог можно гонять `rsync -a --delete` на другой диск. Скрипт выше — вариант с архивом и сроком хранения.
+
+Восстановление: остановить API, распаковать архив так, чтобы путь совпал с `OBJECT_STORAGE_LOCAL_DIR` (внутри архива каталог с тем же именем, что у `MEDIA_DIR`), затем поднять API. Ключи в Mongo (`audioKey`, `coverKey`) должны указывать на те же относительные пути.
+
+### S3
+
+Скрипт диска бакет не копирует. Включите versioning бакета или отдельный sync (`aws s3 sync` / rclone) в другой бакет или на диск. При восстановлении объекты должны вернуться в тот же бакет и те же ключи, что записаны в документах.
+
 ## 9. Восстановление пользователей после потери диска
 
-1. Попросите у хостера снимок диска или `/var/lib/mongodb` / готовый `mongodump`.
-2. Если дамп есть **до** того, как люди заново зарегистрировались: `mongorestore` коллекций `users` и `rehearsals` со старыми `_id` — слоты снова привязаны к людям.
-3. Если люди уже созданы заново, а дамп пришёл позже: не вставляйте старых users поверх (конфликт `telegram_id`). Сопоставьте по `telegram_id` и перепишите `rehearsals.hours[].userId` со старого `_id` на новый.
-4. Почты в старой базе не было — после восстановления каждый привязывает почту в мини-приложении («Вход в браузере») или админ задаёт почту и временный пароль в `/admin`.
+1. Попросите у хостера снимок диска или `/var/lib/mongodb` / готовый `mongodump`. Для локальных файлов музыки — архив из §8 или сам каталог `OBJECT_STORAGE_LOCAL_DIR`. Для S3 — версию бакета или копию sync.
+2. Если дамп есть **до** того, как люди заново зарегистрировались: `mongorestore` коллекций `users` и `rehearsals` со старыми `_id` — слоты снова привязаны к людям. Вместе с ними восстанавливайте `musictracks`, `musiccollections` и `music_events` (модели `MusicTrack`, `MusicCollection`, `MusicEvent`). Полный `mongorestore` дампа это уже включает.
+3. Если люди уже созданы заново, а дамп пришёл позже: не вставляйте старых users поверх (конфликт `telegram_id`). Сопоставьте по `telegram_id` и перепишите `rehearsals.hours[].userId` со старого `_id` на новый. Записи и подборки ссылаются на `createdBy` / `updatedBy` и, в событиях, на `userId`: после смены `_id` эти поля указывают на старых людей, каталог при этом читается.
+4. Медиа поднимите в тот же драйвер и те же ключи, что в документах. Без файлов каталог откроется, а MP3 и обложки ответят 404. Локальный каталог распакуйте в `OBJECT_STORAGE_LOCAL_DIR`. Для S3 верните объекты в тот же бакет.
+5. Почты в старой базе не было — после восстановления каждый привязывает почту в мини-приложении («Вход в браузере») или админ задаёт почту и временный пароль в `/admin`.
 
 Бывшие участники без дампа: одна ссылка в общий чат, затем закрыть её.
 
@@ -348,7 +390,7 @@ curl -I --max-time 10 https://api.telegram.org; echo "exit:$?"
 - `curl -s http://127.0.0.1:3000/api/health` — `{"ok":true,"mongo":"connected"}` (CD смотрит этот URL).
 - `readlink /var/www/tuleneva/current` — указывает на `releases/<sha>`.
 - Мини-приложение: вход Telegram, запрос доступа, бронь.
-- Браузер: `/app` → «Войти по почте» → модалка; «Забыли пароль?» → письмо `/app?passwordReset=...`.
+- Браузер: `/app` → «Войти по почте» → модалка; «Забыли пароль?» → письмо `/app?passwordReset=...`. Кнопка «Войти по почте» попадает в сборку только если на **сборке** клиента задан `VITE_EMAIL_AUTH_UI=true`. Это переменная Vite, не `api.env`: правка на VPS после деплоя кнопку не покажет. Текущий workflow CD её не задаёт, поэтому на выложенном сайте кнопки нет, пока сборку не перезапустят с флагом. Модалка сброса по `?passwordReset=` и форма привязки почты у admin/super_admin от флага не зависят.
 - SMTP задан: привязка почты шлёт `/app?emailConfirm=...`; после web-инвайта предлагается привязать почту.
 - `systemctl status tuleneva-api` — один процесс; второй инстанс не поднят.
 
@@ -359,6 +401,10 @@ curl -I --max-time 10 https://api.telegram.org; echo "exit:$?"
 1. Собирает клиент (`dist/`) и серверный бандл (`server/dist/index.cjs`).
 2. Пакует архив и по SSH (`deploy`) загружает на VPS.
 3. Запускает [deploy/remote-release.sh](../deploy/remote-release.sh): `npm ci --omit=dev`, переключение `current`, `systemctl restart tuleneva-api`, healthcheck, при сбое — откат на предыдущий релиз, prune (оставляет 3 последних).
+
+Перед выкладкой job `server` выполняет шаг **Check production requires**: во временный каталог копируются `package.json` и lock, там `npm ci --omit=dev`, затем [server/scripts/checkProdRequires.mjs](../server/scripts/checkProdRequires.mjs) проверяет, что каждый `require` в `dist/index.cjs` резолвится. Так не уезжает бандл, которому на VPS не хватит пакета. Импорт в рантайме из сервера или `shared/` должен быть в `dependencies` сервера.
+
+Nginx этот пайплайн не обновляет. После правки шаблона (`/music`, `X-Forwarded-For`, `X-Real-IP`) те же `location` нужно перенести в живой конфиг на VPS и сделать reload.
 
 Ручной `git pull` + `npm run build` на сервере **не** используется.
 

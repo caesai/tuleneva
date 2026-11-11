@@ -5,7 +5,7 @@
 import express, { type Request, type RequestHandler, type Response } from 'express';
 import mongoose from 'mongoose';
 import MusicTrack, { type MusicTrackDocument } from '../models/MusicTrack';
-import { createRateLimiter } from '../auth/rateLimit';
+import { createPresetRateLimiter } from '../auth/rateLimit';
 import { isSuperAdmin } from '../auth/roleHelpers';
 import { requireSuperAdmin } from '../auth/requireSuperAdmin';
 import { getMusicStats, parsePlainMusicEvent, postMusicEvent } from './musicEvents';
@@ -87,11 +87,7 @@ export const createMusicRouter = ({
      * Частота по IP в памяти процесса. Адрес в music_events не пишется.
      * Новый роутер — новый счётчик, чтобы тесты не делили лимит.
      */
-    const eventsLimiter = createRateLimiter({
-        windowMs: 60_000,
-        max: 60,
-        message: 'Слишком много событий. Подождите немного.',
-    });
+    const eventsLimiter = createPresetRateLimiter('musicEvents');
 
     /**
      * @route POST /api/music/events
