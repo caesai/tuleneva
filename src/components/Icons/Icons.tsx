@@ -206,6 +206,67 @@ export const TrashIcon: React.FC<IconProps> = ({ className }) => (
 );
 
 /**
+ * Добавить запись, альбом или плейлист.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const PlusIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+    </LineIcon>
+);
+
+/**
+ * Состав подборки: строки списка.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const ListIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="M9 7h11" />
+        <path d="M9 12h11" />
+        <path d="M9 17h11" />
+        <path d="M4 7h.01" />
+        <path d="M4 12h.01" />
+        <path d="M4 17h.01" />
+    </LineIcon>
+);
+
+/**
+ * Поднять запись в составе.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const ChevronUpIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="m6 14 6-6 6 6" />
+    </LineIcon>
+);
+
+/**
+ * Опустить запись в составе.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const ChevronDownIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="m6 10 6 6 6-6" />
+    </LineIcon>
+);
+
+/**
+ * Убрать запись из состава, не удаляя файл.
+ * @param props.className Размер
+ * @returns SVG
+ */
+export const MinusIcon: React.FC<IconProps> = ({ className }) => (
+    <LineIcon className={className}>
+        <path d="M5 12h14" />
+    </LineIcon>
+);
+
+/**
  * Треугольник play. Заливка: только внутри чёрной кнопки.
  * @param props.className Размер
  * @returns SVG

@@ -66,13 +66,30 @@ describe('AdminMusicPage', () => {
 
     it('супер-админ сохраняет черновик отдельной кнопкой, не публикацией', async () => {
         auth.isSuperAdmin = true;
+        const user = userEvent.setup();
         render(
             <MemoryRouter>
                 <AdminMusicPage />
             </MemoryRouter>,
         );
-        expect(await screen.findByRole('button', { name: 'Сохранить черновик' })).toBeInTheDocument();
+        await user.click(await screen.findByRole('button', { name: 'Новая запись' }));
+        expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Опубликовать' })).not.toBeInTheDocument();
+    });
+
+    it('пустой список плейлистов открывает создание плейлиста', async () => {
+        auth.isSuperAdmin = true;
+        const user = userEvent.setup();
+        render(
+            <MemoryRouter>
+                <AdminMusicPage />
+            </MemoryRouter>,
+        );
+        await user.click(await screen.findByRole('tab', { name: 'Плейлисты' }));
+        expect(await screen.findByText('Пока нет плейлистов.')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Новый плейлист' }));
+        expect(screen.getByRole('heading', { name: 'Новый плейлист' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Создать плейлист' })).toBeInTheDocument();
     });
 
     it('берёт из галереи любое фото и кладёт в форму уже сжатый JPEG', async () => {
@@ -83,6 +100,7 @@ describe('AdminMusicPage', () => {
                 <AdminMusicPage />
             </MemoryRouter>,
         );
+        await user.click(await screen.findByRole('button', { name: 'Новая запись' }));
         const input = await screen.findByLabelText('Обложка');
         expect(input).toHaveAttribute('accept', 'image/*,.heic,.heif');
         await user.upload(input, new File(['heic'], 'IMG_0001.HEIC', { type: '' }));
@@ -128,6 +146,7 @@ describe('AdminMusicPage', () => {
                 <AdminMusicPage />
             </MemoryRouter>,
         );
+        await user.click(await screen.findByRole('button', { name: 'Новая запись' }));
         await user.upload(
             await screen.findByLabelText('Обложка'),
             new File(['heic'], 'IMG.HEIC', { type: 'image/heic' }),
@@ -146,6 +165,7 @@ describe('AdminMusicPage', () => {
                 <AdminMusicPage />
             </MemoryRouter>,
         );
+        await user.click(await screen.findByRole('button', { name: 'Новая запись' }));
         await user.type(await screen.findByLabelText('Название'), 'Ночь');
         await user.type(screen.getByLabelText('Кто играет'), 'Север');
         await user.upload(
@@ -205,6 +225,7 @@ describe('AdminMusicPage', () => {
                 <AdminMusicPage />
             </MemoryRouter>,
         );
+        await user.click(await screen.findByRole('tab', { name: 'Альбомы' }));
         await user.click(await screen.findByRole('button', { name: 'Состав: Север' }));
         await user.click(screen.getByRole('button', { name: 'Выше: День' }));
         expect(setCollectionTracks).toHaveBeenCalledWith('c', ['b', 'a']);
