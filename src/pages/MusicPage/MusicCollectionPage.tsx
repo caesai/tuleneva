@@ -4,7 +4,7 @@
  * Назад и «Поделиться» живут в общей липкой шапке.
  * Прослушивание и шаринг пишут анонимную статистику с меткой источника.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import {
     collectionCoverUrl,
@@ -13,7 +13,9 @@ import {
     trackCoverUrl,
 } from '@/api/music.api.ts';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
-import { Loader } from '@/components/Loader/Loader.tsx';
+import { FadeImg } from '@/components/Skeleton/FadeImg.tsx';
+import { CollectionSkeleton } from '@/components/Skeleton/layouts.tsx';
+import { SkeletonSlot } from '@/components/Skeleton/SkeletonSlot.tsx';
 import { MUSIC_PAGE_META, toAbsoluteUrl, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import { captureListenSource, type ListenTarget } from '@/music/listenStats.ts';
@@ -44,12 +46,17 @@ export const MusicCollectionPage: React.FC = () => {
     const [pauseRequest, setPauseRequest] = useState(0);
     const [playing, setPlaying] = useState(false);
 
+    const seenId = useRef<string | undefined>(undefined);
     useEffect(() => {
         let cancelled = false;
+        const sameCollection = seenId.current === id;
+        seenId.current = id;
         setLoading(true);
         setError(null);
-        setCollection(null);
-        setTrackId(null);
+        if (!sameCollection) {
+            setCollection(null);
+            setTrackId(null);
+        }
         if (!id) {
             setLoading(false);
             setError('Подборка не найдена или ещё не опубликована.');
@@ -169,12 +176,12 @@ export const MusicCollectionPage: React.FC = () => {
             </AppHeader>
             <div className={css.page}>
 
-            {loading ? (
-                <div className={css.status} aria-busy="true" aria-label="Загрузка музыки">
-                    <Loader fullScreen={false} />
-                </div>
-            ) : null}
-
+            <SkeletonSlot
+                pending={loading && !collection}
+                label="Загрузка музыки"
+                skeleton={<CollectionSkeleton />}
+            >
+            <>
             {error ? (
                 <div className={css.status} role="alert">
                     <p>{error}</p>
@@ -187,7 +194,7 @@ export const MusicCollectionPage: React.FC = () => {
             {collection ? (
                 <>
                     {collection.hasCover ? (
-                        <img
+                        <FadeImg
                             className={css.heroCover}
                             src={collectionCoverUrl(collection.id, collection.coverVersion)}
                             alt={`Обложка «${collection.title}»`}
@@ -235,6 +242,8 @@ export const MusicCollectionPage: React.FC = () => {
                     ) : null}
                 </>
             ) : null}
+            </>
+            </SkeletonSlot>
             </div>
         </main>
     );

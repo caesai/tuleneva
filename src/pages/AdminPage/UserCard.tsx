@@ -1,10 +1,13 @@
 /**
  * @file Строка пользователя в админке: имя и роль, действия в одном меню.
+ * Журнал смен ролей, пока он пуст, держит место двумя плашками.
  */
 import React from 'react';
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
 import { MoreIcon } from '@/components/Icons/Icons.tsx';
 import { SafeAvatar } from '@/components/SafeAvatar/SafeAvatar.tsx';
+import { Bone } from '@/components/Skeleton/Bone.tsx';
+import { SkeletonSlot } from '@/components/Skeleton/SkeletonSlot.tsx';
 import { EMAIL_AUTH_UI_ENABLED } from '@/config/emailAuthUi.ts';
 import type { IUser, TRole } from '@/types/user.types.ts';
 import {
@@ -171,8 +174,17 @@ export const UserCard: React.FC<UserCardProps> = ({
             {roleLogOpen ? (
                 <div className={`${css.inviteHistory} ${css.userExtra}`}>
                     <p className={css.inviteHistoryTitle}>Смены ролей</p>
-                    {roleLogLoading ? (
-                        <p className={css.inviteDescription}>Загрузка…</p>
+                    {roleLogLoading && roleLogEntries.length === 0 ? (
+                        <SkeletonSlot
+                            pending
+                            label="Загрузка журнала"
+                            skeleton={(
+                                <>
+                                    <Bone height={14} />
+                                    <Bone height={14} width="70%" />
+                                </>
+                            )}
+                        />
                     ) : roleLogEntries.length === 0 ? (
                         <p className={css.inviteDescription}>Записей нет</p>
                     ) : (

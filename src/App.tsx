@@ -15,7 +15,7 @@ import ui from '@/theme/ui.module.css';
 import { useSafeLaunchParams } from '@/telegram/useSafeLaunchParams.ts';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { Loader } from '@/components/Loader/Loader.tsx';
+import { RouteSkeleton } from '@/components/Skeleton/layouts.tsx';
 import { LandingScreen } from '@/components/LandingScreen/LandingScreen.tsx';
 import { AdminRoute } from '@/components/AdminRoute/AdminRoute.tsx';
 import { NetworkProvider } from '@/contexts/NetworkContext.tsx';
@@ -256,7 +256,7 @@ const App: React.FC = () => {
                     <BrowserRouter>
                         <ScrollToTop />
                         <ListenAttribution />
-                        <Suspense fallback={<Loader fullScreen />}>
+                        <Suspense fallback={<RouteSkeleton />}>
                             <ChunkReloadReset />
                             <Routes>
                                 <Route path="/" element={<IndexPage />} />
