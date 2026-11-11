@@ -1,10 +1,11 @@
 /**
  * @file Каталог музыки и страница одной записи.
  * Синглы — опубликованные записи, которых нет ни в одном опубликованном альбоме или плейлисте.
+ * Прямая ссылка и `?track=` останавливаются в конце. Переход из каталога продолжает порядок альбома.
  * Навигация — общая липкая шапка: логотип на каталоге, назад и «Поделиться» на записи.
  * Старт, дослушивание и шаринг пишут анонимную статистику.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
     collectionCoverUrl,
@@ -60,7 +61,10 @@ export const MusicPage: React.FC = () => {
     const { trackId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const playOnOpen = Boolean((location.state as { play?: boolean } | null)?.play);
+    const routeState = location.state as { play?: boolean; fromCatalog?: boolean } | null;
+    const playOnOpen = Boolean(routeState?.play);
+    const sharedTrack = new URLSearchParams(location.search).has('track');
+    const continueList = Boolean(routeState?.fromCatalog) && !sharedTrack;
 
     useEffect(() => {
         captureListenSource(location.search);
@@ -155,15 +159,26 @@ export const MusicPage: React.FC = () => {
 
     const order = album?.tracks ?? [];
     const selectedIndex = order.findIndex((item) => item.id === track?.id);
+    const nextTrack = selectedIndex >= 0 && selectedIndex < order.length - 1
+        ? order[selectedIndex + 1]
+        : null;
 
     /**
-     * Открывает запись. play — сразу просит плеер стартовать.
+     * Открывает запись из списка каталога. play — сразу просит плеер стартовать.
+     * fromCatalog разрешает автопродолжение по тому же порядку, что previous и next.
      * @param id Идентификатор
      * @param play Начать воспроизведение
      */
-    const openTrack = (id: string, play: boolean) => {
-        navigate(`/music/${id}`, play ? { state: { play: true } } : undefined);
-    };
+    const openTrack = useCallback((id: string, play: boolean) => {
+        navigate(`/music/${id}`, { state: { play, fromCatalog: true } });
+    }, [navigate]);
+
+    const advanceTrack = useCallback(() => {
+        if (!nextTrack) {
+            return;
+        }
+        navigate(`/music/${nextTrack.id}`, { state: { fromCatalog: true } });
+    }, [navigate, nextTrack]);
 
     const quiet = catalog.collections.length === 0 && catalog.singles.length === 0;
 
@@ -267,9 +282,17 @@ export const MusicPage: React.FC = () => {
                         src={trackAudioUrl(track.id, track.audioVersion)}
                         playRequest={playRequest}
                         hasPrevious={selectedIndex > 0}
-                        hasNext={selectedIndex >= 0 && selectedIndex < order.length - 1}
+                        hasNext={nextTrack !== null}
+                        autoAdvance={continueList}
+                        nextSrc={continueList && nextTrack
+                            ? trackAudioUrl(nextTrack.id, nextTrack.audioVersion)
+                            : null}
+                        nextListen={continueList && nextTrack
+                            ? { trackId: nextTrack.id, albumId: nextTrack.albumId ?? track.albumId ?? null }
+                            : null}
                         onPrevious={() => openTrack(order[selectedIndex - 1].id, true)}
                         onNext={() => openTrack(order[selectedIndex + 1].id, true)}
+                        onAutoAdvance={advanceTrack}
                         listen={{ trackId: track.id, albumId: track.albumId ?? null }}
                     />
                 </>

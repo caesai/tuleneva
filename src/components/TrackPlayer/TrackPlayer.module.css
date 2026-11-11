@@ -70,16 +70,13 @@
     line-height: 1.45;
 }
 
-.controls,
-.volumeRow {
+.controls {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-}
-
-.volumeRow {
-    justify-content: flex-start;
+    min-height: 52px;
 }
 
 .iconButton,
@@ -129,6 +126,34 @@
     outline-offset: 2px;
 }
 
+.volumeControl {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.volumePopover {
+    display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .volumeControl:hover .volumePopover,
+    .volumeControl:focus-within .volumePopover {
+        display: flex;
+        position: absolute;
+        right: 0;
+        bottom: calc(100% + 6px);
+        box-sizing: border-box;
+        width: 140px;
+        padding: 8px 12px;
+        border: 1px solid #e6e6e6;
+        border-radius: 12px;
+        background: #fff;
+        z-index: 2;
+    }
+}
+
 .seekRow {
     display: flex;
     align-items: center;
@@ -144,6 +169,10 @@
     background: transparent;
     accent-color: #111;
     appearance: none;
+}
+
+.volume {
+    height: 28px;
 }
 
 .seek::-webkit-slider-runnable-track,
@@ -168,6 +197,12 @@
     background: #111;
 }
 
+.volume::-webkit-slider-thumb {
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+}
+
 .seek::-moz-range-track,
 .volume::-moz-range-track {
     height: 4px;
@@ -187,6 +222,11 @@
     border: none;
     border-radius: 50%;
     background: #111;
+}
+
+.volume::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
 }
 
 .time {
