@@ -81,6 +81,7 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
                 // Состояния выбора
                 const isSelectedForBooking = selectedHours.includes(hour);
                 const isSelectedForCancellation = hoursToCancel.includes(hour);
+                const rehearsalType = booking?.rehearsalType ?? 'rehearsal';
 
                 // Слот недоступен, если:
                 // 1. Занят кем-то другим и пользователь не админ, ИЛИ
@@ -94,12 +95,11 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
                             css.timeSlot,
                             {
                                 [css.booked]: isBooked,
-                                // Слот выбран для нового бронирования (зеленый)
                                 [css.selected]: isSelectedForBooking && !isBooked,
-                                // Слот выбран для отмены (красный/зачеркнутый)
-                                [css.cancelSelected]: isSelectedForCancellation,
-                                // Визуальное выделение "моего" бронирования, даже если не выбрано
-                                [css.myBooking]: isMyBooking,
+                                [css.cancelRehearsal]: isSelectedForCancellation && rehearsalType === 'rehearsal',
+                                [css.cancelRecording]: isSelectedForCancellation && rehearsalType === 'recording',
+                                [css.cancelShooting]: isSelectedForCancellation && rehearsalType === 'shooting',
+                                [css.myBooking]: isMyBooking && !isSelectedForCancellation,
                             },
                         )}
                         onClick={() => {
@@ -110,6 +110,7 @@ export const TimeSlots: React.FC<TimeSlotsProps> = (
                             }
                         }}
                         disabled={isDisabledForBooking}
+                        aria-pressed={isSelectedForBooking || isSelectedForCancellation}
                         aria-label={`Слот ${hour}, ${isBooked ? 'занят' : 'свободен'}`}
                     >
                         {isBooked ? (

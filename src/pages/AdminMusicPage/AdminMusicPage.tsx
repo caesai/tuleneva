@@ -18,6 +18,7 @@ import {
     updateMusicTrack,
 } from '@/api/music.api.ts';
 import { AdminCollections } from '@/pages/AdminMusicPage/AdminCollections.tsx';
+import { PencilIcon, PlayIcon, PublishIcon, TrashIcon, UnpublishIcon } from '@/components/Icons/Icons.tsx';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
@@ -318,7 +319,7 @@ export const AdminMusicPage: React.FC = () => {
             <AppHeader title="Музыка" backTo="/admin" backLabel="Назад" />
             <div className={css.body}>
             <p className={css.lead}>
-                Черновик слышите вы. Гости увидят запись только после «Опубликовать».
+                Черновик слышите вы. Гости увидят запись только после публикации.
                 Файлы уходят в объектное хранилище, не в базу.
             </p>
 
@@ -432,56 +433,79 @@ export const AdminMusicPage: React.FC = () => {
                 </div>
             ) : (
                 <ul className={css.list}>
-                    {tracks.map((track) => (
-                        <li key={track.id} className={css.card}>
-                            <div>
-                                <p className={css.cardTitle}>{track.title}</p>
-                                <p className={css.cardCredits}>
-                                    {track.credits}
-                                    {track.albumTitle ? ` · ${track.albumTitle}` : ''}
+                    {tracks.map((track) => {
+                        const published = track.status === 'published';
+                        return (
+                            <li key={track.id} className={css.track}>
+                                <div className={css.trackMain}>
+                                    <p className={css.cardTitle}>{track.title}</p>
+                                    <p className={css.cardCredits}>
+                                        {track.credits}
+                                        {track.albumTitle ? ` · ${track.albumTitle}` : ''}
+                                    </p>
+                                </div>
+                                <p className={published ? css.markOn : css.markOff}>
+                                    {published ? 'В эфире' : 'Черновик'}
                                 </p>
-                                <p className={track.status === 'published' ? css.published : css.draft}>
-                                    {track.status === 'published' ? 'Опубликовано' : 'Черновик'}
-                                </p>
-                            </div>
-                            <div className={css.cardActions}>
-                                <button type="button" onClick={() => listen(track)}>
-                                    Слушать
-                                </button>
-                                <button type="button" onClick={() => beginEdit(track)}>
-                                    Изменить
-                                </button>
-                                {track.status === 'published' ? (
+                                <div className={css.trackActions}>
                                     <button
                                         type="button"
-                                        onClick={() => setPending({ id: track.id, action: 'unpublish', title: track.title })}
+                                        className={css.trackPlay}
+                                        aria-label={`Слушать ${track.title}`}
+                                        title={`Слушать ${track.title}`}
+                                        onClick={() => void listen(track)}
                                     >
-                                        Снять с публикации
+                                        <PlayIcon className={css.trackPlayIcon} />
                                     </button>
-                                ) : (
+                                    {published ? (
+                                        <button
+                                            type="button"
+                                            className={css.trackIcon}
+                                            aria-label={`Снять «${track.title}» с публикации`}
+                                            title="Снять с публикации"
+                                            onClick={() => setPending({ id: track.id, action: 'unpublish', title: track.title })}
+                                        >
+                                            <UnpublishIcon className={css.trackPlayIcon} />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            className={css.trackIcon}
+                                            aria-label={`Опубликовать «${track.title}»`}
+                                            title="Опубликовать"
+                                            onClick={() => {
+                                                void publishMusicTrack(track.id)
+                                                    .then(() => load())
+                                                    .catch((err: unknown) => {
+                                                        setError(err instanceof Error ? err.message : 'Не удалось опубликовать.');
+                                                    });
+                                            }}
+                                        >
+                                            <PublishIcon className={css.trackPlayIcon} />
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            void publishMusicTrack(track.id)
-                                                .then(() => load())
-                                                .catch((err: unknown) => {
-                                                    setError(err instanceof Error ? err.message : 'Не удалось опубликовать.');
-                                                });
-                                        }}
+                                        className={css.trackIcon}
+                                        aria-label={`Изменить «${track.title}»`}
+                                        title="Изменить"
+                                        onClick={() => beginEdit(track)}
                                     >
-                                        Опубликовать
+                                        <PencilIcon className={css.trackPlayIcon} />
                                     </button>
-                                )}
-                                <button
-                                    type="button"
-                                    className={css.danger}
-                                    onClick={() => setPending({ id: track.id, action: 'delete', title: track.title })}
-                                >
-                                    Удалить
-                                </button>
-                            </div>
-                        </li>
-                    ))}
+                                    <button
+                                        type="button"
+                                        className={`${css.trackIcon} ${css.trackDanger}`}
+                                        aria-label={`Удалить «${track.title}»`}
+                                        title="Удалить"
+                                        onClick={() => setPending({ id: track.id, action: 'delete', title: track.title })}
+                                    >
+                                        <TrashIcon className={css.trackPlayIcon} />
+                                    </button>
+                                </div>
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
 

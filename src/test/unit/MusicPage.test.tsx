@@ -102,7 +102,7 @@ describe('MusicPage', () => {
         expect(screen.getByRole('heading', { name: 'Синглы' })).toBeInTheDocument();
         expect(screen.getAllByRole('heading', { name: 'Музыка' })).toHaveLength(1);
         expect(screen.queryByText('Тюленева 25')).not.toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Музыка' })).toHaveAttribute('href', '/');
+        expect(screen.getByRole('link', { name: 'На главную' })).toHaveAttribute('href', '/');
         expect(screen.getByRole('link', { name: 'Ссылка на «Одна»' })).toHaveAttribute('href', '/music/solo');
         expect(screen.queryByText('Студия')).not.toBeInTheDocument();
         expect(play).not.toHaveBeenCalled();
@@ -138,10 +138,9 @@ describe('MusicPage', () => {
         const user = userEvent.setup();
         renderMusic('/music/album/alb');
         expect(await screen.findByRole('heading', { name: 'Север' })).toBeInTheDocument();
-        expect(screen.queryByRole('heading', { name: 'Музыка' })).not.toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Музыка' })).toHaveAttribute('href', '/');
-        expect(screen.getByRole('button', { name: 'Поделиться' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Музыка' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Вся музыка' })).toHaveAttribute('href', '/music');
+        expect(screen.getByRole('button', { name: 'Поделиться' })).toBeInTheDocument();
         expect(screen.queryByText('Студия')).not.toBeInTheDocument();
         expect(document.querySelectorAll('img[src="/api/music/collections/alb/cover"]').length).toBeGreaterThan(1);
         expect(screen.getByText('Альбом')).toBeInTheDocument();

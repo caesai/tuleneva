@@ -1,6 +1,7 @@
 /**
  * @file Каталог музыки и страница одной записи.
  * Синглы — опубликованные записи, которых нет ни в одном опубликованном альбоме или плейлисте.
+ * Навигация — общая липкая шапка: логотип на каталоге, назад на записи.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -17,8 +18,8 @@ import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import type { IMusicCatalog, IMusicCollection, IMusicTrack } from '@/types/music.types.ts';
-import { ArrowLeftIcon, MusicNoteIcon } from '@/components/Icons/Icons.tsx';
-import { MusicHeader } from './MusicHeader.tsx';
+import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
+import { MusicNoteIcon } from '@/components/Icons/Icons.tsx';
 import { TrackRows } from './TrackRows.tsx';
 import css from './MusicPage.module.css';
 
@@ -160,15 +161,13 @@ export const MusicPage: React.FC = () => {
     const quiet = catalog.collections.length === 0 && catalog.singles.length === 0;
 
     return (
-        <main className={css.page}>
-            <MusicHeader heading={!trackId} />
-            {trackId ? (
-                <p className={css.back}>
-                    <Link to="/music" aria-label="Вся музыка" title="Вся музыка">
-                        <ArrowLeftIcon className={css.backIcon} />
-                    </Link>
-                </p>
-            ) : null}
+        <main className={css.shell}>
+            <AppHeader
+                title="Музыка"
+                backTo={trackId ? '/music' : undefined}
+                backLabel="Вся музыка"
+            />
+            <div className={css.page}>
 
             {loading ? (
                 <div className={css.status} aria-busy="true" aria-label="Загрузка музыки">
@@ -258,6 +257,7 @@ export const MusicPage: React.FC = () => {
                     />
                 </>
             ) : null}
+            </div>
         </main>
     );
 };
