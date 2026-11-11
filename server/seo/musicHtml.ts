@@ -12,6 +12,7 @@ import {
 } from '../../shared/pageMetaHtml';
 import MusicCollection from '../models/MusicCollection';
 import MusicTrack from '../models/MusicTrack';
+import { storedMediaVersion } from '../music/mediaVersion';
 import { SHARE_HEIGHT, SHARE_WIDTH } from './shareImage';
 
 /** Заголовок каталога. Совпадает с MUSIC_PAGE_META на клиенте. */
@@ -108,7 +109,7 @@ const collectionMeta = async (
     const description = doc.description.trim()
         || `${kind} «${doc.title}». Записи студии «Тюленева 25».`;
     const imageUrl = doc.coverKey
-        ? `${origin}/api/music/collections/${doc._id.toString()}/og.jpg`
+        ? `${origin}/api/music/collections/${doc._id.toString()}/og.jpg?v=${storedMediaVersion(doc.coverVersion)}`
         : `${origin}/og-share.jpg`;
     return {
         title: `${doc.title} — ${SITE_NAME}`,
@@ -145,7 +146,7 @@ const trackMeta = async (origin: string, id: string): Promise<HtmlPageMeta> => {
         || track.credits.trim()
         || `Запись «${track.title}». Студия «Тюленева 25».`;
     const imageUrl = track.coverKey
-        ? `${origin}/api/music/tracks/${track._id.toString()}/og.jpg`
+        ? `${origin}/api/music/tracks/${track._id.toString()}/og.jpg?v=${storedMediaVersion(track.coverVersion)}`
         : `${origin}/og-share.jpg`;
     return {
         title: `${track.title} — ${SITE_NAME}`,

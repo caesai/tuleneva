@@ -7,6 +7,7 @@ import {
     PublicCatalogSchema,
     PublicCollectionSchema,
 } from '../../../shared/contracts/music';
+import MusicCollection from '../../models/MusicCollection';
 import { MemoryObjectStorage } from '../../storage/memoryStorage';
 import {
     connectTestDb,
@@ -200,6 +201,53 @@ describe('music collections', () => {
         expect(cover.status).toBe(200);
         expect(cover.headers['content-type']).toMatch(/image\/jpeg/);
         expect(cover.body[0]).toBe(0xff);
+        expect(saved.body.collection.coverVersion).toBe(1);
+    });
+
+    it('поднимает coverVersion при повторной обложке и читает документ без поля', async () => {
+        const superAdmin = await seedUser({ role: 'super_admin' });
+        const created = await request(app)
+            .post('/api/music/admin/collections')
+            .set(authHeader(superAdmin))
+            .send({ type: 'album', title: 'Север' });
+        const id = created.body.collection.id as string;
+        expect(created.body.collection.coverVersion).toBe(0);
+
+        const first = await request(app)
+            .patch(`/api/music/admin/collections/${id}`)
+            .set(authHeader(superAdmin))
+            .field('title', 'Север')
+            .attach('cover', jpeg, { filename: 'cover.jpg', contentType: 'image/jpeg' });
+        expect(first.status).toBe(200);
+        expect(first.body.collection.id).toBe(id);
+        expect(first.body.collection.coverVersion).toBe(1);
+
+        await MusicCollection.updateOne({ _id: id }, { $unset: { coverVersion: '' } });
+        await request(app).post(`/api/music/admin/collections/${id}/publish`).set(authHeader(superAdmin));
+        const legacy = PublicCatalogSchema.parse((await request(app).get('/api/music/catalog')).body);
+        const card = legacy.collections.find((item) => item.id === id);
+        expect(card?.coverVersion).toBe(0);
+        expect((await request(app).get(`/api/music/collections/${id}/cover`)).status).toBe(200);
+
+        const again = Buffer.alloc(16);
+        again[0] = 0xff;
+        again[1] = 0xd8;
+        again[2] = 0xff;
+        again[8] = 9;
+        const replaced = await request(app)
+            .patch(`/api/music/admin/collections/${id}`)
+            .set(authHeader(superAdmin))
+            .field('title', 'Север')
+            .attach('cover', again, { filename: 'cover.jpg', contentType: 'image/jpeg' });
+        expect(replaced.status).toBe(200);
+        expect(replaced.body.collection.id).toBe(id);
+        expect(replaced.body.collection.coverVersion).toBe(1);
+
+        const versioned = await request(app).get(`/api/music/collections/${id}/cover?v=1`);
+        const open = await request(app).get(`/api/music/collections/${id}/cover`);
+        expect(versioned.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+        expect(versioned.body[8]).toBe(9);
+        expect(open.headers['cache-control']).toBe('public, max-age=0, must-revalidate');
     });
 
     it('кладёт новую запись в выбранный альбом', async () => {

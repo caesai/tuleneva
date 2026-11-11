@@ -86,7 +86,7 @@ export const MusicCollectionPage: React.FC = () => {
         }
         const path = `/music/${collection.type === 'album' ? 'album' : 'playlist'}/${collection.id}`;
         const imagePath = collection.hasCover
-            ? collectionCoverUrl(collection.id)
+            ? collectionCoverUrl(collection.id, collection.coverVersion)
             : MUSIC_PAGE_META.ogImagePath;
         return {
             ...MUSIC_PAGE_META,
@@ -103,7 +103,9 @@ export const MusicCollectionPage: React.FC = () => {
                 description: collection.description || undefined,
                 url: toAbsoluteUrl(path),
                 numTracks: collection.trackCount,
-                ...(collection.hasCover ? { image: toAbsoluteUrl(collectionCoverUrl(collection.id)) } : {}),
+                ...(collection.hasCover
+                    ? { image: toAbsoluteUrl(collectionCoverUrl(collection.id, collection.coverVersion)) }
+                    : {}),
             },
         };
     }, [collection, kindLabel]);
@@ -166,7 +168,7 @@ export const MusicCollectionPage: React.FC = () => {
                     {collection.hasCover ? (
                         <img
                             className={css.heroCover}
-                            src={collectionCoverUrl(collection.id)}
+                            src={collectionCoverUrl(collection.id, collection.coverVersion)}
                             alt={`Обложка «${collection.title}»`}
                         />
                     ) : (
@@ -184,7 +186,7 @@ export const MusicCollectionPage: React.FC = () => {
                             tracks={tracks}
                             currentId={trackId}
                             playing={playing}
-                            fallbackCoverUrl={collection.hasCover ? collectionCoverUrl(collection.id) : null}
+                            fallbackCoverUrl={collection.hasCover ? collectionCoverUrl(collection.id, collection.coverVersion) : null}
                             onSelect={setTrackId}
                             onPress={pressRow}
                         />
@@ -194,8 +196,8 @@ export const MusicCollectionPage: React.FC = () => {
                             title={selected.title}
                             credits={selected.credits}
                             description={selected.description}
-                            coverUrl={selected.hasCover ? trackCoverUrl(selected.id) : null}
-                            src={trackAudioUrl(selected.id)}
+                            coverUrl={selected.hasCover ? trackCoverUrl(selected.id, selected.coverVersion) : null}
+                            src={trackAudioUrl(selected.id, selected.audioVersion)}
                             playRequest={playRequest}
                             pauseRequest={pauseRequest}
                             hasPrevious={selectedIndex > 0}

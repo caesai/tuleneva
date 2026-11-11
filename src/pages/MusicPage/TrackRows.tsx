@@ -41,7 +41,7 @@ export const TrackRows: React.FC<TrackRowsProps> = ({
     <ul className={css.list}>
         {tracks.map((track) => {
             const current = track.id === currentId;
-            const cover = track.hasCover ? trackCoverUrl(track.id) : fallbackCoverUrl;
+            const cover = track.hasCover ? trackCoverUrl(track.id, track.coverVersion) : fallbackCoverUrl;
             return (
                 <li key={track.id} className={current ? css.itemCurrent : css.item}>
                     <button

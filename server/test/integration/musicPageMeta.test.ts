@@ -85,7 +85,7 @@ describe('music page meta', () => {
         });
 
         const page = await request(app).get(`/music/album/${album._id.toString()}`);
-        const imageUrl = `https://test.example/api/music/collections/${album._id.toString()}/og.jpg`;
+        const imageUrl = `https://test.example/api/music/collections/${album._id.toString()}/og.jpg?v=0`;
 
         expect(page.status).toBe(200);
         expect(page.headers['cache-control']).toBe('no-cache, no-store, must-revalidate');
@@ -108,7 +108,17 @@ describe('music page meta', () => {
             });
         expect(image.status).toBe(200);
         expect(image.headers['content-type']).toMatch(/image\/jpeg/);
-        expect(image.headers['cache-control']).toBe('public, max-age=86400');
+        expect(image.headers['cache-control']).toBe('public, max-age=0, must-revalidate');
+        const versioned = await request(app)
+            .get(`/api/music/collections/${album._id.toString()}/og.jpg?v=0`)
+            .buffer(true)
+            .parse((res, callback) => {
+                const chunks: Buffer[] = [];
+                res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+                res.on('end', () => callback(null, Buffer.concat(chunks)));
+            });
+        expect(versioned.status).toBe(200);
+        expect(versioned.headers['cache-control']).toBe('public, max-age=31536000, immutable');
         const meta = await sharp(image.body).metadata();
         expect(meta.width).toBe(1200);
         expect(meta.height).toBe(630);

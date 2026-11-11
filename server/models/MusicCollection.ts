@@ -18,6 +18,8 @@ export interface MusicCollectionDoc {
     status: MusicCollectionStatus;
     coverKey?: string | null;
     coverContentType?: string | null;
+    /** Сколько раз записана обложка. Нет поля у старых документов — ноль. */
+    coverVersion?: number;
     trackIds: Types.ObjectId[];
     publishedAt?: Date | null;
     createdBy: Types.ObjectId;
@@ -47,6 +49,7 @@ const musicCollectionSchema = new mongoose.Schema(
         },
         coverKey: { type: String, default: null },
         coverContentType: { type: String, default: null },
+        coverVersion: { type: Number, default: 0, min: 0 },
         trackIds: {
             type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MusicTrack' }],
             default: [],

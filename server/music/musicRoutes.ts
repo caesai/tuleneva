@@ -15,7 +15,8 @@ import { detachTrack, placeTrackInAlbum, requireAlbum } from './collectionMember
 import { registerCollectionRoutes } from './collectionRoutes';
 import { AUDIO_MAX_BYTES } from './musicLimits';
 import { sendShareJpeg } from '../seo/shareImage';
-import { parseRangeHeader, sendStoredObject } from './musicMedia';
+import { bumpMediaVersion, storedMediaVersion } from './mediaVersion';
+import { isVersionedMediaRequest, parseRangeHeader, sendStoredObject } from './musicMedia';
 import {
     loadAlbumIndex,
     publicAlbumId,
@@ -226,6 +227,8 @@ export const createMusicRouter = ({
                 audioKey,
                 coverKey,
                 coverContentType: cover?.contentType ?? null,
+                audioVersion: 1,
+                coverVersion: cover ? 1 : 0,
                 audioBytes: audio.buffer.length,
                 createdBy: req.dbUser!._id,
                 updatedBy: req.dbUser!._id,
@@ -350,6 +353,7 @@ export const createMusicRouter = ({
             if (parsed.files.audio) {
                 await objectStorage.put(track.audioKey, parsed.files.audio.buffer, 'audio/mpeg');
                 track.audioBytes = parsed.files.audio.buffer.length;
+                track.audioVersion = bumpMediaVersion(track.audioVersion);
             }
             if (nextCover) {
                 await objectStorage.put(nextCover.key, nextCover.body, nextCover.contentType);
@@ -358,6 +362,7 @@ export const createMusicRouter = ({
                 }
                 track.coverKey = nextCover.key;
                 track.coverContentType = nextCover.contentType;
+                track.coverVersion = bumpMediaVersion(track.coverVersion);
             }
             track.title = text.value.title;
             track.credits = text.value.credits;
@@ -534,12 +539,13 @@ export const createMusicRouter = ({
             return;
         }
         try {
-            const updated = track.updatedAt ? track.updatedAt.getTime() : 0;
+            const version = storedMediaVersion(track.coverVersion);
             const sent = await sendShareJpeg(
                 res,
                 objectStorage,
                 track.coverKey,
-                `${track.coverKey}:${updated}`,
+                `${track.coverKey}:${version}`,
+                isVersionedMediaRequest(req.query),
             );
             if (!sent && !res.headersSent) {
                 res.status(404).json({ message: 'Файл не найден.' });

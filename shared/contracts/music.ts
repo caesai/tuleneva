@@ -11,6 +11,10 @@ export const PublicMusicTrackSchema = z.object({
     credits: z.string(),
     description: z.string().nullable(),
     hasCover: z.boolean(),
+    /** Номер байтов MP3. У старой записи без поля сервер отдаёт 0. */
+    audioVersion: z.number().int().nonnegative(),
+    /** Номер байтов обложки. Нет обложки или старое поле — 0. */
+    coverVersion: z.number().int().nonnegative(),
     publishedAt: z.string().nullable(),
     /** Опубликованный альбом или null, если запись ещё без альбома. */
     albumId: z.string().nullable(),
@@ -23,6 +27,8 @@ export const PublicCollectionCardSchema = z.object({
     title: z.string(),
     description: z.string().nullable(),
     hasCover: z.boolean(),
+    /** Номер байтов обложки. Старая подборка без поля — 0. */
+    coverVersion: z.number().int().nonnegative(),
     trackCount: z.number().int().nonnegative(),
     publishedAt: z.string().nullable(),
 }).strict();

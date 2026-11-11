@@ -15,6 +15,10 @@ export interface IMusicTrack {
     credits: string;
     description: string | null;
     hasCover: boolean;
+    /** Номер байтов MP3. Нет поля у старого ответа — страница считает 0. */
+    audioVersion?: number;
+    /** Номер байтов обложки. Нет поля — 0. */
+    coverVersion?: number;
     publishedAt: string | null;
     /** Опубликованный альбом. В админке — альбом, даже если он ещё черновик. */
     albumId?: string | null;
@@ -34,6 +38,8 @@ export interface IMusicCollection {
     title: string;
     description: string | null;
     hasCover: boolean;
+    /** Номер байтов обложки. Нет поля у старого ответа — 0. */
+    coverVersion?: number;
     trackCount: number;
     publishedAt: string | null;
     status?: TMusicStatus;

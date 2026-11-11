@@ -3,6 +3,7 @@
  */
 import sharp from 'sharp';
 import type { Response } from 'express';
+import { mediaCacheControl } from '../music/musicMedia';
 import type { ObjectStorage } from '../storage/objectStorage';
 
 /** Ширина карточки, которую ждут Telegram и VK. */
@@ -59,7 +60,7 @@ export const renderShareJpeg = async (source: Buffer): Promise<Buffer> => {
 
 /**
  * Отдаёт JPEG из кэша или собирает его заново.
- * Ключ кэша должен меняться вместе с обложкой (coverKey и updatedAt).
+ * Ключ кэша должен меняться вместе с обложкой (coverKey и coverVersion).
  * @param cacheKey Ключ кэша
  * @param source Исходная обложка
  * @returns JPEG 1200×630
@@ -85,7 +86,8 @@ export const cachedShareJpeg = async (cacheKey: string, source: Buffer): Promise
  * @param res Ответ Express
  * @param storage Хранилище
  * @param objectKey Ключ обложки
- * @param cacheKey Ключ кэша, включая время обновления документа
+ * @param cacheKey Ключ кэша, включая версию обложки
+ * @param versioned В URL есть `?v=`
  * @returns true, если ответ уже отправлен
  */
 export const sendShareJpeg = async (
@@ -93,13 +95,14 @@ export const sendShareJpeg = async (
     storage: ObjectStorage,
     objectKey: string,
     cacheKey: string,
+    versioned: boolean,
 ): Promise<boolean> => {
     const source = await readObjectBuffer(storage, objectKey);
     if (!source) {
         return false;
     }
     const jpeg = await cachedShareJpeg(cacheKey, source);
-    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Cache-Control', mediaCacheControl(true, versioned));
     res.set('Content-Type', 'image/jpeg');
     res.send(jpeg);
     return true;
