@@ -8,8 +8,13 @@
 
 | Путь | Назначение |
 |------|------------|
-| `src/` | **Клиент**: React + TypeScript, Vite |
+| `src/` | **Клиент**: React + TypeScript, Vite, MUI (`src/theme`) |
+| `src/pages/` | Расписание, админка, публичная музыка |
+| `src/music/` | События плеера и подготовка обложек |
 | `server/` | **Бэкенд**: Express, Mongoose, Telegraf (TypeScript → бандл `dist/index.cjs`) |
+| `server/music/` | Каталог, события прослушивания, публикация |
+| `server/storage/` | Объектное хранилище: local или S3 |
+| `server/seo/` | HTML для `/music` и JPEG Open Graph |
 | `shared/` | Общее между клиентом и сервером: Zod-контракты, `roleLattice`, `studioHours`, `roleMatrix` |
 | `docs/` | Handoff и доменная документация |
 
@@ -59,7 +64,7 @@ src/contexts/AuthContext.tsx
 ### WebSocket
 
 - Путь: `/ws`
-- События: `booking_update`, `booking_cancel`
+- События: `booking_update`, `booking_cancel`, `users_update` (админка перезагружает список: регистрация, инвайт, роль, удаление)
 - Клиент подписывается через контекст сети / хуки расписания
 
 ### Актуальные эндпоинты auth
@@ -121,6 +126,9 @@ npm run check
 # по отдельности
 npm test
 cd server && npm run test:all
+
+# Playwright. В CI не входит.
+npm run test:e2e
 ```
 
 ### Когда писать новые тесты
@@ -156,6 +164,7 @@ cd server && npm run test:all
 6. **README** — при добавлении env-переменных, эндпоинтов или команд обновляй [README.md](README.md).
 7. **Deprecated** — не расширять legacy-маршруты `/api/users/*`; новое — в `/api/auth/*` и `auth.api.ts`. Список legacy заморожен тестом `server/test/unit/legacyUsersRoutes.freeze.test.ts`.
 8. **Node** — CI и `.node-version` на 20; `engines` допускает 20 и новее.
+9. **Прод-зависимости сервера.** Любой пакет, который серверный код или `shared/` импортирует в рантайме, должен быть в `dependencies` файла `server/package.json`. esbuild собирает бандл с `--packages=external`, на VPS выполняется `npm ci --omit=dev`. Шаг CI «Check production requires» падает, если `require` из `dist/index.cjs` не резолвится из такой установки. Встроенные модули Node (`crypto` и остальные) в `package.json` не добавлять.
 
 ---
 
@@ -179,6 +188,7 @@ npm run typecheck:all             # клиент + server
 npm run dev                       # клиент (HTTPS, proxy /api на локальный API)
 npm run build && npm run lint
 npm test
+npm run test:e2e                  # Playwright; CI этот шаг не запускает
 
 cd server && npm run dev          # tsx watch index.ts
 cd server && npm run typecheck

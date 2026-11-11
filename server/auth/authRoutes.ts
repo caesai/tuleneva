@@ -34,7 +34,7 @@ import {
     getEmailErrorStatus,
 } from './emailProvider';
 import { safeNotify } from '../notifications/telegramNotify';
-import { createRateLimiter } from './rateLimit';
+import { createPresetRateLimiter } from './rateLimit';
 
 /**
  * Статус HTTP для ошибок email-провайдера.
@@ -70,6 +70,7 @@ const emailErrorStatus = (err: unknown): number => {
  * @param {Function|null} [options.sendMail]
  * @param {Function} [options.broadcastUpdate] - WebSocket broadcast (например users_update)
  * @param {boolean} [options.stealthMode] - Закрыть саморегистрацию Telegram. Инвайты не затрагивает.
+ * @param {import('express').RequestHandler} [options.telegramRegisterLimit] - Общий лимит с legacy POST /api/users/register
  */
 const createAuthRouter = ({
     jwtSecret,
@@ -82,19 +83,17 @@ const createAuthRouter = ({
     sendMail = null,
     broadcastUpdate = (..._args: any[]) => {},
     stealthMode = false,
+    telegramRegisterLimit = createPresetRateLimiter('telegramRegister'),
 }: any) => {
     const router = express.Router();
 
-    const telegramLoginLimit = createRateLimiter({
-        windowMs: 60_000,
-        max: 40,
-        message: 'Too many login attempts',
-    });
-    const inviteUseLimit = createRateLimiter({
-        windowMs: 60_000,
-        max: 40,
-        message: 'Too many invite attempts',
-    });
+    const telegramLoginLimit = createPresetRateLimiter('telegramLogin');
+    const inviteUseLimit = createPresetRateLimiter('inviteUse');
+    const emailLoginLimit = createPresetRateLimiter('emailLogin');
+    const emailLinkLimit = createPresetRateLimiter('emailLink');
+    const emailConfirmLimit = createPresetRateLimiter('emailConfirm');
+    const emailForgotLimit = createPresetRateLimiter('emailForgot');
+    const emailResetLimit = createPresetRateLimiter('emailReset');
 
     const noCache = (res) => {
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -173,7 +172,7 @@ const createAuthRouter = ({
         }
     });
 
-    router.post('/providers/telegram/register', async (req, res) => {
+    router.post('/providers/telegram/register', telegramRegisterLimit, async (req, res) => {
         noCache(res);
         const { user: userData } = req.body;
 
@@ -413,6 +412,7 @@ const createAuthRouter = ({
      */
     router.post(
         '/providers/email/link',
+        emailLinkLimit,
         authenticateToken,
         verifyUserExists,
         async (req, res) => {
@@ -464,7 +464,7 @@ const createAuthRouter = ({
      * @route POST /api/auth/providers/email/confirm
      * @description Подтверждает почту по одноразовому токену из письма.
      */
-    router.post('/providers/email/confirm', async (req, res) => {
+    router.post('/providers/email/confirm', emailConfirmLimit, async (req, res) => {
         noCache(res);
         const { token } = req.body || {};
         try {
@@ -490,7 +490,7 @@ const createAuthRouter = ({
      * @route POST /api/auth/providers/email/login
      * @description Вход по почте и паролю; JWT с тем же _id, что у Telegram-аккаунта.
      */
-    router.post('/providers/email/login', async (req, res) => {
+    router.post('/providers/email/login', emailLoginLimit, async (req, res) => {
         noCache(res);
         const { email, password } = req.body || {};
         try {
@@ -519,7 +519,7 @@ const createAuthRouter = ({
      * @route POST /api/auth/providers/email/forgot
      * @description Запрос сброса пароля. Ответ всегда 200 (без enumeration).
      */
-    router.post('/providers/email/forgot', async (req, res) => {
+    router.post('/providers/email/forgot', emailForgotLimit, async (req, res) => {
         noCache(res);
         const { email } = req.body || {};
         try {
@@ -544,7 +544,7 @@ const createAuthRouter = ({
      * @route POST /api/auth/providers/email/reset
      * @description Установка нового пароля по токену из письма.
      */
-    router.post('/providers/email/reset', async (req, res) => {
+    router.post('/providers/email/reset', emailResetLimit, async (req, res) => {
         noCache(res);
         const { token, password } = req.body || {};
         try {

@@ -1,5 +1,6 @@
 /**
  * Express application factory (no listen, no Telegraf launch).
+ * `trust proxy` берётся из `TRUST_PROXY` (по умолчанию `loopback`).
  */
 import express from 'express';
 import cors from 'cors';
@@ -36,6 +37,8 @@ import { createMusicRouter } from './music/musicRoutes';
 import { registerMusicHtmlRoutes } from './seo/musicHtml';
 import type { ObjectStorage } from './storage/objectStorage';
 import { isStealthMode } from './config/stealthMode';
+import { resolveTrustProxy } from './config/trustProxy';
+import { createPresetRateLimiter } from './auth/rateLimit';
 import { createCalendarAccess } from './auth/calendarAccess';
 
 /**
@@ -92,6 +95,15 @@ const createApp = ({
     const calendarAccess = createCalendarAccess({ jwtSecret, botToken, stealth });
 
     const app = express();
+    // Один локальный Nginx. Пустой TRUST_PROXY — loopback, не «доверять всем».
+    app.set('trust proxy', resolveTrustProxy());
+    const bookLimit = createPresetRateLimiter('book');
+    const cancelLimit = createPresetRateLimiter('cancel');
+    /**
+     * Общий счётчик с POST /api/auth/providers/telegram/register:
+     * legacy-алиас не удваивает бюджет.
+     */
+    const telegramRegisterLimit = createPresetRateLimiter('telegramRegister');
     app.use(cors({
         origin: webAppBaseUrl,
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -225,6 +237,7 @@ app.use('/api/auth', createAuthRouter({
     sendMail: mailSender,
     broadcastUpdate,
     stealthMode: stealth,
+    telegramRegisterLimit,
 }));
 
 app.get('/', (req, res) => {
@@ -250,7 +263,7 @@ app.get('/api/users/info', authenticateToken, verifyUserExists, async (req, res)
  * @returns {Object} JSON с токеном и данными пользователя.
  */
 /** @deprecated Используйте POST /api/auth/providers/telegram/register */
-app.post('/api/users/register', async (req, res) => {
+app.post('/api/users/register', telegramRegisterLimit, async (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
     const { user: userData } = req.body;
@@ -517,7 +530,7 @@ app.delete('/api/users/:id', authenticateToken, verifyUserExists, async (req, re
  * @param {string} req.body.band_name - Название группы (опционально).
  * @returns {Object} Обновленный объект репетиции.
  */
-app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
+app.post('/api/book', bookLimit, authenticateToken, verifyUserExists, async (req, res) => {
     const dbUser = requireDbUser(req, res);
     if (!dbUser) return;
 
@@ -548,7 +561,7 @@ app.post('/api/book', authenticateToken, verifyUserExists, async (req, res) => {
  * @param {Array<string>} req.body.hours - Массив часов для отмены.
  * @returns {Object} Сообщение об успешной отмене и обновленные данные.
  */
-app.delete('/api/cancel', authenticateToken, verifyUserExists, async (req, res) => {
+app.delete('/api/cancel', cancelLimit, authenticateToken, verifyUserExists, async (req, res) => {
     const dbUser = requireDbUser(req, res);
     if (!dbUser) return;
 

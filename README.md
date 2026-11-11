@@ -4,11 +4,11 @@ Telegram Mini App и веб-клиент для бронирования вре�
 
 ## Технологический стек
 
-**Frontend:** React, TypeScript, Vite, Telegram Apps SDK, React Router, CSS Modules
+**Frontend:** React, TypeScript, Vite, MUI (тема в `src/theme`), Telegram Apps SDK, React Router, CSS Modules
 
 **Backend:** Node.js, Express, MongoDB, Mongoose, Telegraf, JWT, WebSocket (`/ws`)
 
-**Тесты:** Vitest (клиент и сервер), Zod-контракты в `shared/contracts/`, integration через supertest + mongodb-memory-server. E2E (Playwright) — планируется отдельно.
+**Тесты:** Vitest (клиент и сервер), Zod-контракты в `shared/contracts/`, integration через supertest + mongodb-memory-server. E2E на Playwright есть (`npm run test:e2e`), но CI его не запускает.
 
 ## Функционал
 
@@ -33,7 +33,7 @@ Telegram Mini App и веб-клиент для бронирования вре�
 
 ### Требования
 
-- Node.js 18+
+- Node.js 20 (линия из `.node-version`; sharp 0.35 ставится на 20.9 и новее)
 - MongoDB (локально или облако)
 
 ### Сервер
@@ -51,6 +51,9 @@ JWT_SECRET=секретный_ключ
 WEB_APP_BASE_URL=https://tuleneva25.ru
 MONGO_URI=mongodb://127.0.0.1:27017/test
 PORT=3000
+# Один локальный Nginx. Пусто — loopback: X-Forwarded-For учитывается только с 127.0.0.1/::1.
+# Число — сколько хопов доверять (строка "1" тоже число). false — не доверять заголовку.
+# TRUST_PROXY=loopback
 # Календарь /app только для пользователей из базы. По умолчанию включено, переменную можно не задавать.
 # Выключить позже: STEALTH_MODE=0
 # STEALTH_MODE=1
@@ -116,7 +119,7 @@ npm test
 npm run test:watch
 npm run test:coverage
 
-# Playwright smoke (расписание + вход по почте; поднимает Vite на :5173)
+# Playwright smoke (расписание + вход по почте; поднимает Vite на :5173). CI этот шаг не запускает.
 npx playwright install chromium
 npm run test:e2e
 
@@ -147,11 +150,23 @@ Node 20 (см. `.node-version`). Integration-тесты используют in-
 | GET | `/api/auth/invite/history` | Админ: живые инвайты и история (пока TTL не стёр) |
 | GET | `/api/auth/invite/validate/:code` | Проверка кода |
 
+Лимиты по IP живут в памяти одного процесса (окно — минута). Ответ при превышении: `429` и JSON `{ "message": "..." }`. За Nginx клиент берётся из `X-Forwarded-For`, если `TRUST_PROXY` доверяет этот хоп (по умолчанию `loopback`). Шаблон Nginx должен слать и `X-Forwarded-For`, и `X-Real-IP`; CD этот файл не выкладывает.
+
+| Маршрут | В минуту с одного IP |
+|---------|----------------------|
+| POST `/api/auth/providers/email/login`, `/link`, `/confirm` | 10 |
+| POST `/api/auth/providers/telegram/register` и legacy POST `/api/users/register` | 10 на оба пути вместе |
+| POST `/api/auth/providers/email/forgot`, `/reset` | 5 |
+| POST `/api/auth/providers/telegram/login`, `/api/auth/invite/use` | 40 |
+| POST `/api/book`, DELETE `/api/cancel` | по 30 |
+| POST `/api/music/events` | 60 |
+
 ### Пользователи и расписание
 
 | Method | Path | Назначение |
 |--------|------|------------|
-| GET | `/api/users` | Список пользователей (JWT) |
+| GET | `/api/config` | Публичный `{ stealthMode }`. Слотов и броней нет |
+| GET | `/api/users` | Список пользователей (admin+) |
 | PUT | `/api/users/:id/role` | Смена роли (admin+) |
 | GET | `/api/users/:id/role-log` | Журнал смен ролей (admin+) |
 | PUT | `/api/users/:id/email-login` | Админ: почта и пароль (письмо с подтверждением) |
@@ -169,7 +184,7 @@ Node 20 (см. `.node-version`). Integration-тесты используют in-
 
 Альбом или плейлист — отдельная коллекция с названием, описанием, обложкой, статусом и упорядоченным списком id. Запись может быть в одном альбоме и в нескольких плейлистах. Старые записи без подборки остаются как есть и на `/music` попадают в «Синглы», пока их не включат в опубликованный альбом или плейлист. Отдельная миграция базы не нужна.
 
-Прослушивания считаются своим счётчиком, без Метрики и без рекламного блокатора. Браузер шлёт `POST /api/music/events`: `play_start` (звук реально пошёл), `play_complete` (около 90% или конец) и `share`. В документе коллекции `music_events` лежат тип, id записи и контекст альбома или плейлиста, время, метка источника и случайный id сессии из localStorage. Если участник студии в этот момент вошёл, пишется ещё его `userId`. IP и user-agent не сохраняются. Повтор того же прослушивания в ту же сессию в течение 30 минут схлопывается. Частота ограничена по IP в памяти процесса (60 запросов в минуту). `STEALTH_MODE` этот маршрут не закрывает. Сводка `GET /api/music/admin/stats` — только `super_admin`: за скользящие 7 дней и за всё время. Индексы объявлены на модели и создаются Mongoose при старте API, руками их строить не нужно. Новых переменных окружения нет. Рядом те же три цели уходят в уже подключённый счётчик Яндекс Метрики (`reachGoal`).
+Прослушивания считаются своим счётчиком, без рекламного блокатора. Браузер шлёт `POST /api/music/events`: `play_start` (звук реально пошёл), `play_complete` (около 90% или конец) и `share`. В документе коллекции `music_events` лежат тип, id записи и контекст альбома или плейлиста, время, метка источника и случайный id сессии из localStorage. Если участник студии в этот момент вошёл, пишется ещё его `userId`. IP и user-agent не сохраняются. Повтор того же прослушивания в ту же сессию в течение 30 минут схлопывается. Частота ограничена по IP в памяти процесса (60 запросов в минуту). `STEALTH_MODE` этот маршрут не закрывает. Сводка `GET /api/music/admin/stats` — только `super_admin`: за скользящие 7 дней и за всё время. Индексы объявлены на модели и создаются Mongoose при старте API, руками их строить не нужно. Новых переменных окружения нет. Те же три имени уходят в счётчик Яндекс Метрики `98668551` вызовом `reachGoal` (JavaScript-события). Цели `play_start`, `play_complete` и `share` нужно завести в консоли Метрики, иначе вызовы не появятся в отчёте целей.
 
 | Method | Path | Назначение |
 |--------|------|------------|
@@ -199,8 +214,6 @@ Node 20 (см. `.node-version`). Integration-тесты используют in-
 | DELETE | `/api/music/tracks/:id` | Удалить запись и файлы |
 
 Лимиты: MP3 до 30 МБ, обложка JPEG/PNG/WebP до 2 МБ. Имя файла пользователя в ключ не попадает. Замена файла пишет в тот же ключ и тот же документ: id записи и подборки не меняются, статистика прослушиваний остаётся. В ответе карточки есть `audioVersion` и `coverVersion` (у подборки только `coverVersion`). Старый документ без поля читается как 0, отдельная миграция не нужна. Клиент добавляет `?v=` к URL обложки, MP3 и `og.jpg`. Опубликованный ответ с `?v=` кэшируется на год. Без `v` — `max-age=0, must-revalidate`. Черновик по-прежнему `private, no-store`.
-
-**Хранилище ещё не подключено к продакшену.** Пока владелец не выберет провайдера и не положит секреты в `/etc/tuleneva/api.env`, боевая загрузка отвечает 503. Код не создаёт бакет и не содержит ключей.
 
 | Переменная | Смысл |
 |------------|--------|
@@ -250,7 +263,9 @@ npm run build
 
 Статика из `dist/` раздаётся веб-сервером. Папка `dist/` в `.gitignore`.
 
-**Продакшен:** на push в `main` / `master` после зелёных тестов GitHub Actions выкладывает клиент и API на VPS (symlink `current`, systemd `tuleneva-api`). Секреты только в `/etc/tuleneva/api.env` на сервере и в GitHub Secrets (`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS`). Шаблоны и скрипт релиза — каталог `deploy/`.
+**Продакшен:** на push в `main` / `master` после зелёных тестов GitHub Actions выкладывает клиент и API на VPS (symlink `current`, systemd `tuleneva-api`). Секреты только в `/etc/tuleneva/api.env` на сервере и в GitHub Secrets (`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS`). Шаблоны и скрипт релиза — каталог `deploy/`. Конфиг Nginx CD не копирует: `X-Forwarded-For` и `location /music` правят на сервере вручную.
+
+Шаг CI **Check production requires** (job `server` в `.github/workflows/test.yml`) после сборки `server/dist/index.cjs` делает `npm ci --omit=dev` во временный каталог и проверяет, что каждый `require` бандла оттуда резолвится. Пакет, который сервер или `shared/` импортирует в рантайме, должен лежать в `dependencies` файла `server/package.json`, не только в devDependencies и не только в корневом `package.json`. Встроенный модуль Node в npm-зависимости не добавляют.
 
 Полный чеклист нового сервера и CD: [docs/VPS.md](docs/VPS.md). Бэкап Mongo: `server/scripts/backup-mongo.sh`.
 
@@ -263,8 +278,11 @@ tuleneva/
 ├── server/
 │   ├── app.ts              # createApp() — Express без listen/bot.launch
 │   ├── index.ts            # bootstrap: Mongo, Telegraf, WebSocket
-│   ├── auth/               # authRoutes, providers, inviteService
+│   ├── auth/               # authRoutes, providers, inviteService, rateLimit
 │   ├── booking/            # createBooking — book/cancel/day/month
+│   ├── music/              # каталог, события, публикация
+│   ├── storage/            # local / S3, ключи объектов
+│   ├── seo/                # HTML /music и JPEG Open Graph
 │   ├── realtime/           # createBroadcast — publish /ws
 │   ├── telegram/           # createBot, команды расписания
 │   ├── models/
@@ -274,7 +292,9 @@ tuleneva/
 │   ├── api/
 │   ├── auth/
 │   ├── contexts/
-│   ├── pages/
+│   ├── pages/              # расписание, админка, публичная музыка
+│   ├── music/              # события плеера и обложки
+│   ├── theme/              # тема MUI
 │   ├── telegram/
 │   └── utils/              # rolePermissions
 ├── shared/
