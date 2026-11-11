@@ -6,6 +6,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MusicNoteIcon } from '@/components/Icons/Icons.tsx';
+import { FadeImg } from '@/components/Skeleton/FadeImg.tsx';
 import { type ListenTarget, recordMusicEvent } from '@/music/listenStats.ts';
 import { MUSIC_COMPLETE_RATIO } from '../../../shared/musicListen.ts';
 import {
@@ -419,7 +420,7 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
             />
             <div className={css.top}>
                 {coverUrl && !coverFailed ? (
-                    <img
+                    <FadeImg
                         className={css.cover}
                         src={coverUrl}
                         alt={`Обложка «${title}»`}

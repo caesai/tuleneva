@@ -1,11 +1,10 @@
 // src/pages/TimeTablePage/TimeTablePage.tsx
-import React, { useState, useEffect, Suspense, type JSX } from 'react';
+import React, { useState, useEffect, useRef, Suspense, type JSX } from 'react';
 import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
 import { MailIcon, ShieldIcon } from '@/components/Icons/Icons.tsx';
 import { useNavigate } from 'react-router-dom';
-import { Loader } from '@/components/Loader/Loader.tsx';
-import { SuspenseLoaderFallback } from '@/components/Loader/SuspenseLoaderFallback.tsx';
-import { useDelayedLoading } from '@/hooks/useDelayedLoading.ts';
+import { CalendarSkeleton, RouteSkeleton, SlotsSkeleton } from '@/components/Skeleton/layouts.tsx';
+import { SkeletonSlot } from '@/components/Skeleton/SkeletonSlot.tsx';
 import { useTimeTableData } from '@/hooks/useTimeTableData.ts';
 import moment, { type Moment } from '@/lib/moment';
 import css from '@/pages/TimeTablePage/TimeTable.module.css';
@@ -114,33 +113,22 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     // Пользовательский хук для получения данных расписания (подсвеченные даты, забронированные часы)
     const { highlightedDates, bookedHours, loading, hoursLoading, error, fetchBookedHours, refetch } =
         useTimeTableData(viewDate, selectedDate, isOnline, showCalendar);
-    /** Лоадер месяца: minVisibleMs после ответа API */
-    const showPageLoading = useDelayedLoading(loading);
-    const showHoursLoading = useDelayedLoading(hoursLoading);
-    /** Синхронно с кликом — до useLayoutEffect в хуке */
-    const [monthTransition, setMonthTransition] = useState(false);
-    const [dayTransition, setDayTransition] = useState(false);
-    /** После первого полного показа — слоты грузятся отдельным лоадером под календарём */
-    const [initialLoadDone, setInitialLoadDone] = useState(false);
-
-    const isMonthLoading = loading || showPageLoading || monthTransition;
-    const isDayLoading = hoursLoading || showHoursLoading || dayTransition;
+    /** После первого полного ответа календарь остаётся на месте при смене месяца. */
+    const [scheduleReady, setScheduleReady] = useState(false);
+    const sawScheduleLoad = useRef(false);
 
     useEffect(() => {
-        if (
-            initialLoadDone
-            || loading
-            || hoursLoading
-            || showPageLoading
-            || showHoursLoading
-        ) {
+        if (!showCalendar || scheduleReady) {
             return;
         }
-        setInitialLoadDone(true);
-    }, [initialLoadDone, loading, hoursLoading, showPageLoading, showHoursLoading]);
-
-    const showCardLoader = initialLoadDone ? isMonthLoading : (isMonthLoading || isDayLoading);
-    const showTabsLoader = initialLoadDone && isDayLoading;
+        if (loading || hoursLoading) {
+            sawScheduleLoad.current = true;
+            return;
+        }
+        if (sawScheduleLoad.current) {
+            setScheduleReady(true);
+        }
+    }, [showCalendar, scheduleReady, loading, hoursLoading]);
     // Состояние видимости модального окна подтверждения бронирования
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
     // Состояние для поля "Имя пользователя" в форме бронирования
@@ -159,18 +147,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     useEffect(() => {
         preloadTimeTableMuiChunks();
     }, []);
-
-    useEffect(() => {
-        if (!loading && !showPageLoading) {
-            setMonthTransition(false);
-        }
-    }, [loading, showPageLoading]);
-
-    useEffect(() => {
-        if (!hoursLoading && !showHoursLoading) {
-            setDayTransition(false);
-        }
-    }, [hoursLoading, showHoursLoading]);
 
     useEffect(() => {
         if (isBookingModalOpen) {
@@ -228,7 +204,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
      */
     const onDateChange = (newDate: Moment | null) => {
         if (!newDate) return;
-        setDayTransition(true);
         setSelectedDate(newDate);
         setSelectedHours([]);
         setHoursToCancel([]);
@@ -241,8 +216,6 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
      * @param {Moment} newMonth - Первый день нового месяца.
      */
     const onMonthChange = (newMonth: Moment) => {
-        setMonthTransition(true);
-        setDayTransition(true);
         setViewDate(newMonth);
         setSelectedDate(newMonth);
         setSelectedHours([]);
@@ -327,7 +300,10 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
     if (!accessReady) {
         return (
             <div className={css.timetable}>
-                <Loader fullScreen={false} />
+                <AppHeader title="Расписание" />
+                <div className={css.schedule}>
+                    <SkeletonSlot pending label="Загрузка расписания" skeleton={<RouteSkeleton />} />
+                </div>
             </div>
         );
     }
@@ -393,24 +369,13 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
 
             <div className={css.schedule}>
             <div className={css.card}>
-                {showCardLoader ? (
-                    <div
-                        className={`${css.cardLoader} ${css.cardLoaderFull}`}
-                        aria-busy="true"
-                        aria-label="Загрузка расписания"
-                    >
-                        <Loader fullScreen={false} />
-                    </div>
-                ) : (
+                <SkeletonSlot
+                    pending={!scheduleReady}
+                    label="Загрузка расписания"
+                    skeleton={<CalendarSkeleton />}
+                >
                     <>
-                        <Suspense
-                            fallback={(
-                                <SuspenseLoaderFallback
-                                    fullScreen={false}
-                                    className={css.suspenseLoader}
-                                />
-                            )}
-                        >
+                        <Suspense fallback={<CalendarSkeleton />}>
                             <LazyTimeTableCalendarBlock
                                 onDateChange={onDateChange}
                                 onMonthChange={onMonthChange}
@@ -418,24 +383,13 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                 highlightedDates={highlightedDates}
                             />
                         </Suspense>
-                        {showTabsLoader ? (
-                            <div
-                                className={`${css.cardLoader} ${css.cardLoaderTabs}`}
-                                aria-busy="true"
-                                aria-label="Загрузка слотов"
-                            >
-                                <Loader fullScreen={false} />
-                            </div>
-                        ) : (
+                        <SkeletonSlot
+                            pending={hoursLoading && bookedHours.length === 0}
+                            label="Загрузка слотов"
+                            skeleton={<SlotsSkeleton />}
+                        >
                             <>
-                                <Suspense
-                                    fallback={(
-                                        <SuspenseLoaderFallback
-                                            fullScreen={false}
-                                            className={`${css.suspenseLoader} ${css.suspenseLoaderTabs}`}
-                                        />
-                                    )}
-                                >
+                                <Suspense fallback={<SlotsSkeleton />}>
                                     <LazyTimeTableDayTabs
                                         activeTab={activeTab}
                                         hasBookedHours={hasBookedHours}
@@ -475,9 +429,9 @@ export const TimeTablePage: React.FC = (): JSX.Element => {
                                     </div>
                                 )}
                             </>
-                        )}
+                        </SkeletonSlot>
                     </>
-                )}
+                </SkeletonSlot>
             </div>
             </div>
         </div>

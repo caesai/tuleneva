@@ -16,7 +16,9 @@ import {
     trackCoverUrl,
 } from '@/api/music.api.ts';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
-import { Loader } from '@/components/Loader/Loader.tsx';
+import { FadeImg } from '@/components/Skeleton/FadeImg.tsx';
+import { CatalogSkeleton, TrackPageSkeleton } from '@/components/Skeleton/layouts.tsx';
+import { SkeletonSlot } from '@/components/Skeleton/SkeletonSlot.tsx';
 import { MUSIC_PAGE_META, toAbsoluteUrl, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
 import { captureListenSource } from '@/music/listenStats.ts';
@@ -74,6 +76,8 @@ export const MusicPage: React.FC = () => {
     const [album, setAlbum] = useState<IMusicCollection | null>(null);
     const [missing, setMissing] = useState(false);
     const [loading, setLoading] = useState(true);
+    /** Какой экран уже показан: каталог или id записи. Повтор того же экрана не прячет его. */
+    const [settledView, setSettledView] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [reloadKey, setReloadKey] = useState(0);
     const [playRequest, setPlayRequest] = useState(0);
@@ -127,6 +131,7 @@ export const MusicPage: React.FC = () => {
             })
             .finally(() => {
                 if (!cancelled) {
+                    setSettledView(trackId ?? 'catalog');
                     setLoading(false);
                 }
             });
@@ -181,6 +186,7 @@ export const MusicPage: React.FC = () => {
     }, [navigate, nextTrack]);
 
     const quiet = catalog.collections.length === 0 && catalog.singles.length === 0;
+    const viewKey = trackId ?? 'catalog';
 
     return (
         <main className={css.shell}>
@@ -200,12 +206,12 @@ export const MusicPage: React.FC = () => {
             </AppHeader>
             <div className={css.page}>
 
-            {loading ? (
-                <div className={css.status} aria-busy="true" aria-label="Загрузка музыки">
-                    <Loader fullScreen={false} />
-                </div>
-            ) : null}
-
+            <SkeletonSlot
+                pending={loading && settledView !== viewKey}
+                label="Загрузка музыки"
+                skeleton={trackId ? <TrackPageSkeleton /> : <CatalogSkeleton />}
+            >
+            <>
             {error ? (
                 <div className={css.status} role="alert">
                     <p>{error}</p>
@@ -215,11 +221,11 @@ export const MusicPage: React.FC = () => {
                 </div>
             ) : null}
 
-            {!loading && !error && !trackId && quiet ? (
+            {!error && !trackId && quiet && settledView === 'catalog' ? (
                 <p className={css.empty}>Пока здесь тихо. Записи появятся, когда студия их опубликует.</p>
             ) : null}
 
-            {!loading && !error && !trackId && catalog.collections.length > 0 ? (
+            {!error && !trackId && catalog.collections.length > 0 ? (
                 <ul className={css.grid}>
                     {catalog.collections.map((collection) => (
                         <li key={collection.id}>
@@ -228,7 +234,7 @@ export const MusicPage: React.FC = () => {
                                 to={`/music/${collection.type === 'album' ? 'album' : 'playlist'}/${collection.id}`}
                             >
                                 {collection.hasCover ? (
-                                    <img
+                                    <FadeImg
                                         className={css.cover}
                                         src={collectionCoverUrl(collection.id, collection.coverVersion)}
                                         alt=""
@@ -250,7 +256,7 @@ export const MusicPage: React.FC = () => {
                 </ul>
             ) : null}
 
-            {!loading && !error && !trackId && catalog.singles.length > 0 ? (
+            {!error && !trackId && catalog.singles.length > 0 ? (
                 <section className={css.singles}>
                     <h2 className={css.sectionTitle}>Синглы</h2>
                     <TrackRows
@@ -297,6 +303,8 @@ export const MusicPage: React.FC = () => {
                     />
                 </>
             ) : null}
+            </>
+            </SkeletonSlot>
             </div>
         </main>
     );

@@ -1,3 +1,6 @@
+/**
+ * @file Список пользователей студии. Пока список пуст и запрос идёт, вместо спиннера — скелет строк.
+ */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     APIGetUsers,
@@ -11,7 +14,8 @@ import {
 } from '@/api/user.api.ts';
 import type { IUser, TRole } from '@/types/user.types.ts';
 import type { TAuthProvider } from '@/types/auth.types.ts';
-import { DelayedLoader } from '@/components/Loader/DelayedLoader.tsx';
+import { UsersSkeleton } from '@/components/Skeleton/layouts.tsx';
+import { SkeletonSlot } from '@/components/Skeleton/SkeletonSlot.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import css from './AdminPage.module.css';
 import { useAuth } from '@/hooks/useAuth.ts';
@@ -412,14 +416,8 @@ export const AdminPage: React.FC = () => {
         }
     };
 
-    if (authStatus === 'loading' || loading) {
-        return (
-            <div className={css.loading}>
-                <DelayedLoader active fullScreen={false} reserveSpace />
-            </div>
-        );
-    }
-    if (error) return <div className={css.error}>{error}</div>;
+    const usersPending = (authStatus === 'loading' || loading) && users.length === 0;
+    if (error && users.length === 0 && !usersPending) return <div className={css.error}>{error}</div>;
 
     const visibleUsers = users.filter((person) => {
         if (roleFilter !== 'all' && person.role !== roleFilter) {
@@ -449,6 +447,7 @@ export const AdminPage: React.FC = () => {
                     <Link className={css.musicAdminLink} to="/admin/music">Музыка</Link>
                 ) : null}
             </AppHeader>
+            {error ? <div className={css.error}>{error}</div> : null}
             <div className={css.shell}>
             <div className={css.inviteSection}>
                 <button
@@ -622,7 +621,12 @@ export const AdminPage: React.FC = () => {
                 </select>
             </div>
 
-            {!user ? null : visibleUsers.length === 0 ? (
+            <SkeletonSlot
+                pending={usersPending}
+                label="Загрузка пользователей"
+                skeleton={<UsersSkeleton />}
+            >
+            {!user || visibleUsers.length === 0 ? (
                 <p className={css.inviteDescription}>Никого не нашли.</p>
             ) : (
                 <div className={css.userGrid}>
@@ -677,6 +681,7 @@ export const AdminPage: React.FC = () => {
                     ))}
                 </div>
             )}
+            </SkeletonSlot>
 
             <ModalPopup
                 isOpen={roleConfirm !== null}

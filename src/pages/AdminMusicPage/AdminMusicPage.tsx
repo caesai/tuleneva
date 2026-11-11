@@ -35,7 +35,10 @@ import {
 } from '@/components/Icons/Icons.tsx';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
-import { Loader } from '@/components/Loader/Loader.tsx';
+import { FadeImg } from '@/components/Skeleton/FadeImg.tsx';
+import { Bone } from '@/components/Skeleton/Bone.tsx';
+import { LibrarySkeleton } from '@/components/Skeleton/layouts.tsx';
+import { SkeletonSlot } from '@/components/Skeleton/SkeletonSlot.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
 import type { IMusicCollection, IMusicItemStats, IMusicStats, IMusicTrack } from '@/types/music.types.ts';
 import css from './AdminMusicPage.module.css';
@@ -135,7 +138,7 @@ const ListenCaption: React.FC<{ stats?: IMusicItemStats }> = ({ stats }) => {
  */
 const ThumbFrame: React.FC<{ src: string | null }> = ({ src }) => (
     src
-        ? <img className={css.thumb} src={src} alt="" />
+        ? <FadeImg className={css.thumb} src={src} alt="" />
         : (
             <span className={css.thumb} aria-hidden="true">
                 <MusicNoteIcon className={css.thumbIcon} />
@@ -175,6 +178,9 @@ const CoverThumb: React.FC<{ src: string | null; draft: boolean }> = ({ src, dra
         };
     }, [draft, src]);
 
+    if (draft && src && !blobUrl) {
+        return <Bone height={44} width={44} />;
+    }
     return <ThumbFrame src={draft ? blobUrl : src} />;
 };
 
@@ -201,6 +207,8 @@ export const AdminMusicPage: React.FC = () => {
     const [stats, setStats] = useState<IMusicStats | null>(null);
     const [statsError, setStatsError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    /** Первая загрузка уже дошла до конца: повтор не прячет списки. */
+    const [seenLibrary, setSeenLibrary] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [tab, setTab] = useState<LibraryTab>('tracks');
     const [sheet, setSheet] = useState<SheetKind | null>(null);
@@ -264,6 +272,12 @@ export const AdminMusicPage: React.FC = () => {
         }
         void load();
     }, [authStatus, capabilities.isSuperAdmin, isLoading, load]);
+
+    useEffect(() => {
+        if (!loading) {
+            setSeenLibrary(true);
+        }
+    }, [loading]);
 
     useEffect(() => {
         const node = errorRef.current;
@@ -382,8 +396,11 @@ export const AdminMusicPage: React.FC = () => {
 
     if (isLoading || authStatus === 'loading') {
         return (
-            <main className={css.page} aria-busy="true">
-                <Loader fullScreen={false} />
+            <main className={css.page}>
+                <AppHeader title="Музыка" backTo="/admin" backLabel="Назад" />
+                <div className={css.body}>
+                    <SkeletonSlot pending label="Загрузка записей" skeleton={<LibrarySkeleton />} />
+                </div>
             </main>
         );
     }
@@ -429,6 +446,12 @@ export const AdminMusicPage: React.FC = () => {
                 <p className={css.lead}>
                     Черновик слышите вы. Гости увидят запись только после публикации.
                 </p>
+                <SkeletonSlot
+                    pending={loading && !seenLibrary}
+                    label="Загрузка записей"
+                    skeleton={<LibrarySkeleton />}
+                >
+                <>
                 {stats ? (
                     <section className={css.summary} aria-label="Сводка за 7 дней">
                         <h2 className={css.summaryTitle}>За 7 дней</h2>
@@ -479,11 +502,7 @@ export const AdminMusicPage: React.FC = () => {
                     />
                 ) : null}
 
-                {loading ? (
-                    <div aria-busy="true" aria-label="Загрузка записей">
-                        <Loader fullScreen={false} />
-                    </div>
-                ) : listEmpty ? (
+                {listEmpty ? (
                     <p className={css.empty}>{EMPTY_COPY[tab]}</p>
                 ) : tab === 'tracks' ? (
                     <ul className={css.list}>
@@ -663,6 +682,8 @@ export const AdminMusicPage: React.FC = () => {
                         })}
                     </ul>
                 )}
+                </>
+                </SkeletonSlot>
             </div>
 
             <ModalPopup

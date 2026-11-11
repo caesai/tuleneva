@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { Loader } from '@/components/Loader/Loader.tsx';
+import { RouteSkeleton } from '@/components/Skeleton/layouts.tsx';
 
 interface AdminRouteProps {
     children: ReactNode;
@@ -18,7 +18,7 @@ export const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
     const location = useLocation();
 
     if (authStatus === 'loading') {
-        return <Loader fullScreen />;
+        return <RouteSkeleton />;
     }
 
     if (!capabilities.isAdmin) {

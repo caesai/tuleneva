@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { LinkIcon, MusicNoteIcon } from '@/components/Icons/Icons.tsx';
 import { PauseIcon, PlayIcon } from '@/components/TrackPlayer/PlayerIcons.tsx';
 import { trackCoverUrl } from '@/api/music.api.ts';
+import { FadeImg } from '@/components/Skeleton/FadeImg.tsx';
 import type { IMusicTrack } from '@/types/music.types.ts';
 import { isPlaceholderCredit } from './credits.ts';
 import css from './MusicPage.module.css';
@@ -51,7 +52,7 @@ export const TrackRows: React.FC<TrackRowsProps> = ({
                         aria-current={current ? 'true' : undefined}
                     >
                         {cover ? (
-                            <img className={css.thumb} src={cover} alt="" />
+                            <FadeImg className={css.thumb} src={cover} alt="" />
                         ) : (
                             <span className={css.thumbEmpty} aria-hidden="true">
                                 <MusicNoteIcon className={css.placeholderIcon} />

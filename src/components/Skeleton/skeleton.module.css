@@ -1,0 +1,162 @@
+.hold {
+    visibility: hidden;
+}
+
+.fade {
+    animation: skeleton-fade 150ms ease;
+}
+
+@keyframes skeleton-fade {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.frame {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    background: #f3f3f3;
+}
+
+.photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+}
+
+.photoIn {
+    opacity: 1;
+    transition: opacity 150ms ease;
+}
+
+.noFade {
+    transition: none;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.week,
+.days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.day {
+    width: 36px;
+    height: 36px;
+    margin: 0 auto;
+}
+
+.slots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 12px;
+    align-items: center;
+    min-height: 44px;
+}
+
+.lines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tabs,
+.segment {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+}
+
+.segment {
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.summary {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.libraryRow {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 2px 12px;
+    align-items: center;
+}
+
+.actionRow {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.covers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.square {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 1;
+}
+
+.player {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.route {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: min(440px, 100%);
+    margin: 0 auto;
+    padding: 16px;
+}
+
+.bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+}

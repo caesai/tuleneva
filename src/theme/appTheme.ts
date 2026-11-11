@@ -2,6 +2,7 @@
  * @file Тема MUI для расписания и админки.
  * Палитра и радиус совпадают с публичными страницами: один залитый акцент — чёрный.
  * Чипы типов слота держат цвета main: info, error, success, но мягкой заливкой.
+ * Скелет — серая плашка #f3f3f3, радиус 12, лёгкая волна.
  */
 import { createTheme } from '@mui/material/styles';
 
@@ -114,6 +115,13 @@ export const appTheme = createTheme({
         MuiPaper: {
             styleOverrides: {
                 root: { backgroundImage: 'none' },
+            },
+        },
+        MuiSkeleton: {
+            defaultProps: { animation: 'wave', variant: 'rounded' },
+            styleOverrides: {
+                root: { backgroundColor: '#f3f3f3' },
+                rounded: { borderRadius: 12 },
             },
         },
     },

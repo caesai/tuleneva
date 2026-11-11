@@ -8,7 +8,7 @@ import '@/lib/moment';
 import { init } from '@/init.ts';
 import { installChunkReloadListener } from '@/boot/chunkReload.ts';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary/AppErrorBoundary.tsx';
-import { Loader } from '@/components/Loader/Loader.tsx';
+import { RouteSkeleton } from '@/components/Skeleton/layouts.tsx';
 import App from '@/App.tsx';
 import { AuthProvider } from '@/contexts/AuthContext.tsx';
 import './App.css';
@@ -31,7 +31,7 @@ try {
 createRoot(rootElement).render(
     <StrictMode>
         <AppErrorBoundary>
-            <Suspense fallback={<Loader fullScreen />}>
+            <Suspense fallback={<RouteSkeleton />}>
                 <AuthProvider>
                     <App />
                 </AuthProvider>
