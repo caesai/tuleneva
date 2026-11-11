@@ -1,9 +1,10 @@
 /**
  * @file Страница альбома или плейлиста: обложка, текст и плеер по порядку подборки.
+ * Конец записи включает следующую в этом порядке и останавливается на последней.
  * Назад и «Поделиться» живут в общей липкой шапке.
  * Прослушивание и шаринг пишут анонимную статистику с меткой источника.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import {
     collectionCoverUrl,
@@ -15,7 +16,7 @@ import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, toAbsoluteUrl, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
-import { captureListenSource } from '@/music/listenStats.ts';
+import { captureListenSource, type ListenTarget } from '@/music/listenStats.ts';
 import type { IMusicCollection } from '@/types/music.types.ts';
 import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
 import { MusicNoteIcon } from '@/components/Icons/Icons.tsx';
@@ -78,7 +79,21 @@ export const MusicCollectionPage: React.FC = () => {
     const tracks = collection?.tracks ?? [];
     const selected = tracks.find((track) => track.id === trackId) ?? null;
     const selectedIndex = tracks.findIndex((track) => track.id === trackId);
+    const nextTrack = selectedIndex >= 0 && selectedIndex < tracks.length - 1
+        ? tracks[selectedIndex + 1]
+        : null;
     const kindLabel = collection?.type === 'playlist' ? 'Плейлист' : 'Альбом';
+
+    /**
+     * Контекст статистики для записи внутри этой подборки.
+     * @param item Запись
+     * @returns Цель события
+     */
+    const listenTarget = useCallback((item: { id: string; albumId?: string | null }): ListenTarget => ({
+        trackId: item.id,
+        albumId: collection?.type === 'album' ? collection.id : item.albumId ?? null,
+        playlistId: collection?.type === 'playlist' ? collection.id : null,
+    }), [collection]);
 
     const pageMeta = useMemo<IPageMeta>(() => {
         if (!collection) {
@@ -115,10 +130,16 @@ export const MusicCollectionPage: React.FC = () => {
      * Выбирает запись и просит плеер стартовать.
      * @param nextId Идентификатор
      */
-    const playTrack = (nextId: string) => {
+    const playTrack = useCallback((nextId: string) => {
         setTrackId(nextId);
         setPlayRequest((value) => value + 1);
-    };
+    }, []);
+
+    const advanceTrack = useCallback(() => {
+        if (nextTrack) {
+            setTrackId(nextTrack.id);
+        }
+    }, [nextTrack]);
 
     /**
      * Пауза, если эта запись уже звучит.
@@ -201,15 +222,15 @@ export const MusicCollectionPage: React.FC = () => {
                             playRequest={playRequest}
                             pauseRequest={pauseRequest}
                             hasPrevious={selectedIndex > 0}
-                            hasNext={selectedIndex >= 0 && selectedIndex < tracks.length - 1}
+                            hasNext={nextTrack !== null}
+                            autoAdvance
+                            nextSrc={nextTrack ? trackAudioUrl(nextTrack.id, nextTrack.audioVersion) : null}
+                            nextListen={nextTrack ? listenTarget(nextTrack) : null}
                             onPlayingChange={setPlaying}
                             onPrevious={() => playTrack(tracks[selectedIndex - 1].id)}
                             onNext={() => playTrack(tracks[selectedIndex + 1].id)}
-                            listen={{
-                                trackId: selected.id,
-                                albumId: collection?.type === 'album' ? collection.id : selected.albumId ?? null,
-                                playlistId: collection?.type === 'playlist' ? collection.id : null,
-                            }}
+                            onAutoAdvance={advanceTrack}
+                            listen={listenTarget(selected)}
                         />
                     ) : null}
                 </>

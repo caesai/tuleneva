@@ -1,5 +1,7 @@
 /**
- * @file Один плеер: play/pause, соседние записи, перемотка и громкость. Без autoplay.
+ * @file Один плеер: play/pause, соседние записи, перемотка и громкость.
+ * Конец записи сам включает следующую, если родитель передал `autoAdvance` и `nextSrc`.
+ * Один `<audio>` не размонтируется: новый src ставится в обработчике `ended`, и сразу `play()`.
  * На публичной странице `listen` считает play_start и play_complete. В админке пропа нет — предпросмотр не идёт в статистику.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -40,8 +42,19 @@ interface TrackPlayerProps {
     onPlayingChange?: (playing: boolean) => void;
     /** Предыдущая запись. */
     onPrevious?: () => void;
-    /** Следующая запись. */
+    /** Следующая запись по кнопке или с экрана блокировки. */
     onNext?: () => void;
+    /**
+     * Конец файла сам переходит к `nextSrc`. Без флага или без адреса — стоп.
+     * Родитель не должен размонтировать плеер между записями.
+     */
+    autoAdvance?: boolean;
+    /** Адрес следующей записи. Тот же, что родитель поставит в `src` после перехода. */
+    nextSrc?: string | null;
+    /** Цель статистики для следующей записи. Ставится до `play()`, чтобы не засчитать уходящую ещё раз. */
+    nextListen?: ListenTarget | null;
+    /** Сменить выбранную запись в родителе. Звук уже запущен из `ended`. */
+    onAutoAdvance?: () => void;
     /**
      * Публичное прослушивание: id записи и контекст альбома или плейлиста.
      * Без пропа события не пишутся.
@@ -93,24 +106,54 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
     onPlayingChange,
     onPrevious,
     onNext,
+    autoAdvance = false,
+    nextSrc = null,
+    nextListen = null,
+    onAutoAdvance,
     listen = null,
 }) => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const listenRef = useRef(listen);
     const startedRef = useRef(false);
     const completedRef = useRef(false);
+    /** Пока id не совпадёт с пропом, рендер не затирает цель уже запущенной следующей записи. */
+    const handoffTrackId = useRef<string | null>(null);
     const [playing, setPlaying] = useState(false);
-    listenRef.current = listen;
     const [current, setCurrent] = useState(0);
     const [duration, setDuration] = useState(0);
     const [mediaError, setMediaError] = useState(false);
     const [coverFailed, setCoverFailed] = useState(false);
     const [volume, setVolume] = useState(1);
     const [muted, setMuted] = useState(false);
+    const volumeLabel = muted || volume === 0 ? 'Включить звук' : 'Выключить звук';
+
+    if (handoffTrackId.current) {
+        if (listen?.trackId === handoffTrackId.current) {
+            listenRef.current = listen;
+            handoffTrackId.current = null;
+        }
+    } else {
+        listenRef.current = listen;
+    }
 
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) {
+            return;
+        }
+        if (!src) {
+            audio.pause();
+            audio.removeAttribute('src');
+            startedRef.current = false;
+            completedRef.current = false;
+            setPlaying(false);
+            setCurrent(0);
+            setDuration(0);
+            setMediaError(false);
+            return;
+        }
+        const loaded = audio.src;
+        if (loaded && (loaded === src || loaded.endsWith(src))) {
             return;
         }
         audio.pause();
@@ -120,10 +163,6 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
         setCurrent(0);
         setDuration(0);
         setMediaError(false);
-        if (!src) {
-            audio.removeAttribute('src');
-            return;
-        }
         audio.src = src;
         audio.load();
     }, [src]);
@@ -134,6 +173,9 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
         }
         const audio = audioRef.current;
         if (!audio || !src) {
+            return;
+        }
+        if (!audio.paused && (audio.src === src || audio.src.endsWith(src))) {
             return;
         }
         // Жест уже случился: play() сразу, не дожидаясь метаданных.
@@ -167,12 +209,42 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
         if (!audio) {
             return;
         }
-        audio.volume = muted ? 0 : volume;
+        audio.muted = muted || volume === 0;
+        audio.volume = volume > 0 ? volume : 1;
     }, [muted, volume, src]);
 
     useEffect(() => {
         onPlayingChange?.(playing);
     }, [onPlayingChange, playing]);
+
+    useEffect(() => {
+        setCoverFailed(false);
+    }, [coverUrl]);
+
+    useEffect(() => {
+        const session = navigator.mediaSession;
+        if (!session || typeof MediaMetadata === 'undefined') {
+            return undefined;
+        }
+        session.metadata = new MediaMetadata({
+            title,
+            artist: isPlaceholderCredit(credits) ? '' : credits,
+            artwork: coverUrl && !coverFailed ? [{ src: coverUrl }] : [],
+        });
+        const bind = (action: MediaSessionAction, handler: (() => void) | null) => {
+            try {
+                session.setActionHandler(action, handler);
+            } catch {
+                // Часть webview не знает действие и бросает.
+            }
+        };
+        bind('previoustrack', hasPrevious && onPrevious ? () => onPrevious() : null);
+        bind('nexttrack', hasNext && onNext ? () => onNext() : null);
+        return () => {
+            bind('previoustrack', null);
+            bind('nexttrack', null);
+        };
+    }, [title, credits, coverUrl, coverFailed, hasPrevious, hasNext, onPrevious, onNext]);
 
     /**
      * Звук реально пошёл. Пауза и продолжение той же записи — не новый старт.
@@ -236,6 +308,48 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
         setCurrent(next);
     };
 
+    /**
+     * Конец файла. Уходящая запись дослушивается один раз, следующая стартует из этого же вызова.
+     * @param audio Элемент, который только что закончил
+     */
+    const finishTrack = (audio: HTMLAudioElement) => {
+        notePlayComplete(audio, true);
+        if (!autoAdvance || !nextSrc) {
+            setPlaying(false);
+            return;
+        }
+        const upcoming = nextListen ?? null;
+        handoffTrackId.current = upcoming?.trackId ?? null;
+        listenRef.current = upcoming;
+        startedRef.current = false;
+        completedRef.current = false;
+        setCurrent(0);
+        setMediaError(false);
+        audio.src = nextSrc;
+        onAutoAdvance?.();
+        audio.play()
+            .then(() => {
+                setPlaying(true);
+                setMediaError(false);
+            })
+            .catch((err: unknown) => {
+                if (!isPlayAbort(err)) {
+                    setMediaError(true);
+                    setPlaying(false);
+                }
+            });
+    };
+
+    const toggleMute = () => {
+        setMuted((value) => {
+            const silencing = !(value || volume === 0);
+            if (!silencing && volume === 0) {
+                setVolume(1);
+            }
+            return silencing;
+        });
+    };
+
     const toggle = () => {
         const audio = audioRef.current;
         if (!audio || !src) {
@@ -288,8 +402,7 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                     notePlayComplete(event.currentTarget, false);
                 }}
                 onEnded={(event) => {
-                    setPlaying(false);
-                    notePlayComplete(event.currentTarget, true);
+                    finishTrack(event.currentTarget);
                 }}
                 onPlay={() => {
                     setPlaying(true);
@@ -357,6 +470,40 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                         <NextIcon className={css.glyph} />
                     </button>
                 ) : null}
+                <div className={css.volumeControl}>
+                    <button
+                        type="button"
+                        className={css.iconButton}
+                        onClick={toggleMute}
+                        aria-label={volumeLabel}
+                        aria-pressed={muted || volume === 0}
+                    >
+                        {muted || volume === 0
+                            ? <VolumeOffIcon className={css.glyph} />
+                            : <VolumeIcon className={css.glyph} />}
+                    </button>
+                    <div className={css.volumePopover}>
+                        <input
+                            className={css.volume}
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={muted ? 0 : volume}
+                            style={{ '--fill': `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
+                            aria-label="Громкость"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round((muted ? 0 : volume) * 100)}
+                            aria-valuetext={muted || volume === 0 ? 'Без звука' : `${Math.round(volume * 100)} процентов`}
+                            onChange={(event) => {
+                                const next = Number(event.target.value);
+                                setVolume(next);
+                                setMuted(next === 0);
+                            }}
+                        />
+                    </div>
+                </div>
             </div>
             <div className={css.seekRow}>
                 <span className={css.time}>{formatTime(current)}</span>
@@ -385,34 +532,6 @@ export const TrackPlayer: React.FC<TrackPlayerProps> = ({
                     }}
                 />
                 <span className={css.time}>{formatTime(duration)}</span>
-            </div>
-            <div className={css.volumeRow}>
-                <button
-                    type="button"
-                    className={css.iconButton}
-                    onClick={() => setMuted((value) => !value)}
-                    aria-label={muted || volume === 0 ? 'Включить звук' : 'Выключить звук'}
-                    aria-pressed={muted || volume === 0}
-                >
-                    {muted || volume === 0
-                        ? <VolumeOffIcon className={css.glyph} />
-                        : <VolumeIcon className={css.glyph} />}
-                </button>
-                <input
-                    className={css.volume}
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={muted ? 0 : volume}
-                    style={{ '--fill': `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
-                    aria-label="Громкость"
-                    onChange={(event) => {
-                        const next = Number(event.target.value);
-                        setVolume(next);
-                        setMuted(next === 0);
-                    }}
-                />
             </div>
             {description ? <p className={css.description}>{description}</p> : null}
             {mediaError ? (

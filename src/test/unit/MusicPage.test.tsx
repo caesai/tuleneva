@@ -2,7 +2,7 @@
  * @file Каталог — сетка обложек. Плеер на подборке идёт по её порядку и сам не стартует.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
@@ -23,8 +23,10 @@ vi.mock('@/api/music.api.ts', () => ({
     collectionCoverUrl: (id: string, version?: number) => `/api/music/collections/${id}/cover?v=${version ?? 0}`,
 }));
 
-const renderMusic = (path = '/music') => render(
-    <MemoryRouter initialEntries={[path]}>
+const renderMusic = (
+    entry: string | { pathname: string; search?: string; state?: unknown } = '/music',
+) => render(
+    <MemoryRouter initialEntries={[entry]}>
         <Routes>
             <Route path="/music" element={<MusicPage />} />
             <Route path="/music/album/:id" element={<MusicCollectionPage />} />
@@ -272,5 +274,127 @@ describe('MusicPage', () => {
 
         delete (window as Window & { ym?: unknown }).ym;
         vi.unstubAllGlobals();
+    });
+
+    const albumOf = (type: 'album' | 'playlist' = 'album') => ({
+        id: type === 'album' ? 'alb' : 'pl',
+        type,
+        title: type === 'album' ? 'Север' : 'Вечер',
+        description: null,
+        hasCover: false,
+        coverVersion: 0,
+        trackCount: 2,
+        publishedAt: '2026-11-01T00:00:00.000Z',
+        tracks: [
+            track('a', 'Ночь', { albumId: 'alb' }),
+            track('b', 'День', { albumId: 'alb' }),
+        ],
+    });
+
+    const eventBodies = (fetchMock: ReturnType<typeof vi.fn>) => fetchMock.mock.calls.map((call) => (
+        JSON.parse(String(call[1]?.body)) as { type: string; trackId: string; albumId: string | null; playlistId: string | null }
+    ));
+
+    it('в альбоме конец записи включает следующую и не считает уходящую дважды', async () => {
+        localStorage.removeItem('tuleneva:music-dedupe');
+        sessionStorage.clear();
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+        vi.stubGlobal('fetch', fetchMock);
+        vi.mocked(fetchCollection).mockResolvedValue(albumOf());
+        const user = userEvent.setup();
+        renderMusic('/music/album/alb');
+        await user.click(await screen.findByRole('button', { name: 'Слушать: Ночь' }));
+        const audio = document.querySelector('audio') as HTMLAudioElement;
+        audio.dispatchEvent(new Event('play'));
+        await act(async () => {
+            audio.dispatchEvent(new Event('ended'));
+            await Promise.resolve();
+        });
+        expect(screen.getAllByRole('button', { name: 'Пауза: День' })).toHaveLength(2);
+        expect(audio.src).toContain('/api/music/tracks/b/audio');
+        audio.dispatchEvent(new Event('play'));
+        const bodies = eventBodies(fetchMock);
+        expect(bodies.map((body) => `${body.type}:${body.trackId}`)).toEqual([
+            'play_start:a',
+            'play_complete:a',
+            'play_start:b',
+        ]);
+        expect(bodies.filter((body) => body.type === 'play_complete' && body.trackId === 'a')).toHaveLength(1);
+        expect(bodies.every((body) => body.albumId === 'alb' && body.playlistId === null)).toBe(true);
+
+        await act(async () => {
+            audio.dispatchEvent(new Event('ended'));
+            await Promise.resolve();
+        });
+        expect(screen.getAllByRole('button', { name: 'Слушать: День' })).toHaveLength(2);
+        expect(audio.src).toContain('/api/music/tracks/b/audio');
+        expect(eventBodies(fetchMock).map((body) => `${body.type}:${body.trackId}`)).toEqual([
+            'play_start:a',
+            'play_complete:a',
+            'play_start:b',
+            'play_complete:b',
+        ]);
+        vi.unstubAllGlobals();
+    });
+
+    it('по прямой ссылке на запись не включает следующую', async () => {
+        localStorage.removeItem('tuleneva:music-dedupe');
+        vi.mocked(fetchPublishedTrack).mockImplementation(async (id: string) => (
+            track(id, id === 'b' ? 'День' : 'Ночь', { albumId: 'alb' })
+        ));
+        vi.mocked(fetchCollection).mockResolvedValue(albumOf());
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+        vi.stubGlobal('fetch', fetchMock);
+        const user = userEvent.setup();
+        renderMusic('/music/a');
+        await user.click(await screen.findByRole('button', { name: 'Слушать: Ночь' }));
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Следующая запись' })).toBeEnabled();
+        });
+        const audio = document.querySelector('audio') as HTMLAudioElement;
+        audio.dispatchEvent(new Event('play'));
+        await act(async () => {
+            audio.dispatchEvent(new Event('ended'));
+            await Promise.resolve();
+        });
+        expect(screen.getByRole('heading', { name: 'Ночь' })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'День' })).not.toBeInTheDocument();
+        expect(eventBodies(fetchMock).map((body) => body.type + body.trackId)).toEqual([
+            'play_starta',
+            'play_completea',
+        ]);
+        vi.unstubAllGlobals();
+    });
+
+    it('из каталога продолжает порядок альбома, а ?track= останавливается', async () => {
+        localStorage.removeItem('tuleneva:music-dedupe');
+        vi.mocked(fetchPublishedTrack).mockImplementation(async (id: string) => (
+            track(id, id === 'b' ? 'День' : 'Ночь', { albumId: 'alb' })
+        ));
+        vi.mocked(fetchCollection).mockResolvedValue(albumOf());
+        const user = userEvent.setup();
+        const { unmount } = renderMusic({ pathname: '/music/a', state: { fromCatalog: true } });
+        await user.click(await screen.findByRole('button', { name: 'Слушать: Ночь' }));
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Следующая запись' })).toBeEnabled();
+        });
+        const audio = document.querySelector('audio') as HTMLAudioElement;
+        await act(async () => {
+            audio.dispatchEvent(new Event('ended'));
+            await Promise.resolve();
+        });
+        expect(await screen.findByRole('heading', { name: 'День' })).toBeInTheDocument();
+        unmount();
+
+        renderMusic({ pathname: '/music/a', search: '?track=a', state: { fromCatalog: true } });
+        await user.click(await screen.findByRole('button', { name: 'Слушать: Ночь' }));
+        await act(async () => {
+            document.querySelector('audio')?.dispatchEvent(new Event('ended'));
+            await Promise.resolve();
+        });
+        await waitFor(() => {
+            expect(screen.getAllByRole('heading', { name: 'Ночь' }).length).toBeGreaterThan(0);
+        });
+        expect(screen.queryByRole('heading', { name: 'День' })).not.toBeInTheDocument();
     });
 });
