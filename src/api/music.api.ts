@@ -1,9 +1,11 @@
 /**
- * @file Каталог музыки и публикация. Черновики пишет только super_admin.
+ * @file Каталог музыки, публикация и статистика прослушиваний.
+ * Черновики и сводку пишет и читает только super_admin. События /music шлёт страница сама.
  */
 import type {
     IMusicCatalog,
     IMusicCollection,
+    IMusicStats,
     IMusicTrack,
     TMusicCollectionType,
 } from '@/types/music.types.ts';
@@ -28,6 +30,20 @@ export const fetchPublishedTracks = async (): Promise<IMusicTrack[]> => {
     }
     const data = await response.json() as { tracks: IMusicTrack[] };
     return data.tracks;
+};
+
+/**
+ * Сводка прослушиваний. Только супер-админ.
+ * @returns Счётчики за 7 дней и за всё время
+ */
+export const fetchMusicStats = async (): Promise<IMusicStats> => {
+    const response = await fetch('/api/music/admin/stats', { headers: authOnly() });
+    if (!response.ok) {
+        const error = new Error('Не удалось загрузить статистику.') as Error & { status?: number };
+        error.status = response.status;
+        throw error;
+    }
+    return response.json() as Promise<IMusicStats>;
 };
 
 /**

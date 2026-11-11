@@ -1,7 +1,8 @@
 /**
  * @file Каталог музыки и страница одной записи.
  * Синглы — опубликованные записи, которых нет ни в одном опубликованном альбоме или плейлисте.
- * Навигация — общая липкая шапка: логотип на каталоге, назад на записи.
+ * Навигация — общая липкая шапка: логотип на каталоге, назад и «Поделиться» на записи.
+ * Старт, дослушивание и шаринг пишут анонимную статистику.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -15,11 +16,13 @@ import {
 } from '@/api/music.api.ts';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
-import { MUSIC_PAGE_META, type IPageMeta } from '@/config/siteMeta.ts';
+import { MUSIC_PAGE_META, toAbsoluteUrl, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
+import { captureListenSource } from '@/music/listenStats.ts';
 import type { IMusicCatalog, IMusicCollection, IMusicTrack } from '@/types/music.types.ts';
 import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
 import { MusicNoteIcon } from '@/components/Icons/Icons.tsx';
+import { SharePageButton } from './SharePageButton.tsx';
 import { TrackRows } from './TrackRows.tsx';
 import css from './MusicPage.module.css';
 
@@ -58,6 +61,10 @@ export const MusicPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const playOnOpen = Boolean((location.state as { play?: boolean } | null)?.play);
+
+    useEffect(() => {
+        captureListenSource(location.search);
+    }, [location.search]);
     const [catalog, setCatalog] = useState<IMusicCatalog>({ collections: [], singles: [] });
     const [track, setTrack] = useState<IMusicTrack | null>(null);
     const [album, setAlbum] = useState<IMusicCollection | null>(null);
@@ -166,7 +173,16 @@ export const MusicPage: React.FC = () => {
                 title="Музыка"
                 backTo={trackId ? '/music' : undefined}
                 backLabel="Вся музыка"
-            />
+            >
+                {track ? (
+                    <SharePageButton
+                        title={`${track.title} — Тюленева 25`}
+                        url={toAbsoluteUrl(`/music/${track.id}`)}
+                        trackId={track.id}
+                        albumId={track.albumId}
+                    />
+                ) : null}
+            </AppHeader>
             <div className={css.page}>
 
             {loading ? (
@@ -254,6 +270,7 @@ export const MusicPage: React.FC = () => {
                         hasNext={selectedIndex >= 0 && selectedIndex < order.length - 1}
                         onPrevious={() => openTrack(order[selectedIndex - 1].id, true)}
                         onNext={() => openTrack(order[selectedIndex + 1].id, true)}
+                        listen={{ trackId: track.id, albumId: track.albumId ?? null }}
                     />
                 </>
             ) : null}

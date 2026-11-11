@@ -6,6 +6,7 @@ import { lazyWithRetry } from '@/boot/lazyWithRetry.ts';
 import { ChunkReloadReset } from '@/boot/ChunkReloadReset.tsx';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { ScrollToTop } from '@/navigation/ScrollToTop.tsx';
+import { ListenAttribution } from '@/music/ListenAttribution.tsx';
 import { swipeBehavior } from '@telegram-apps/sdk-react';
 import { AppRoot } from '@telegram-apps/telegram-ui';
 import { ThemeProvider } from '@mui/material/styles';
@@ -254,6 +255,7 @@ const App: React.FC = () => {
                 <WebSocketProvider>
                     <BrowserRouter>
                         <ScrollToTop />
+                        <ListenAttribution />
                         <Suspense fallback={<Loader fullScreen />}>
                             <ChunkReloadReset />
                             <Routes>

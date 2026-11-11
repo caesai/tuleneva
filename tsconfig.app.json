@@ -31,7 +31,8 @@
     "src",
     "shared/studioHours.ts",
     "shared/roleLattice.ts",
-    "shared/pageMetaHtml.ts"
+    "shared/pageMetaHtml.ts",
+    "shared/musicListen.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",

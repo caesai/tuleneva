@@ -1,9 +1,10 @@
 /**
  * @file Страница альбома или плейлиста: обложка, текст и плеер по порядку подборки.
  * Назад и «Поделиться» живут в общей липкой шапке.
+ * Прослушивание и шаринг пишут анонимную статистику с меткой источника.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import {
     collectionCoverUrl,
     fetchCollection,
@@ -14,6 +15,7 @@ import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { MUSIC_PAGE_META, toAbsoluteUrl, type IPageMeta } from '@/config/siteMeta.ts';
 import { usePageMeta } from '@/hooks/usePageMeta.ts';
+import { captureListenSource } from '@/music/listenStats.ts';
 import type { IMusicCollection } from '@/types/music.types.ts';
 import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
 import { MusicNoteIcon } from '@/components/Icons/Icons.tsx';
@@ -27,6 +29,11 @@ import css from './MusicPage.module.css';
  */
 export const MusicCollectionPage: React.FC = () => {
     const { id } = useParams();
+    const location = useLocation();
+
+    useEffect(() => {
+        captureListenSource(location.search);
+    }, [location.search]);
     const [collection, setCollection] = useState<IMusicCollection | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -132,6 +139,8 @@ export const MusicCollectionPage: React.FC = () => {
                         url={toAbsoluteUrl(
                             `/music/${collection.type === 'album' ? 'album' : 'playlist'}/${collection.id}`,
                         )}
+                        albumId={collection.type === 'album' ? collection.id : null}
+                        playlistId={collection.type === 'playlist' ? collection.id : null}
                     />
                 ) : null}
             </AppHeader>
@@ -194,6 +203,11 @@ export const MusicCollectionPage: React.FC = () => {
                             onPlayingChange={setPlaying}
                             onPrevious={() => playTrack(tracks[selectedIndex - 1].id)}
                             onNext={() => playTrack(tracks[selectedIndex + 1].id)}
+                            listen={{
+                                trackId: selected.id,
+                                albumId: collection?.type === 'album' ? collection.id : selected.albumId ?? null,
+                                playlistId: collection?.type === 'playlist' ? collection.id : null,
+                            }}
                         />
                     ) : null}
                 </>

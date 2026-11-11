@@ -47,3 +47,29 @@ export interface IMusicCatalog {
     collections: IMusicCollection[];
     singles: IMusicTrack[];
 }
+
+/** Прослушивания одной записи, альбома или плейлиста. */
+export interface IMusicItemStats {
+    plays7d: number;
+    playsAll: number;
+    completes7d: number;
+    completesAll: number;
+}
+
+/**
+ * Сводка для супер-админа. Сессий и userId здесь нет.
+ * `source` пустой — заходы без метки.
+ */
+export interface IMusicStats {
+    days: 7;
+    summary: {
+        plays: number;
+        completes: number;
+        shares: number;
+        topSources: { source: string; count: number }[];
+        topTracks: { trackId: string; title: string; plays: number }[];
+    };
+    tracks: Record<string, IMusicItemStats>;
+    albums: Record<string, IMusicItemStats>;
+    playlists: Record<string, IMusicItemStats>;
+}

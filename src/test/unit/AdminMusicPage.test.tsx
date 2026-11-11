@@ -6,7 +6,13 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminMusicPage } from '@/pages/AdminMusicPage/AdminMusicPage.tsx';
-import { createMusicDraft, fetchManageCollections, fetchManageTracks, setCollectionTracks } from '@/api/music.api.ts';
+import {
+    createMusicDraft,
+    fetchManageCollections,
+    fetchManageTracks,
+    fetchMusicStats,
+    setCollectionTracks,
+} from '@/api/music.api.ts';
 import { prepareCoverFile } from '@/music/prepareCover.ts';
 
 const auth = vi.hoisted(() => ({
@@ -35,6 +41,13 @@ vi.mock('@/music/prepareCover.ts', () => ({
 vi.mock('@/api/music.api.ts', () => ({
     fetchManageTracks: vi.fn().mockResolvedValue([]),
     fetchManageCollections: vi.fn().mockResolvedValue([]),
+    fetchMusicStats: vi.fn().mockResolvedValue({
+        days: 7,
+        summary: { plays: 0, completes: 0, shares: 0, topSources: [], topTracks: [] },
+        tracks: {},
+        albums: {},
+        playlists: {},
+    }),
     createMusicDraft: vi.fn(),
     updateMusicTrack: vi.fn(),
     publishMusicTrack: vi.fn(),
@@ -225,9 +238,87 @@ describe('AdminMusicPage', () => {
                 <AdminMusicPage />
             </MemoryRouter>,
         );
+        expect(await screen.findByLabelText('Сводка за 7 дней')).toHaveTextContent('0 прослушиваний');
         await user.click(await screen.findByRole('tab', { name: 'Альбомы' }));
         await user.click(await screen.findByRole('button', { name: 'Состав: Север' }));
         await user.click(screen.getByRole('button', { name: 'Выше: День' }));
         expect(setCollectionTracks).toHaveBeenCalledWith('c', ['b', 'a']);
+    });
+
+    it('показывает сводку за 7 дней и счётчики в списках', async () => {
+        auth.isSuperAdmin = true;
+        vi.mocked(fetchManageTracks).mockResolvedValueOnce([
+            {
+                id: 't1',
+                title: 'Ночь',
+                credits: 'Север',
+                description: null,
+                hasCover: false,
+                publishedAt: '2026-11-01T00:00:00.000Z',
+                status: 'published',
+                albumTitle: 'Север',
+            },
+        ]);
+        vi.mocked(fetchManageCollections).mockResolvedValueOnce([
+            {
+                id: 'c',
+                type: 'album',
+                title: 'Север',
+                description: null,
+                hasCover: false,
+                trackCount: 1,
+                publishedAt: '2026-11-01T00:00:00.000Z',
+                status: 'published',
+            },
+            {
+                id: 'p',
+                type: 'playlist',
+                title: 'Вечер',
+                description: null,
+                hasCover: false,
+                trackCount: 1,
+                publishedAt: '2026-11-01T00:00:00.000Z',
+                status: 'published',
+            },
+        ]);
+        vi.mocked(fetchMusicStats).mockResolvedValueOnce({
+            days: 7,
+            summary: {
+                plays: 12,
+                completes: 4,
+                shares: 3,
+                topSources: [{ source: 'instagram', count: 8 }, { source: '', count: 2 }],
+                topTracks: [{ trackId: 't1', title: 'Ночь', plays: 6 }],
+            },
+            tracks: {
+                t1: { plays7d: 6, playsAll: 10, completes7d: 2, completesAll: 4 },
+            },
+            albums: {
+                c: { plays7d: 5, playsAll: 9, completes7d: 1, completesAll: 3 },
+            },
+            playlists: {
+                p: { plays7d: 1, playsAll: 1, completes7d: 0, completesAll: 0 },
+            },
+        });
+        const user = userEvent.setup();
+        render(
+            <MemoryRouter>
+                <AdminMusicPage />
+            </MemoryRouter>,
+        );
+        const summary = await screen.findByLabelText('Сводка за 7 дней');
+        expect(summary).toHaveTextContent('12 прослушиваний');
+        expect(summary).toHaveTextContent('до конца 4');
+        expect(summary).toHaveTextContent('поделились 3');
+        expect(summary).toHaveTextContent('instagram 8');
+        expect(summary).toHaveTextContent('без метки 2');
+        expect(summary).toHaveTextContent('Ночь 6');
+        expect(screen.getByText('7 дней: 6 прослуш., 2 до конца. Всего: 10 прослуш., 4 до конца')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('tab', { name: 'Альбомы' }));
+        expect(screen.getByText('7 дней: 5 прослуш., 1 до конца. Всего: 9 прослуш., 3 до конца')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('tab', { name: 'Плейлисты' }));
+        expect(screen.getByText('7 дней: 1 прослуш., 0 до конца. Всего: 1 прослуш., 0 до конца')).toBeInTheDocument();
     });
 });
