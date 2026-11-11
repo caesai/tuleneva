@@ -44,6 +44,14 @@ jobs:
         run: npm run test:all
       - working-directory: server
         run: npm run build
+      - name: Check production requires
+        working-directory: server
+        run: |
+          prod="$(mktemp -d)"
+          cp package.json package-lock.json "$prod/"
+          npm ci --omit=dev --prefix "$prod"
+          node scripts/checkProdRequires.mjs dist/index.cjs "$prod"
+          rm -rf "$prod"
       - name: Stage server release files
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
