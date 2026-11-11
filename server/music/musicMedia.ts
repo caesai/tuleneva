@@ -42,6 +42,33 @@ export const parseRangeHeader = (
 };
 
 /**
+ * Есть ли в запросе непустой `?v=`. Сам номер не сверяется: клиент меняет его вместе с байтами.
+ * @param query Query Express
+ * @returns true, если URL уже с версией
+ */
+export const isVersionedMediaRequest = (query: Request['query']): boolean => {
+    const raw = query.v;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    return typeof value === 'string' && value.length > 0;
+};
+
+/**
+ * Долгий кэш только у публичного URL с `?v=`. Без версии браузер должен спросить заново.
+ * Черновик не кэшируется.
+ * @param isPublic Опубликованный файл
+ * @param versioned В запросе есть `v`
+ * @returns Значение Cache-Control
+ */
+export const mediaCacheControl = (isPublic: boolean, versioned: boolean): string => {
+    if (!isPublic) {
+        return 'private, no-store';
+    }
+    return versioned
+        ? 'public, max-age=31536000, immutable'
+        : 'public, max-age=0, must-revalidate';
+};
+
+/**
  * Отдаёт объект с Range.
  * @param req Запрос
  * @param res Ответ
@@ -82,7 +109,7 @@ export const sendStoredObject = async (
     res.set('Content-Type', contentType);
     res.set('Accept-Ranges', 'bytes');
     res.set('X-Content-Type-Options', 'nosniff');
-    res.set('Cache-Control', isPublic ? 'public, max-age=3600' : 'private, no-store');
+    res.set('Cache-Control', mediaCacheControl(isPublic, isVersionedMediaRequest(req.query)));
     res.set('Content-Disposition', `inline; filename="${filename}"`);
     res.set('Content-Length', String(range ? end - start + 1 : opened.total));
     if (range) {

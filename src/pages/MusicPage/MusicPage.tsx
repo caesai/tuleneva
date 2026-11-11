@@ -147,7 +147,7 @@ export const MusicPage: React.FC = () => {
             description: track.description || `${track.title}. ${track.credits}`,
             canonicalPath: `/music/${track.id}`,
             ogType: 'music.song',
-            ogImagePath: track.hasCover ? trackCoverUrl(track.id) : MUSIC_PAGE_META.ogImagePath,
+            ogImagePath: track.hasCover ? trackCoverUrl(track.id, track.coverVersion) : MUSIC_PAGE_META.ogImagePath,
             ogImageAlt: track.title,
         };
     }, [track]);
@@ -215,7 +215,7 @@ export const MusicPage: React.FC = () => {
                                 {collection.hasCover ? (
                                     <img
                                         className={css.cover}
-                                        src={collectionCoverUrl(collection.id)}
+                                        src={collectionCoverUrl(collection.id, collection.coverVersion)}
                                         alt=""
                                     />
                                 ) : (
@@ -263,8 +263,8 @@ export const MusicPage: React.FC = () => {
                         title={track.title}
                         credits={track.credits}
                         description={track.description}
-                        coverUrl={track.hasCover ? trackCoverUrl(track.id) : null}
-                        src={trackAudioUrl(track.id)}
+                        coverUrl={track.hasCover ? trackCoverUrl(track.id, track.coverVersion) : null}
+                        src={trackAudioUrl(track.id, track.audioVersion)}
                         playRequest={playRequest}
                         hasPrevious={selectedIndex > 0}
                         hasNext={selectedIndex >= 0 && selectedIndex < order.length - 1}

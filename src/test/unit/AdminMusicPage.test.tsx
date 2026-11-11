@@ -2,7 +2,7 @@
  * @file Публикация музыки спрятана от обычного админа.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminMusicPage } from '@/pages/AdminMusicPage/AdminMusicPage.tsx';
@@ -11,6 +11,7 @@ import {
     fetchManageCollections,
     fetchManageTracks,
     fetchMusicStats,
+    fetchTrackBlob,
     setCollectionTracks,
 } from '@/api/music.api.ts';
 import { prepareCoverFile } from '@/music/prepareCover.ts';
@@ -60,9 +61,9 @@ vi.mock('@/api/music.api.ts', () => ({
     unpublishCollection: vi.fn(),
     deleteCollection: vi.fn(),
     fetchTrackBlob: vi.fn(),
-    trackAudioUrl: (id: string) => `/api/music/tracks/${id}/audio`,
-    trackCoverUrl: (id: string) => `/api/music/tracks/${id}/cover`,
-    collectionCoverUrl: (id: string) => `/api/music/collections/${id}/cover`,
+    trackAudioUrl: (id: string, version?: number) => `/api/music/tracks/${id}/audio?v=${version ?? 0}`,
+    trackCoverUrl: (id: string, version?: number) => `/api/music/tracks/${id}/cover?v=${version ?? 0}`,
+    collectionCoverUrl: (id: string, version?: number) => `/api/music/collections/${id}/cover?v=${version ?? 0}`,
 }));
 
 describe('AdminMusicPage', () => {
@@ -146,6 +147,60 @@ describe('AdminMusicPage', () => {
         expect(screen.queryByRole('button', { name: 'Действия Ночь' })).not.toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'Удалить «Ночь»' }));
         expect(await screen.findByRole('heading', { name: 'Удалить «Ночь»?' })).toBeInTheDocument();
+    });
+
+    it('черновик качает обложку с токеном, опубликованная берёт URL с версией', async () => {
+        auth.isSuperAdmin = true;
+        vi.mocked(fetchTrackBlob).mockResolvedValue('blob:draft-cover');
+        const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+        vi.mocked(fetchManageTracks).mockResolvedValueOnce([
+            {
+                id: 't1',
+                title: 'Ночь',
+                credits: 'Север',
+                description: null,
+                hasCover: true,
+                coverVersion: 2,
+                audioVersion: 1,
+                publishedAt: null,
+                status: 'draft',
+            },
+        ]);
+        const draft = render(
+            <MemoryRouter>
+                <AdminMusicPage />
+            </MemoryRouter>,
+        );
+        await waitFor(() => {
+            expect(document.querySelector('img')?.getAttribute('src')).toBe('blob:draft-cover');
+        });
+        expect(fetchTrackBlob).toHaveBeenCalledWith('/api/music/tracks/t1/cover?v=2');
+        draft.unmount();
+        expect(revoke).toHaveBeenCalledWith('blob:draft-cover');
+
+        vi.mocked(fetchTrackBlob).mockClear();
+        vi.mocked(fetchManageTracks).mockResolvedValueOnce([
+            {
+                id: 't2',
+                title: 'День',
+                credits: 'Север',
+                description: null,
+                hasCover: true,
+                coverVersion: 4,
+                audioVersion: 3,
+                publishedAt: '2026-11-01T00:00:00.000Z',
+                status: 'published',
+            },
+        ]);
+        render(
+            <MemoryRouter>
+                <AdminMusicPage />
+            </MemoryRouter>,
+        );
+        expect(await screen.findByText('День')).toBeInTheDocument();
+        expect(document.querySelector('img')?.getAttribute('src')).toBe('/api/music/tracks/t2/cover?v=4');
+        expect(fetchTrackBlob).not.toHaveBeenCalled();
+        revoke.mockRestore();
     });
 
     it('показывает русскую ошибку, если фото не открылось', async () => {

@@ -11,7 +11,8 @@ import { collectionCoverObjectKey } from '../storage/objectKey';
 import { replaceCollectionTracks } from './collectionMembership';
 import { COVER_MAX_BYTES } from './musicLimits';
 import { sendShareJpeg } from '../seo/shareImage';
-import { sendStoredObject } from './musicMedia';
+import { bumpMediaVersion, storedMediaVersion } from './mediaVersion';
+import { isVersionedMediaRequest, sendStoredObject } from './musicMedia';
 import {
     loadAlbumIndex,
     loadOrderedTracks,
@@ -81,6 +82,7 @@ const toCard = (collection: MusicCollectionDocument, trackCount: number) => ({
     title: collection.title,
     description: collection.description ? collection.description : null,
     hasCover: Boolean(collection.coverKey),
+    coverVersion: storedMediaVersion(collection.coverVersion),
     trackCount,
     publishedAt: collection.publishedAt ? collection.publishedAt.toISOString() : null,
 });
@@ -282,6 +284,7 @@ export const registerCollectionRoutes = (
                 }
                 collection.coverKey = nextCover.key;
                 collection.coverContentType = nextCover.contentType;
+                collection.coverVersion = bumpMediaVersion(collection.coverVersion);
             }
             collection.title = text.value.title;
             collection.description = text.value.description;
@@ -448,12 +451,13 @@ export const registerCollectionRoutes = (
             return;
         }
         try {
-            const updated = collection.updatedAt ? collection.updatedAt.getTime() : 0;
+            const version = storedMediaVersion(collection.coverVersion);
             const sent = await sendShareJpeg(
                 res,
                 objectStorage,
                 collection.coverKey,
-                `${collection.coverKey}:${updated}`,
+                `${collection.coverKey}:${version}`,
+                isVersionedMediaRequest(req.query),
             );
             if (!sent && !res.headersSent) {
                 res.status(404).json({ message: 'Файл не найден.' });

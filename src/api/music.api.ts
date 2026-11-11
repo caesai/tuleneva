@@ -62,26 +62,45 @@ export const fetchManageTracks = async (): Promise<IMusicTrack[]> => {
 };
 
 /**
+ * `?v=` для кэша. Нет номера у старого ответа — ноль, файл всё равно открывается.
+ * @param version audioVersion или coverVersion
+ * @returns Хвост query
+ */
+const mediaVersionQuery = (version?: number | null): string => {
+    const value = typeof version === 'number' && Number.isInteger(version) && version >= 0 ? version : 0;
+    return `v=${value}`;
+};
+
+/**
  * URL MP3. Для черновика браузерный плеер без JWT получит 404:
  * предпросмотр черновика качает файл через {@link fetchTrackBlob}.
  * @param id Идентификатор записи
- * @returns Путь
+ * @param version audioVersion. Нет поля — 0
+ * @returns Путь с версией байтов
  */
-export const trackAudioUrl = (id: string): string => `/api/music/tracks/${id}/audio`;
+export const trackAudioUrl = (id: string, version?: number | null): string => (
+    `/api/music/tracks/${id}/audio?${mediaVersionQuery(version)}`
+);
 
 /**
- * URL обложки.
+ * URL обложки записи.
  * @param id Идентификатор записи
- * @returns Путь
+ * @param version coverVersion. Нет поля — 0
+ * @returns Путь с версией байтов
  */
-export const trackCoverUrl = (id: string): string => `/api/music/tracks/${id}/cover`;
+export const trackCoverUrl = (id: string, version?: number | null): string => (
+    `/api/music/tracks/${id}/cover?${mediaVersionQuery(version)}`
+);
 
 /**
  * Обложка альбома или плейлиста.
  * @param id Идентификатор подборки
- * @returns Путь
+ * @param version coverVersion. Нет поля — 0
+ * @returns Путь с версией байтов
  */
-export const collectionCoverUrl = (id: string): string => `/api/music/collections/${id}/cover`;
+export const collectionCoverUrl = (id: string, version?: number | null): string => (
+    `/api/music/collections/${id}/cover?${mediaVersionQuery(version)}`
+);
 
 /**
  * Опубликованные подборки и синглы. Без входа.

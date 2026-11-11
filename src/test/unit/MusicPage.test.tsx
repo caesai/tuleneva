@@ -18,9 +18,9 @@ vi.mock('@/api/music.api.ts', () => ({
     fetchMusicCatalog: vi.fn(),
     fetchPublishedTrack: vi.fn(),
     fetchCollection: vi.fn(),
-    trackAudioUrl: (id: string) => `/api/music/tracks/${id}/audio`,
-    trackCoverUrl: (id: string) => `/api/music/tracks/${id}/cover`,
-    collectionCoverUrl: (id: string) => `/api/music/collections/${id}/cover`,
+    trackAudioUrl: (id: string, version?: number) => `/api/music/tracks/${id}/audio?v=${version ?? 0}`,
+    trackCoverUrl: (id: string, version?: number) => `/api/music/tracks/${id}/cover?v=${version ?? 0}`,
+    collectionCoverUrl: (id: string, version?: number) => `/api/music/collections/${id}/cover?v=${version ?? 0}`,
 }));
 
 const renderMusic = (path = '/music') => render(
@@ -142,12 +142,12 @@ describe('MusicPage', () => {
         expect(screen.getByRole('link', { name: 'Вся музыка' })).toHaveAttribute('href', '/music');
         expect(screen.getByRole('button', { name: 'Поделиться' })).toBeInTheDocument();
         expect(screen.queryByText('Студия')).not.toBeInTheDocument();
-        expect(document.querySelectorAll('img[src="/api/music/collections/alb/cover"]').length).toBeGreaterThan(1);
+        expect(document.querySelectorAll('img[src="/api/music/collections/alb/cover?v=0"]').length).toBeGreaterThan(1);
         expect(screen.getByText('Альбом')).toBeInTheDocument();
         expect(play).not.toHaveBeenCalled();
         expect(screen.getByRole('img', { name: 'Обложка «Север»' })).toHaveAttribute(
             'src',
-            '/api/music/collections/alb/cover',
+            '/api/music/collections/alb/cover?v=0',
         );
 
         await user.click(screen.getByRole('button', { name: 'Слушать: Ночь' }));
@@ -165,7 +165,7 @@ describe('MusicPage', () => {
             title: 'Север — Тюленева 25',
             canonicalPath: '/music/album/alb',
             ogType: 'music.album',
-            ogImagePath: '/api/music/collections/alb/cover',
+            ogImagePath: '/api/music/collections/alb/cover?v=0',
         }));
     });
 

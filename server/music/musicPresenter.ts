@@ -4,6 +4,7 @@
 import type { Types } from 'mongoose';
 import MusicCollection, { type MusicCollectionDocument } from '../models/MusicCollection';
 import MusicTrack, { type MusicTrackDocument } from '../models/MusicTrack';
+import { storedMediaVersion } from './mediaVersion';
 
 /** Альбом, в котором уже лежит запись. */
 export interface AlbumRef {
@@ -24,6 +25,8 @@ export const toPublicTrack = (track: MusicTrackDocument, albumId: string | null 
     credits: track.credits,
     description: track.description ? track.description : null,
     hasCover: Boolean(track.coverKey),
+    audioVersion: storedMediaVersion(track.audioVersion),
+    coverVersion: storedMediaVersion(track.coverVersion),
     publishedAt: track.publishedAt ? track.publishedAt.toISOString() : null,
     albumId,
 });

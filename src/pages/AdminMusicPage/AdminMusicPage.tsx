@@ -129,11 +129,11 @@ const ListenCaption: React.FC<{ stats?: IMusicItemStats }> = ({ stats }) => {
 };
 
 /**
- * Обложка 44px или нота, если файла нет.
- * @param props.src Адрес обложки
- * @returns Квадрат
+ * Квадрат 44px: картинка или нота.
+ * @param src Адрес или null
+ * @returns Обложка
  */
-const Thumb: React.FC<{ src: string | null }> = ({ src }) => (
+const ThumbFrame: React.FC<{ src: string | null }> = ({ src }) => (
     src
         ? <img className={css.thumb} src={src} alt="" />
         : (
@@ -142,6 +142,41 @@ const Thumb: React.FC<{ src: string | null }> = ({ src }) => (
             </span>
         )
 );
+
+/**
+ * Обложка в списке. Опубликованная — прямой URL с `?v=`.
+ * Черновик `<img>` не посылает JWT, поэтому байты качаются с токеном и живут в object URL.
+ * @param props.src Адрес обложки или null
+ * @param props.draft Черновик: нужен токен
+ * @returns Квадрат
+ */
+const CoverThumb: React.FC<{ src: string | null; draft: boolean }> = ({ src, draft }) => {
+    const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!draft || !src) {
+            return undefined;
+        }
+        let active = true;
+        let objectUrl: string | null = null;
+        void fetchTrackBlob(src).then((url) => {
+            if (!active) {
+                URL.revokeObjectURL(url);
+                return;
+            }
+            objectUrl = url;
+            setBlobUrl(url);
+        }).catch(() => undefined);
+        return () => {
+            active = false;
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+    }, [draft, src]);
+
+    return <ThumbFrame src={draft ? blobUrl : src} />;
+};
 
 /**
  * Точка черновика или эфира.
@@ -282,14 +317,14 @@ export const AdminMusicPage: React.FC = () => {
         try {
             if (track.status === 'published') {
                 setPlayer({
-                    src: trackAudioUrl(track.id),
+                    src: trackAudioUrl(track.id, track.audioVersion),
                     title: track.title,
                     credits: track.credits,
                     description: track.description,
-                    coverUrl: track.hasCover ? trackCoverUrl(track.id) : null,
+                    coverUrl: track.hasCover ? trackCoverUrl(track.id, track.coverVersion) : null,
                 });
             } else {
-                const src = await fetchTrackBlob(trackAudioUrl(track.id));
+                const src = await fetchTrackBlob(trackAudioUrl(track.id, track.audioVersion));
                 setPlayer({
                     src,
                     title: track.title,
@@ -457,7 +492,10 @@ export const AdminMusicPage: React.FC = () => {
                             const meta = [track.credits, track.albumTitle].filter(Boolean).join(' · ');
                             return (
                                 <li key={track.id} className={css.row}>
-                                    <Thumb src={track.hasCover ? trackCoverUrl(track.id) : null} />
+                                    <CoverThumb
+                                        src={track.hasCover ? trackCoverUrl(track.id, track.coverVersion) : null}
+                                        draft={!published}
+                                    />
                                     <div className={css.rowMain}>
                                         <p className={css.rowTitle}>{track.title}</p>
                                         <p className={css.rowMeta}>
@@ -536,7 +574,10 @@ export const AdminMusicPage: React.FC = () => {
                             const published = collection.status === 'published';
                             return (
                                 <li key={collection.id} className={css.row}>
-                                    <Thumb src={collection.hasCover ? collectionCoverUrl(collection.id) : null} />
+                                    <CoverThumb
+                                        src={collection.hasCover ? collectionCoverUrl(collection.id, collection.coverVersion) : null}
+                                        draft={!published}
+                                    />
                                     <div className={css.rowMain}>
                                         <p className={css.rowTitle}>{collection.title}</p>
                                         <p className={css.rowMeta}>

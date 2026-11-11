@@ -15,6 +15,10 @@ export interface MusicTrackDoc {
     audioKey: string;
     coverKey?: string | null;
     coverContentType?: string | null;
+    /** Сколько раз записан MP3. Нет поля у старых документов — ноль. */
+    audioVersion?: number;
+    /** Сколько раз записана обложка. Нет поля — ноль. */
+    coverVersion?: number;
     audioBytes: number;
     publishedAt?: Date | null;
     createdBy: Types.ObjectId;
@@ -40,6 +44,8 @@ const musicTrackSchema = new mongoose.Schema(
         audioKey: { type: String, required: true },
         coverKey: { type: String, default: null },
         coverContentType: { type: String, default: null },
+        audioVersion: { type: Number, default: 0, min: 0 },
+        coverVersion: { type: Number, default: 0, min: 0 },
         audioBytes: { type: Number, required: true },
         publishedAt: { type: Date, default: null },
         createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
