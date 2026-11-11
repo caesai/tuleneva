@@ -1,8 +1,9 @@
 /**
- * @file Карточка пользователя в админке: обычные действия снаружи, опасные в меню.
+ * @file Строка пользователя в админке: имя и роль, действия в одном меню.
  */
 import React from 'react';
 import { EmailAuthForm } from '@/components/EmailAuthForm/EmailAuthForm.tsx';
+import { MoreIcon } from '@/components/Icons/Icons.tsx';
 import { SafeAvatar } from '@/components/SafeAvatar/SafeAvatar.tsx';
 import { EMAIL_AUTH_UI_ENABLED } from '@/config/emailAuthUi.ts';
 import type { IUser, TRole } from '@/types/user.types.ts';
@@ -86,39 +87,34 @@ export const UserCard: React.FC<UserCardProps> = ({
     const roleSelectDisabled = person._id === actor._id || allowedRoles.length === 0;
     const deleteDisabled = !canDeleteUser(actor.role, person.role, person._id === actor._id);
     const canEditEmail = EMAIL_AUTH_UI_ENABLED && canAssignRole(actor.role, person.role, person.role);
+    const meta = [person.bandName, person.emailLogin].filter(Boolean).join(' · ');
 
     return (
         <article className={css.userCard}>
-            <div className={css.userMain}>
-                <SafeAvatar
-                    src={person.photo_url || undefined}
-                    fallback={name.charAt(0).toUpperCase() || '?'}
-                    sx={{ width: 44, height: 44, fontSize: 16 }}
-                />
-                <div className={css.userIdentity}>
+            <SafeAvatar
+                src={person.photo_url || undefined}
+                fallback={name.charAt(0).toUpperCase() || '?'}
+                sx={{ width: 40, height: 40, fontSize: 15 }}
+            />
+            <div className={css.userIdentity}>
+                <div className={css.userTitleRow}>
                     <p className={css.userName}>{name}</p>
-                    <p className={css.userHandle}>
-                        {person.username ? `@${person.username}` : 'без username'}
-                    </p>
-                    {person.bandName ? <p className={css.userBand}>{person.bandName}</p> : null}
-                    {person.emailLogin ? <p className={css.userMail}>{person.emailLogin}</p> : null}
                     <span className={css.rolePill}>{ROLE_LABELS[person.role]}</span>
                 </div>
+                <p className={css.userHandle}>
+                    {person.username ? `@${person.username}` : 'без username'}
+                </p>
+                {meta ? <p className={css.userMeta}>{meta}</p> : null}
             </div>
-            <div className={css.userActions}>
-                <button type="button" className={css.quietButton} onClick={onToggleRoleLog}>
-                    {roleLogOpen ? 'Скрыть журнал' : 'Журнал'}
-                </button>
-                <button
-                    type="button"
-                    className={css.quietButton}
-                    aria-expanded={menuOpen}
-                    aria-label={`Действия ${name}`}
-                    onClick={onToggleMenu}
-                >
-                    Действия
-                </button>
-            </div>
+            <button
+                type="button"
+                className={css.iconButton}
+                aria-expanded={menuOpen}
+                aria-label={`Действия ${name}`}
+                onClick={onToggleMenu}
+            >
+                <MoreIcon className={css.iconGlyph} />
+            </button>
             {menuOpen ? (
                 <div className={css.menu}>
                     <label className={css.menuLabel}>
@@ -137,14 +133,17 @@ export const UserCard: React.FC<UserCardProps> = ({
                             ))}
                         </select>
                     </label>
+                    <button type="button" className={css.menuItem} onClick={onToggleRoleLog}>
+                        {roleLogOpen ? 'Скрыть журнал' : 'Журнал'}
+                    </button>
                     {canEditEmail ? (
-                        <button type="button" className={css.quietButton} onClick={onToggleEmail}>
+                        <button type="button" className={css.menuItem} onClick={onToggleEmail}>
                             {emailFormOpen ? 'Скрыть почту' : 'Почта'}
                         </button>
                     ) : null}
                     <button
                         type="button"
-                        className={css.deleteButton}
+                        className={`${css.menuItem} ${css.menuDanger}`}
                         onClick={onAskDelete}
                         disabled={deleteDisabled}
                     >
@@ -153,6 +152,7 @@ export const UserCard: React.FC<UserCardProps> = ({
                 </div>
             ) : null}
             {emailFormOpen && canEditEmail ? (
+                <div className={css.userExtra}>
                 <EmailAuthForm
                     mode="link"
                     compact
@@ -166,9 +166,10 @@ export const UserCard: React.FC<UserCardProps> = ({
                         return onSubmitEmail(email, password);
                     }}
                 />
+                </div>
             ) : null}
             {roleLogOpen ? (
-                <div className={css.inviteHistory}>
+                <div className={`${css.inviteHistory} ${css.userExtra}`}>
                     <p className={css.inviteHistoryTitle}>Смены ролей</p>
                     {roleLogLoading ? (
                         <p className={css.inviteDescription}>Загрузка…</p>

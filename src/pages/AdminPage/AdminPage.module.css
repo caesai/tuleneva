@@ -257,33 +257,36 @@
 }
 
 .userGrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
 }
 
 .userCard {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-    border: 1px solid #e6e6e6;
-    border-radius: 12px;
-    background: #fff;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) 44px;
+    column-gap: 12px;
+    row-gap: 4px;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e6e6e6;
+    background: transparent;
     min-width: 0;
 }
 
 .userMain {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    display: contents;
 }
 
 .userTitleRow {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    min-width: 0;
+}
+
+.userExtra {
+    grid-column: 1 / -1;
 }
 
 .userIdentity {
@@ -295,59 +298,96 @@
     gap: 2px;
 }
 
-.userBand,
-.userMail {
+.userName {
     margin: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.userName {
-    margin: 0;
-}
-
-.userHandle {
-    margin: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.userName {
     font-size: 16px;
     font-weight: 650;
 }
 
 .userHandle,
-.userBand,
-.userMail {
+.userMeta {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: #767676;
-    font-size: 15px;
+    font-size: 14px;
 }
 
 .rolePill {
-    align-self: flex-start;
-    margin-top: 4px;
-    padding: 4px 8px;
+    flex-shrink: 0;
+    padding: 2px 8px;
     border-radius: 999px;
     background: #f3f3f3;
-    color: #767676;
+    color: #555;
     font-size: 12px;
     font-weight: 650;
 }
 
-.userActions,
-.confirmActions,
-.menu {
+.confirmActions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
 }
 
 .menu {
+    grid-column: 1 / -1;
+    display: flex;
     flex-direction: column;
     align-items: stretch;
+    gap: 4px;
+    padding-top: 4px;
+}
+
+.iconButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #111;
+    cursor: pointer;
+}
+
+.iconButton[aria-expanded='true'] {
+    background: #f3f3f3;
+}
+
+.iconGlyph {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.menuItem {
+    min-height: 44px;
+    padding: 0 4px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #111;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
+    text-align: left;
+    cursor: pointer;
+}
+
+.menuDanger {
+    color: #8f2d2d;
+}
+
+.menuItem:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .menuLabel {
@@ -373,6 +413,8 @@
 }
 
 .quietButton:focus-visible,
+.iconButton:focus-visible,
+.menuItem:focus-visible,
 .search:focus-visible,
 .roleSelect:focus-visible,
 .musicAdminLink:focus-visible,
@@ -382,10 +424,6 @@
 }
 
 @media (max-width: 640px) {
-    .userGrid {
-        grid-template-columns: 1fr;
-    }
-
     .filters {
         flex-direction: column;
     }
