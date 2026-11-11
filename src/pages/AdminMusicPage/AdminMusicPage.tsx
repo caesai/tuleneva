@@ -1,31 +1,46 @@
 /**
- * @file Публикация музыки. Сервер пускает только super_admin; страница повторяет эту границу.
+ * @file Библиотека музыки супер-админа: треки, альбомы и плейлисты отдельными списками.
+ * Сервер пускает только super_admin; страница повторяет эту границу.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppHeader } from '@/components/AppHeader/AppHeader.tsx';
 import {
-    createCollection,
-    createMusicDraft,
+    collectionCoverUrl,
+    deleteCollection,
     deleteMusicTrack,
     fetchManageCollections,
     fetchManageTracks,
     fetchTrackBlob,
+    publishCollection,
     publishMusicTrack,
     trackAudioUrl,
     trackCoverUrl,
+    unpublishCollection,
     unpublishMusicTrack,
-    updateMusicTrack,
 } from '@/api/music.api.ts';
-import { AdminCollections } from '@/pages/AdminMusicPage/AdminCollections.tsx';
-import { PencilIcon, PlayIcon, PublishIcon, TrashIcon, UnpublishIcon } from '@/components/Icons/Icons.tsx';
+import { CollectionSheet } from '@/pages/AdminMusicPage/CollectionSheet.tsx';
+import { CollectionTracksSheet } from '@/pages/AdminMusicPage/CollectionTracksSheet.tsx';
+import { TrackSheet } from '@/pages/AdminMusicPage/TrackSheet.tsx';
+import {
+    ListIcon,
+    MusicNoteIcon,
+    PencilIcon,
+    PlayIcon,
+    PlusIcon,
+    PublishIcon,
+    TrashIcon,
+    UnpublishIcon,
+} from '@/components/Icons/Icons.tsx';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
 import { useAuth } from '@/hooks/useAuth.ts';
-import { prepareCoverFile } from '@/music/prepareCover.ts';
 import type { IMusicCollection, IMusicTrack } from '@/types/music.types.ts';
 import css from './AdminMusicPage.module.css';
+
+type LibraryTab = 'tracks' | 'albums' | 'playlists';
+type SheetKind = 'track' | 'collection' | 'compose';
 
 interface PlayerSource {
     src: string;
@@ -36,38 +51,92 @@ interface PlayerSource {
     revoke?: boolean;
 }
 
+interface PendingAction {
+    kind: 'track' | 'collection';
+    id: string;
+    action: 'unpublish' | 'delete';
+    title: string;
+}
+
 /**
- * Форма черновика, явная публикация и снятие с эфира.
- * Обложка с телефона сжимается в JPEG до отправки: галерея отдаёт HEIC и снимки больше 2 МБ.
- * Список запрашивается после сессии; 401/403 на первом заходе повторяются один раз.
+ * «1 запись», «2 записи», «5 записей».
+ * @param count Число
+ * @returns Подпись
+ */
+const countLabel = (count: number): string => {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+        return `${count} запись`;
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        return `${count} записи`;
+    }
+    return `${count} записей`;
+};
+
+const ADD_LABEL: Record<LibraryTab, string> = {
+    tracks: 'Новая запись',
+    albums: 'Новый альбом',
+    playlists: 'Новый плейлист',
+};
+
+const EMPTY_COPY: Record<LibraryTab, string> = {
+    tracks: 'Пока нет записей.',
+    albums: 'Пока нет альбомов.',
+    playlists: 'Пока нет плейлистов.',
+};
+
+/**
+ * Обложка 44px или нота, если файла нет.
+ * @param props.src Адрес обложки
+ * @returns Квадрат
+ */
+const Thumb: React.FC<{ src: string | null }> = ({ src }) => (
+    src
+        ? <img className={css.thumb} src={src} alt="" />
+        : (
+            <span className={css.thumb} aria-hidden="true">
+                <MusicNoteIcon className={css.thumbIcon} />
+            </span>
+        )
+);
+
+/**
+ * Точка черновика или эфира.
+ * @param props.published Запись или подборка опубликована
+ * @returns Метка
+ */
+const StatusMark: React.FC<{ published: boolean }> = ({ published }) => (
+    <span className={published ? css.markOn : css.markOff}>
+        {published ? 'В эфире' : 'Черновик'}
+    </span>
+);
+
+/**
+ * Списки библиотеки. Создание и правка открываются листом, на телефоне снизу.
+ * Повтор 401/403 один раз: список запрашивается сразу после сессии.
  * @returns Страница /admin/music
  */
 export const AdminMusicPage: React.FC = () => {
     const { capabilities, isLoading, authStatus } = useAuth();
     const [tracks, setTracks] = useState<IMusicTrack[]>([]);
     const [collections, setCollections] = useState<IMusicCollection[]>([]);
-    const [albumChoice, setAlbumChoice] = useState('');
-    const [newAlbumTitle, setNewAlbumTitle] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [title, setTitle] = useState('');
-    const [credits, setCredits] = useState('');
-    const [description, setDescription] = useState('');
-    const [audioFile, setAudioFile] = useState<File | null>(null);
-    const [coverFile, setCoverFile] = useState<File | null>(null);
-    const [coverBusy, setCoverBusy] = useState(false);
-    const coverInputRef = useRef<HTMLInputElement>(null);
-    const errorRef = useRef<HTMLParagraphElement>(null);
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [saving, setSaving] = useState(false);
+    const [tab, setTab] = useState<LibraryTab>('tracks');
+    const [sheet, setSheet] = useState<SheetKind | null>(null);
+    const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
+    const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
     const [player, setPlayer] = useState<PlayerSource | null>(null);
     const [playRequest, setPlayRequest] = useState(0);
-    const [pending, setPending] = useState<{ id: string; action: 'unpublish' | 'delete'; title: string } | null>(null);
+    const [pending, setPending] = useState<PendingAction | null>(null);
+    const errorRef = useRef<HTMLParagraphElement>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
-        const read = async () => {
+        const readTracks = async () => {
             try {
                 return await fetchManageTracks();
             } catch (err) {
@@ -80,7 +149,7 @@ export const AdminMusicPage: React.FC = () => {
         };
         try {
             const [nextTracks, nextCollections] = await Promise.all([
-                read(),
+                readTracks(),
                 fetchManageCollections().catch((err: unknown) => {
                     const status = (err as { status?: number }).status;
                     if (status === 401 || status === 403) {
@@ -118,130 +187,34 @@ export const AdminMusicPage: React.FC = () => {
         }
     }, [player]);
 
-    const resetForm = () => {
-        setTitle('');
-        setCredits('');
-        setDescription('');
-        setAudioFile(null);
-        setCoverFile(null);
-        setEditingId(null);
-        setAlbumChoice('');
-        setNewAlbumTitle('');
+    const albums = collections.filter((collection) => collection.type === 'album');
+    const playlists = collections.filter((collection) => collection.type === 'playlist');
+    const editingTrack = tracks.find((track) => track.id === editingTrackId) ?? null;
+    const editingCollection = collections.find((collection) => collection.id === editingCollectionId) ?? null;
+    const sheetType = tab === 'playlists' ? 'playlist' : 'album';
+
+    const closeSheet = () => {
+        setSheet(null);
+        setEditingTrackId(null);
+        setEditingCollectionId(null);
     };
 
-    /**
-     * Ставит в единственный плеер локальный файл, без автозапуска.
-     * @param file Выбранный MP3
-     */
-    const previewFile = (file: File | null) => {
-        setAudioFile(file);
-        if (!file) {
+    const selectTab = (next: LibraryTab) => {
+        setTab(next);
+        closeSheet();
+    };
+
+    const openAdd = () => {
+        setError(null);
+        if (tab === 'tracks') {
+            setEditingTrackId(null);
+            setEditingCollectionId(null);
+            setSheet('track');
             return;
         }
-        const src = URL.createObjectURL(file);
-        setPlayer({
-            src,
-            title: title || file.name,
-            credits: credits || 'Предпросмотр',
-            description: description || null,
-            coverUrl: coverFile ? URL.createObjectURL(coverFile) : null,
-            revoke: true,
-        });
-        setPlayRequest(0);
-    };
-
-    /**
-     * Сжимает фото из галереи сразу после выбора и показывает ошибку, не дожидаясь отправки.
-     * @param file Выбранный файл или null, если поле очистили
-     */
-    const onCoverPicked = async (file: File | null) => {
-        if (!file) {
-            setCoverFile(null);
-            return;
-        }
-        setCoverBusy(true);
-        setError(null);
-        try {
-            setCoverFile(await prepareCoverFile(file));
-        } catch (err) {
-            setCoverFile(null);
-            if (coverInputRef.current) {
-                coverInputRef.current.value = '';
-            }
-            setError(err instanceof Error ? err.message : 'Не удалось прочитать обложку.');
-        } finally {
-            setCoverBusy(false);
-        }
-    };
-
-    const onSubmit = async (event: React.FormEvent) => {
-        event.preventDefault();
-        if (!editingId && !audioFile) {
-            setError('Выберите MP3.');
-            return;
-        }
-        const body = new FormData();
-        body.set('title', title);
-        body.set('credits', credits);
-        body.set('description', description);
-        if (audioFile) {
-            body.set('audio', audioFile);
-        }
-        if (coverFile) {
-            body.set('cover', coverFile);
-        }
-        let albumId = albumChoice === '__new__' ? '' : albumChoice;
-        if (albumChoice === '__new__') {
-            const albumTitle = newAlbumTitle.trim();
-            if (!albumTitle) {
-                setError('Название альбома нужно.');
-                return;
-            }
-            try {
-                const createdAlbum = await createCollection({
-                    type: 'album',
-                    title: albumTitle,
-                    description: '',
-                });
-                albumId = createdAlbum.id;
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Не удалось создать альбом.');
-                return;
-            }
-        }
-        if (albumId) {
-            body.set('albumId', albumId);
-        } else if (editingId) {
-            body.set('albumId', '');
-        }
-        setSaving(true);
-        setError(null);
-        try {
-            if (editingId) {
-                await updateMusicTrack(editingId, body);
-            } else {
-                await createMusicDraft(body);
-            }
-            resetForm();
-            setPlayer(null);
-            await load();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Не удалось сохранить.');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const beginEdit = (track: IMusicTrack) => {
-        setEditingId(track.id);
-        setTitle(track.title);
-        setCredits(track.credits);
-        setDescription(track.description || '');
-        setAudioFile(null);
-        setCoverFile(null);
-        setAlbumChoice(track.albumId || '');
-        setNewAlbumTitle('');
-        setError(null);
+        setEditingTrackId(null);
+        setEditingCollectionId(null);
+        setSheet('collection');
     };
 
     /**
@@ -282,18 +255,37 @@ export const AdminMusicPage: React.FC = () => {
         }
         setError(null);
         try {
-            if (pending.action === 'delete') {
-                await deleteMusicTrack(pending.id);
+            if (pending.kind === 'track') {
+                if (pending.action === 'delete') {
+                    await deleteMusicTrack(pending.id);
+                } else {
+                    await unpublishMusicTrack(pending.id);
+                }
+                if (editingTrackId === pending.id) {
+                    closeSheet();
+                }
+            } else if (pending.action === 'delete') {
+                await deleteCollection(pending.id);
+                if (editingCollectionId === pending.id) {
+                    closeSheet();
+                }
             } else {
-                await unpublishMusicTrack(pending.id);
-            }
-            if (editingId === pending.id) {
-                resetForm();
+                await unpublishCollection(pending.id);
             }
             setPending(null);
             await load();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Не удалось выполнить действие.');
+        }
+    };
+
+    const publishCollectionNow = async (collection: IMusicCollection) => {
+        setError(null);
+        try {
+            await publishCollection(collection.id);
+            await load();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Не удалось изменить публикацию.');
         }
     };
 
@@ -314,233 +306,318 @@ export const AdminMusicPage: React.FC = () => {
         );
     }
 
+    const visibleCollections = tab === 'albums' ? albums : playlists;
+    const listEmpty = tab === 'tracks' ? tracks.length === 0 : visibleCollections.length === 0;
+    const confirmTitle = pending
+        ? pending.action === 'delete'
+            ? `Удалить «${pending.title}»?`
+            : `Снять «${pending.title}» с публикации?`
+        : '';
+    const confirmBody = pending?.kind === 'collection'
+        ? pending.action === 'delete'
+            ? 'Подборка исчезнет. Записи останутся.'
+            : 'Гости перестанут видеть подборку. Черновик останется у вас.'
+        : pending?.action === 'delete'
+            ? 'Файл и карточка исчезнут. Это нельзя отменить.'
+            : 'Гости перестанут видеть запись. Черновик останется у вас.';
+
     return (
         <main className={css.page}>
-            <AppHeader title="Музыка" backTo="/admin" backLabel="Назад" />
+            <AppHeader title="Музыка" backTo="/admin" backLabel="Назад">
+                <button
+                    type="button"
+                    className={css.addButton}
+                    aria-label={ADD_LABEL[tab]}
+                    title={ADD_LABEL[tab]}
+                    onClick={openAdd}
+                >
+                    <PlusIcon className={css.addIcon} />
+                </button>
+            </AppHeader>
             <div className={css.body}>
-            <p className={css.lead}>
-                Черновик слышите вы. Гости увидят запись только после публикации.
-                Файлы уходят в объектное хранилище, не в базу.
-            </p>
-
-            {error ? <p ref={errorRef} className={css.error} role="alert">{error}</p> : null}
-
-            <form className={css.form} onSubmit={onSubmit}>
-                <h2>{editingId ? 'Правка' : 'Новая запись'}</h2>
-                <label>
-                    Название
-                    <input value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={120} />
-                </label>
-                <label>
-                    Кто играет
-                    <input value={credits} onChange={(event) => setCredits(event.target.value)} required maxLength={160} />
-                </label>
-                <label>
-                    Описание
-                    <textarea
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        maxLength={500}
-                        rows={3}
-                    />
-                </label>
-                <label>
-                    MP3
-                    <span className={css.filePicker}>
-                        <input
-                            className={css.fileInput}
-                            type="file"
-                            accept="audio/mpeg,.mp3"
-                            aria-label="Файл MP3"
-                            onChange={(event) => previewFile(event.target.files?.[0] ?? null)}
-                        />
-                        <span className={css.fileButton}>Выбрать MP3</span>
-                        <span className={css.fileName}>{audioFile ? audioFile.name : 'файл не выбран'}</span>
-                    </span>
-                </label>
-                <label>
-                    Альбом
-                    <select
-                        aria-label="Альбом"
-                        value={albumChoice}
-                        onChange={(event) => setAlbumChoice(event.target.value)}
-                    >
-                        <option value="">Без альбома</option>
-                        {collections
-                            .filter((collection) => collection.type === 'album')
-                            .map((collection) => (
-                                <option key={collection.id} value={collection.id}>
-                                    {collection.title}
-                                </option>
-                            ))}
-                        <option value="__new__">Новый альбом…</option>
-                    </select>
-                </label>
-                {albumChoice === '__new__' ? (
-                    <label>
-                        Название альбома
-                        <input
-                            aria-label="Название альбома"
-                            value={newAlbumTitle}
-                            onChange={(event) => setNewAlbumTitle(event.target.value)}
-                            maxLength={120}
-                        />
-                    </label>
-                ) : null}
-                <label>
-                    Обложка
-                    <span className={css.filePicker}>
-                        <input
-                            ref={coverInputRef}
-                            className={css.fileInput}
-                            type="file"
-                            accept="image/*,.heic,.heif"
-                            aria-label="Обложка"
-                            onChange={(event) => void onCoverPicked(event.target.files?.[0] ?? null)}
-                        />
-                        <span className={css.fileButton}>Выбрать обложку</span>
-                        <span className={css.fileName}>
-                            {coverBusy ? 'Сжимаем фото…' : coverFile ? coverFile.name : 'необязательно'}
-                        </span>
-                    </span>
-                </label>
-                <div className={css.formActions}>
-                    <button type="submit" disabled={saving || coverBusy}>
-                        {saving ? 'Сохранение…' : editingId ? 'Сохранить' : 'Сохранить черновик'}
-                    </button>
-                    {editingId ? (
-                        <button type="button" className={css.quiet} onClick={resetForm}>
-                            Отмена
+                <p className={css.lead}>
+                    Черновик слышите вы. Гости увидят запись только после публикации.
+                </p>
+                <div className={css.tabs} role="tablist" aria-label="Разделы библиотеки">
+                    {(['tracks', 'albums', 'playlists'] as const).map((item) => (
+                        <button
+                            key={item}
+                            type="button"
+                            role="tab"
+                            className={css.tab}
+                            aria-selected={tab === item}
+                            onClick={() => selectTab(item)}
+                        >
+                            {item === 'tracks' ? 'Треки' : item === 'albums' ? 'Альбомы' : 'Плейлисты'}
                         </button>
-                    ) : null}
+                    ))}
                 </div>
-            </form>
 
-            {player ? (
-                <TrackPlayer
-                    title={player.title}
-                    credits={player.credits}
-                    description={player.description}
-                    coverUrl={player.coverUrl}
-                    src={player.src}
-                    playRequest={playRequest}
-                />
-            ) : null}
+                {error && sheet === null ? <p ref={errorRef} className={css.error} role="alert">{error}</p> : null}
 
-            {loading ? (
-                <div aria-busy="true" aria-label="Загрузка записей">
-                    <Loader fullScreen={false} />
-                </div>
-            ) : (
-                <ul className={css.list}>
-                    {tracks.map((track) => {
-                        const published = track.status === 'published';
-                        return (
-                            <li key={track.id} className={css.track}>
-                                <div className={css.trackMain}>
-                                    <p className={css.cardTitle}>{track.title}</p>
-                                    <p className={css.cardCredits}>
-                                        {track.credits}
-                                        {track.albumTitle ? ` · ${track.albumTitle}` : ''}
-                                    </p>
-                                </div>
-                                <p className={published ? css.markOn : css.markOff}>
-                                    {published ? 'В эфире' : 'Черновик'}
-                                </p>
-                                <div className={css.trackActions}>
-                                    <button
-                                        type="button"
-                                        className={css.trackPlay}
-                                        aria-label={`Слушать ${track.title}`}
-                                        title={`Слушать ${track.title}`}
-                                        onClick={() => void listen(track)}
-                                    >
-                                        <PlayIcon className={css.trackPlayIcon} />
-                                    </button>
-                                    {published ? (
+                {player ? (
+                    <TrackPlayer
+                        title={player.title}
+                        credits={player.credits}
+                        description={player.description}
+                        coverUrl={player.coverUrl}
+                        src={player.src}
+                        playRequest={playRequest}
+                    />
+                ) : null}
+
+                {loading ? (
+                    <div aria-busy="true" aria-label="Загрузка записей">
+                        <Loader fullScreen={false} />
+                    </div>
+                ) : listEmpty ? (
+                    <p className={css.empty}>{EMPTY_COPY[tab]}</p>
+                ) : tab === 'tracks' ? (
+                    <ul className={css.list}>
+                        {tracks.map((track) => {
+                            const published = track.status === 'published';
+                            const meta = [track.credits, track.albumTitle].filter(Boolean).join(' · ');
+                            return (
+                                <li key={track.id} className={css.row}>
+                                    <Thumb src={track.hasCover ? trackCoverUrl(track.id) : null} />
+                                    <div className={css.rowMain}>
+                                        <p className={css.rowTitle}>{track.title}</p>
+                                        <p className={css.rowMeta}>
+                                            {meta ? <span className={css.rowMetaText}>{meta}</span> : null}
+                                            <StatusMark published={published} />
+                                        </p>
+                                    </div>
+                                    <div className={css.rowActions}>
                                         <button
                                             type="button"
-                                            className={css.trackIcon}
-                                            aria-label={`Снять «${track.title}» с публикации`}
-                                            title="Снять с публикации"
-                                            onClick={() => setPending({ id: track.id, action: 'unpublish', title: track.title })}
+                                            className={css.play}
+                                            aria-label={`Слушать ${track.title}`}
+                                            title={`Слушать ${track.title}`}
+                                            onClick={() => void listen(track)}
                                         >
-                                            <UnpublishIcon className={css.trackPlayIcon} />
+                                            <PlayIcon className={css.rowIcon} />
                                         </button>
-                                    ) : (
+                                        {published ? (
+                                            <button
+                                                type="button"
+                                                className={css.iconButton}
+                                                aria-label={`Снять «${track.title}» с публикации`}
+                                                title="Снять с публикации"
+                                                onClick={() => setPending({ kind: 'track', id: track.id, action: 'unpublish', title: track.title })}
+                                            >
+                                                <UnpublishIcon className={css.rowIcon} />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className={css.iconButton}
+                                                aria-label={`Опубликовать «${track.title}»`}
+                                                title="Опубликовать"
+                                                onClick={() => {
+                                                    void publishMusicTrack(track.id)
+                                                        .then(() => load())
+                                                        .catch((err: unknown) => {
+                                                            setError(err instanceof Error ? err.message : 'Не удалось опубликовать.');
+                                                        });
+                                                }}
+                                            >
+                                                <PublishIcon className={css.rowIcon} />
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
-                                            className={css.trackIcon}
-                                            aria-label={`Опубликовать «${track.title}»`}
-                                            title="Опубликовать"
+                                            className={css.iconButton}
+                                            aria-label={`Изменить «${track.title}»`}
+                                            title="Изменить"
                                             onClick={() => {
-                                                void publishMusicTrack(track.id)
-                                                    .then(() => load())
-                                                    .catch((err: unknown) => {
-                                                        setError(err instanceof Error ? err.message : 'Не удалось опубликовать.');
-                                                    });
+                                                setError(null);
+                                                setEditingTrackId(track.id);
+                                                setSheet('track');
                                             }}
                                         >
-                                            <PublishIcon className={css.trackPlayIcon} />
+                                            <PencilIcon className={css.rowIcon} />
                                         </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        className={css.trackIcon}
-                                        aria-label={`Изменить «${track.title}»`}
-                                        title="Изменить"
-                                        onClick={() => beginEdit(track)}
-                                    >
-                                        <PencilIcon className={css.trackPlayIcon} />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`${css.trackIcon} ${css.trackDanger}`}
-                                        aria-label={`Удалить «${track.title}»`}
-                                        title="Удалить"
-                                        onClick={() => setPending({ id: track.id, action: 'delete', title: track.title })}
-                                    >
-                                        <TrashIcon className={css.trackPlayIcon} />
-                                    </button>
-                                </div>
-                            </li>
-                        );
-                    })}
-                </ul>
-            )}
+                                        <button
+                                            type="button"
+                                            className={`${css.iconButton} ${css.danger}`}
+                                            aria-label={`Удалить «${track.title}»`}
+                                            title="Удалить"
+                                            onClick={() => setPending({ kind: 'track', id: track.id, action: 'delete', title: track.title })}
+                                        >
+                                            <TrashIcon className={css.rowIcon} />
+                                        </button>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                ) : (
+                    <ul className={css.list}>
+                        {visibleCollections.map((collection) => {
+                            const published = collection.status === 'published';
+                            return (
+                                <li key={collection.id} className={css.row}>
+                                    <Thumb src={collection.hasCover ? collectionCoverUrl(collection.id) : null} />
+                                    <div className={css.rowMain}>
+                                        <p className={css.rowTitle}>{collection.title}</p>
+                                        <p className={css.rowMeta}>
+                                            <span className={css.rowMetaText}>{countLabel(collection.trackCount)}</span>
+                                            <StatusMark published={published} />
+                                        </p>
+                                    </div>
+                                    <div className={css.rowActions}>
+                                        {published ? (
+                                            <button
+                                                type="button"
+                                                className={css.iconButton}
+                                                aria-label={`Снять «${collection.title}» с публикации`}
+                                                title="Снять с публикации"
+                                                onClick={() => setPending({
+                                                    kind: 'collection',
+                                                    id: collection.id,
+                                                    action: 'unpublish',
+                                                    title: collection.title,
+                                                })}
+                                            >
+                                                <UnpublishIcon className={css.rowIcon} />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className={css.iconButton}
+                                                aria-label={`Опубликовать «${collection.title}»`}
+                                                title="Опубликовать"
+                                                onClick={() => void publishCollectionNow(collection)}
+                                            >
+                                                <PublishIcon className={css.rowIcon} />
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className={css.iconButton}
+                                            aria-label={`Изменить «${collection.title}»`}
+                                            title="Изменить"
+                                            onClick={() => {
+                                                setError(null);
+                                                setEditingCollectionId(collection.id);
+                                                setSheet('collection');
+                                            }}
+                                        >
+                                            <PencilIcon className={css.rowIcon} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={css.iconButton}
+                                            aria-label={`Состав: ${collection.title}`}
+                                            title="Состав"
+                                            onClick={() => {
+                                                setError(null);
+                                                setEditingCollectionId(collection.id);
+                                                setSheet('compose');
+                                            }}
+                                        >
+                                            <ListIcon className={css.rowIcon} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`${css.iconButton} ${css.danger}`}
+                                            aria-label={`Удалить «${collection.title}»`}
+                                            title="Удалить"
+                                            onClick={() => setPending({
+                                                kind: 'collection',
+                                                id: collection.id,
+                                                action: 'delete',
+                                                title: collection.title,
+                                            })}
+                                        >
+                                            <TrashIcon className={css.rowIcon} />
+                                        </button>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+            </div>
 
-            <AdminCollections
-                collections={collections}
-                tracks={tracks}
-                onReload={() => void load()}
-                onError={setError}
-            />
+            <ModalPopup
+                isOpen={sheet === 'track'}
+                onClose={closeSheet}
+                title={editingTrackId ? 'Правка' : 'Новая запись'}
+            >
+                <TrackSheet
+                    key={editingTrackId ?? 'new'}
+                    editingId={editingTrackId}
+                    initial={{
+                        title: editingTrack?.title ?? '',
+                        credits: editingTrack?.credits ?? '',
+                        description: editingTrack?.description ?? '',
+                        albumId: editingTrack?.albumId ?? '',
+                    }}
+                    albums={albums}
+                    error={error}
+                    onError={setError}
+                    onPreview={setPlayer}
+                    onDone={() => {
+                        closeSheet();
+                        setPlayer(null);
+                        void load();
+                    }}
+                    onCancel={closeSheet}
+                />
+            </ModalPopup>
 
-            <ModalPopup isOpen={pending !== null} onClose={() => setPending(null)}>
+            <ModalPopup
+                isOpen={sheet === 'collection'}
+                onClose={closeSheet}
+                title={editingCollection
+                    ? (editingCollection.type === 'album' ? 'Правка альбома' : 'Правка плейлиста')
+                    : ADD_LABEL[tab === 'tracks' ? 'albums' : tab]}
+            >
+                <CollectionSheet
+                    key={editingCollectionId ?? `new-${sheetType}`}
+                    type={editingCollection?.type ?? sheetType}
+                    collection={editingCollection}
+                    error={error}
+                    onError={setError}
+                    onDone={() => {
+                        closeSheet();
+                        void load();
+                    }}
+                />
+            </ModalPopup>
+
+            <ModalPopup
+                isOpen={sheet === 'compose' && editingCollection !== null}
+                onClose={closeSheet}
+                title={editingCollection ? `Состав «${editingCollection.title}»` : 'Состав'}
+            >
+                {editingCollection ? (
+                    <CollectionTracksSheet
+                        collection={editingCollection}
+                        tracks={tracks}
+                        error={error}
+                        onReload={() => void load()}
+                        onError={setError}
+                    />
+                ) : null}
+            </ModalPopup>
+
+            <ModalPopup isOpen={pending !== null} onClose={() => setPending(null)} title={confirmTitle}>
                 {pending ? (
-                    <div role="dialog" aria-modal="true" aria-labelledby="music-confirm-title">
-                        <h3 id="music-confirm-title">
-                            {pending.action === 'delete'
-                                ? `Удалить «${pending.title}»?`
-                                : `Снять «${pending.title}» с публикации?`}
-                        </h3>
-                        <p>
-                            {pending.action === 'delete'
-                                ? 'Файл и карточка исчезнут. Это нельзя отменить.'
-                                : 'Гости перестанут видеть запись. Черновик останется у вас.'}
-                        </p>
+                    <>
+                        <p>{confirmBody}</p>
                         <div className={css.formActions}>
                             <button type="button" className={css.quiet} onClick={() => setPending(null)}>
                                 Отмена
                             </button>
-                            <button type="button" className={css.danger} onClick={() => void confirmPending()}>
+                            <button type="button" className={css.confirmDanger} onClick={() => void confirmPending()}>
                                 {pending.action === 'delete' ? 'Удалить' : 'Снять'}
                             </button>
                         </div>
-                    </div>
+                    </>
                 ) : null}
             </ModalPopup>
-            </div>
         </main>
     );
 };
