@@ -143,6 +143,157 @@
     list-style: none;
     margin: 0;
     padding: 0;
+    min-width: 0;
+}
+
+.track {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e6e6e6;
+    min-width: 0;
+}
+
+.trackMain {
+    min-width: 0;
+}
+
+.track .cardTitle,
+.track .cardCredits {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.markOn,
+.markOff {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.markOn::before,
+.markOff::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.markOn {
+    color: #1b5e20;
+}
+
+.markOff {
+    color: #8a5a00;
+}
+
+.trackActions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.trackPlay,
+.trackMore,
+.trackPrimary {
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.trackPlay,
+.trackMore {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.trackPlay {
+    border: none;
+    background: #111;
+    color: #fff;
+}
+
+.trackMore {
+    border: none;
+    background: transparent;
+    color: #111;
+}
+
+.trackMore[aria-expanded='true'] {
+    background: #f3f3f3;
+}
+
+.trackPlayIcon {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
+.trackPrimary {
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid #111;
+    border-radius: 12px;
+    background: #111;
+    color: #fff;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
+}
+
+.trackMenu {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.trackMenu button {
+    min-height: 44px;
+    padding: 0 4px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #111;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 650;
+    text-align: left;
+    cursor: pointer;
+}
+
+.trackDanger {
+    color: #8f2d2d !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+@media (min-width: 720px) {
+    .track {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 12px;
+    }
+
+    .trackActions {
+        grid-column: auto;
+        margin-top: 0;
+    }
 }
 
 .draft,

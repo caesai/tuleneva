@@ -18,6 +18,7 @@ import {
     updateMusicTrack,
 } from '@/api/music.api.ts';
 import { AdminCollections } from '@/pages/AdminMusicPage/AdminCollections.tsx';
+import { MoreIcon, PlayIcon } from '@/components/Icons/Icons.tsx';
 import { TrackPlayer } from '@/components/TrackPlayer/TrackPlayer.tsx';
 import { ModalPopup } from '@/components/ModalPopup/ModalPopup.tsx';
 import { Loader } from '@/components/Loader/Loader.tsx';
@@ -62,6 +63,7 @@ export const AdminMusicPage: React.FC = () => {
     const [player, setPlayer] = useState<PlayerSource | null>(null);
     const [playRequest, setPlayRequest] = useState(0);
     const [pending, setPending] = useState<{ id: string; action: 'unpublish' | 'delete'; title: string } | null>(null);
+    const [menuId, setMenuId] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -432,56 +434,92 @@ export const AdminMusicPage: React.FC = () => {
                 </div>
             ) : (
                 <ul className={css.list}>
-                    {tracks.map((track) => (
-                        <li key={track.id} className={css.card}>
-                            <div>
-                                <p className={css.cardTitle}>{track.title}</p>
-                                <p className={css.cardCredits}>
-                                    {track.credits}
-                                    {track.albumTitle ? ` · ${track.albumTitle}` : ''}
+                    {tracks.map((track) => {
+                        const published = track.status === 'published';
+                        const menuOpen = menuId === track.id;
+                        return (
+                            <li key={track.id} className={css.track}>
+                                <div className={css.trackMain}>
+                                    <p className={css.cardTitle}>{track.title}</p>
+                                    <p className={css.cardCredits}>
+                                        {track.credits}
+                                        {track.albumTitle ? ` · ${track.albumTitle}` : ''}
+                                    </p>
+                                </div>
+                                <p className={published ? css.markOn : css.markOff}>
+                                    {published ? 'В эфире' : 'Черновик'}
                                 </p>
-                                <p className={track.status === 'published' ? css.published : css.draft}>
-                                    {track.status === 'published' ? 'Опубликовано' : 'Черновик'}
-                                </p>
-                            </div>
-                            <div className={css.cardActions}>
-                                <button type="button" onClick={() => listen(track)}>
-                                    Слушать
-                                </button>
-                                <button type="button" onClick={() => beginEdit(track)}>
-                                    Изменить
-                                </button>
-                                {track.status === 'published' ? (
+                                <div className={css.trackActions}>
                                     <button
                                         type="button"
-                                        onClick={() => setPending({ id: track.id, action: 'unpublish', title: track.title })}
+                                        className={css.trackPlay}
+                                        aria-label={`Слушать ${track.title}`}
+                                        onClick={() => void listen(track)}
                                     >
-                                        Снять с публикации
+                                        <PlayIcon className={css.trackPlayIcon} />
                                     </button>
-                                ) : (
+                                    {published ? null : (
+                                        <button
+                                            type="button"
+                                            className={css.trackPrimary}
+                                            onClick={() => {
+                                                void publishMusicTrack(track.id)
+                                                    .then(() => load())
+                                                    .catch((err: unknown) => {
+                                                        setError(err instanceof Error ? err.message : 'Не удалось опубликовать.');
+                                                    });
+                                            }}
+                                        >
+                                            Опубликовать
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            void publishMusicTrack(track.id)
-                                                .then(() => load())
-                                                .catch((err: unknown) => {
-                                                    setError(err instanceof Error ? err.message : 'Не удалось опубликовать.');
-                                                });
-                                        }}
+                                        className={css.trackMore}
+                                        aria-expanded={menuOpen}
+                                        aria-label={`Действия ${track.title}`}
+                                        onClick={() => setMenuId(menuOpen ? null : track.id)}
                                     >
-                                        Опубликовать
+                                        <MoreIcon className={css.trackPlayIcon} />
                                     </button>
-                                )}
-                                <button
-                                    type="button"
-                                    className={css.danger}
-                                    onClick={() => setPending({ id: track.id, action: 'delete', title: track.title })}
-                                >
-                                    Удалить
-                                </button>
-                            </div>
-                        </li>
-                    ))}
+                                </div>
+                                {menuOpen ? (
+                                    <div className={css.trackMenu}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMenuId(null);
+                                                beginEdit(track);
+                                            }}
+                                        >
+                                            Изменить
+                                        </button>
+                                        {published ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setMenuId(null);
+                                                    setPending({ id: track.id, action: 'unpublish', title: track.title });
+                                                }}
+                                            >
+                                                Снять с публикации
+                                            </button>
+                                        ) : null}
+                                        <button
+                                            type="button"
+                                            className={css.trackDanger}
+                                            onClick={() => {
+                                                setMenuId(null);
+                                                setPending({ id: track.id, action: 'delete', title: track.title });
+                                            }}
+                                        >
+                                            Удалить
+                                        </button>
+                                    </div>
+                                ) : null}
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
 
