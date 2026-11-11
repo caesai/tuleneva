@@ -8,6 +8,16 @@
     --line: #e6e6e6;
     --paper: #ffffff;
     --danger: #8f2d2d;
+    /* Типы слота: смыслы MUI info / error / success с main, мягкая заливка. */
+    --chip-rehearsal-bg: #e5f4fb;
+    --chip-rehearsal-fg: #01579b;
+    --chip-rehearsal-line: #0288d1;
+    --chip-recording-bg: #fdecea;
+    --chip-recording-fg: #9f1d1d;
+    --chip-recording-line: #d32f2f;
+    --chip-shooting-bg: #e8f5e9;
+    --chip-shooting-fg: #1b5e20;
+    --chip-shooting-line: #2e7d32;
     --heading: 22px;
     --subheading: 16px;
     --body: 15px;

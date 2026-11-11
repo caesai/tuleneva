@@ -6,6 +6,7 @@ import { RehearsalCard } from "@/components/RehearsalCard/RehearsalCard.tsx";
 import moment from "moment";
 import css from "@/components/BookModalPopup/BookModalPopup.module.css";
 import ui from "@/theme/ui.module.css";
+import { rehearsalTypeChipClass } from "@/theme/rehearsalChips.ts";
 import type { TRehearsalType } from "@/types/timetable.types.ts";
 
 /**
@@ -128,7 +129,12 @@ const RehearsalTypesSelector: React.FC<IRehearsalTypesSelectorProps> = ({ rehear
                     type="button"
                     role="radio"
                     aria-checked={rehearsalType === chip.type}
-                    className={rehearsalType === chip.type ? css.typeOn : css.type}
+                    className={[
+                        ui.chip,
+                        ui.chipChoice,
+                        rehearsalTypeChipClass(chip.type),
+                        rehearsalType === chip.type ? ui.chipOn : '',
+                    ].filter(Boolean).join(' ')}
                     onClick={() => onRehearsalTypeChange(chip.type)}
                 >
                     {chip.label}

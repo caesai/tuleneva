@@ -1,5 +1,5 @@
 /**
- * @file Карточка репетиции: время крупно, имя и коллектив приглушены, статус — тихий чип.
+ * @file Карточка репетиции: время крупно, имя и коллектив приглушены, тип — цветной чип.
  */
 .slot {
     width: 100%;
@@ -37,14 +37,4 @@
     white-space: nowrap;
     color: #767676;
     font-size: 15px;
-}
-
-.status {
-    flex-shrink: 0;
-    padding: 4px 8px;
-    border: 1px solid #e6e6e6;
-    border-radius: 999px;
-    color: #767676;
-    font-size: 12px;
-    font-weight: 650;
 }

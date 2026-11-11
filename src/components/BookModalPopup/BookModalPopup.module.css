@@ -1,33 +1,10 @@
 /**
- * @file Форма брони: тип, коллектив, одна чёрная кнопка справа.
+ * @file Форма брони: цветные типы, коллектив, одна чёрная кнопка справа.
  */
 .types {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-}
-
-.type,
-.typeOn {
-    min-height: 44px;
-    padding: 0 14px;
-    border-radius: 999px;
-    font: inherit;
-    font-size: 14px;
-    font-weight: 650;
-    cursor: pointer;
-}
-
-.type {
-    border: 1px solid #e6e6e6;
-    background: #fff;
-    color: #767676;
-}
-
-.typeOn {
-    border: 1px solid #111;
-    background: #fff;
-    color: #111;
 }
 
 .band {

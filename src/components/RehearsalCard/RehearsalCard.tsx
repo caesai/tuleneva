@@ -1,6 +1,8 @@
 import React, { type JSX } from "react"
 import { Card } from "@mui/material";
 import css from '@/components/RehearsalCard/RehearsalCard.module.css';
+import ui from '@/theme/ui.module.css';
+import { rehearsalTypeChipClass } from '@/theme/rehearsalChips.ts';
 import type { TRehearsalType } from "@/types/timetable.types";
 import { SafeAvatar } from '@/components/SafeAvatar/SafeAvatar.tsx';
 
@@ -102,7 +104,9 @@ export const RehearsalCard: React.FC<IRehearsalCardProps> = ({
                         <p className={css.band}>{bookingBandName}</p>
                     ) : null}
                 </div>
-                <span className={css.status}>{typeLabel}</span>
+                <span className={`${ui.chip} ${ui.chipStatic} ${rehearsalTypeChipClass(rehearsalType)}`}>
+                    {typeLabel}
+                </span>
             </div>
         </Card>
     )

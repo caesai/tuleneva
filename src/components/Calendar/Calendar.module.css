@@ -1,3 +1,25 @@
-.booked {
-    border: 1px solid;
+/**
+ * @file Маркер брони: гитара в углу дня, без подложки и без чёрной точки.
+ * Линейный знак на 14px теряет форму гитары, поэтому здесь эмодзи с main.
+ */
+.day :global(.MuiBadge-badge).marker {
+    background: transparent;
+    padding: 0;
+    min-width: 0;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    box-shadow: none;
+    line-height: 1;
+    top: -1px;
+    right: -1px;
+    transform: none;
+    pointer-events: none;
+}
+
+.guitar {
+    display: block;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+    font-size: 13px;
+    line-height: 1;
 }

@@ -1,6 +1,7 @@
 /**
  * @file Тема MUI для расписания и админки.
  * Палитра и радиус совпадают с публичными страницами: один залитый акцент — чёрный.
+ * Чипы типов слота держат цвета main: info, error, success, но мягкой заливкой.
  */
 import { createTheme } from '@mui/material/styles';
 
@@ -53,9 +54,21 @@ export const appTheme = createTheme({
                     height: 28,
                     borderRadius: 999,
                     fontWeight: 650,
-                    background: '#fff',
-                    border: `1px solid ${line}`,
-                    color: muted,
+                },
+                colorInfo: {
+                    backgroundColor: 'var(--chip-rehearsal-bg)',
+                    color: 'var(--chip-rehearsal-fg)',
+                    border: '1px solid var(--chip-rehearsal-line)',
+                },
+                colorError: {
+                    backgroundColor: 'var(--chip-recording-bg)',
+                    color: 'var(--chip-recording-fg)',
+                    border: '1px solid var(--chip-recording-line)',
+                },
+                colorSuccess: {
+                    backgroundColor: 'var(--chip-shooting-bg)',
+                    color: 'var(--chip-shooting-fg)',
+                    border: '1px solid var(--chip-shooting-line)',
                 },
             },
         },
