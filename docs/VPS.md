@@ -323,6 +323,8 @@ scp -r deploy@IP:/var/backups/tuleneva/YYYYMMDDTHHMMSSZ ./tuleneva-mongo-backup
 
 Файлы музыки не входят в `mongodump`. Скрипт [server/scripts/backup-media.sh](../server/scripts/backup-media.sh) кладёт каталог в `tar.gz` и оставляет последние `RETAIN` архивов (по умолчанию 14). Скопируйте его отдельно от релиза, как и дамп Mongo, например в `/usr/local/bin/backup-media.sh`.
 
+Если `MEDIA_DIR` — символическая ссылка, в архив попадает каталог, на который она указывает, под именем ссылки. Ссылки на отдельные файлы внутри каталога остаются ссылками: скрипт не копирует их содержимое. Каталог архивов не кладите внутрь `MEDIA_DIR`, иначе очередной архив заберёт предыдущие.
+
 ```bash
 sudo mkdir -p /var/lib/tuleneva/media /var/backups/tuleneva-media
 # В /etc/tuleneva/backup.env добавьте (каталог бэкапа — другой диск, если есть):
